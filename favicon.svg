@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ClubCashBuddy icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="378" cy="140" r="70" fill="url(#coin)"/>
+  <path d="M170 140h180c38 0 68 30 68 68s-30 68-68 68h-78" fill="none" stroke="#fff" stroke-width="44" stroke-linecap="round"/>
+  <path d="M342 372H160c-38 0-68-30-68-68s30-68 68-68h84" fill="none" stroke="#fff" stroke-width="44" stroke-linecap="round"/>
+</svg>

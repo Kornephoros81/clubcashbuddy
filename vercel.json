@@ -1,0 +1,87 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "vite build && echo '🚀 Forced rebuild at' $(date)",
+  "outputDirectory": "dist",
+  "installCommand": "npm install --include=dev",
+  "devCommand": "vite dev",
+  "cleanUrls": false,
+  "trailingSlash": false,
+
+  "headers": [
+    {
+      "source": "/\\.well-known/assetlinks.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate, max-age=0"
+        },
+        { "key": "CDN-Cache-Control", "value": "no-store" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        { "key": "Pragma", "value": "no-cache" },
+        { "key": "Expires", "value": "0" }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json" },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/((?!api/).*)",
+      "headers": [
+        { "key": "Service-Worker-Allowed", "value": "/" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "no-referrer-when-downgrade" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" }
+      ]
+    },
+    {
+      "source": "/favicon.(svg|ico)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+
+  "rewrites": [
+    {
+      "source": "/api/(admin-login|admin-logout|admin-members|admin-products|admin-product-image|admin-branding-logo|admin-storage|admin-rpc|branding|catalog-products|device-login|device-pair|member-pin-status|member-pin-verify|get-members|terminal-snapshot|get-member-bookings|get-today-transactions|get-booked-today-members|book-transaction|book-transactions-batch|cancel-transaction|get-stock-info|adjust-stock-batch|device-add-guest|device-settle-guest|device-settle-guest-partial|ping)",
+      "destination": "/api/app?route=$1"
+    },
+    {
+      "source": "/((?!api/|assets/|favicon|manifest|service-worker|robots\\.txt|\\.well-known).*)",
+      "destination": "/index.html"
+    }
+  ],
+
+  "ignoreCommand": "echo '⚙️ Skipping build cache reuse – forcing rebuild' && exit 1"
+}

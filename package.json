@@ -1,0 +1,32 @@
+{
+  "name": "vereinskasse",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy:clean": "vercel --prod --force --yes && vercel cache purge --yes"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "idb": "^8.0.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.27",
+    "vue-router": "^4.3.0",
+    "papaparse": "^5.4.1",
+    "chart.js": "^4.4.4",
+    "vue-chartjs": "^5.3.1",
+    "@vuepic/vue-datepicker": "^7.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.5",
+    "vite": "^5.4.0",
+    "typescript": "^5.5.4",
+    "tailwindcss": "^3.4.13",
+    "postcss": "^8.4.38",
+    "autoprefixer": "^10.4.19",
+    "vite-plugin-pwa": "^0.20.0"
+  }
+}

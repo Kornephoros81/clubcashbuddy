@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.vereinskasse_bcsiegtal.twa",
+      "sha256_cert_fingerprints": [
+        "7F:2A:D6:2D:E5:CF:9C:35:64:E9:7D:EF:58:28:76:F7:2D:EC:8E:A3:ED:F8:49:4E:89:43:D3:96:89:85:F0:F8"
+      ]
+    }
+  }
+]
