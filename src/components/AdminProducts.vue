@@ -145,7 +145,14 @@ const sortedProducts = computed(() => {
   return [...store.products].sort((a: any, b: any) => {
     const av = String(a?.[sortBy.value] ?? "");
     const bv = String(b?.[sortBy.value] ?? "");
-    return collator.compare(av, bv) * factor;
+    const primary = collator.compare(av, bv) * factor;
+    if (primary !== 0) return primary;
+    if (sortBy.value === "category") {
+      const an = String(a?.name ?? "");
+      const bn = String(b?.name ?? "");
+      return collator.compare(an, bn);
+    }
+    return 0;
   });
 });
 
