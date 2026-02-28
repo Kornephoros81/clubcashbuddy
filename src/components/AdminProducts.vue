@@ -12,7 +12,6 @@ const { confirm } = useModal();
 const showNewProductModal = ref(false);
 const newProductName = ref("");
 const newProductCategory = ref("Sonstiges");
-const newCategoryName = ref("");
 const newProductPrice = ref<number | null>(null);
 const newGuestPrice = ref<number | null>(null);
 const newProductInventoried = ref(true);
@@ -170,44 +169,6 @@ function sortIndicator(column: "name" | "category") {
   return sortDir.value === "asc" ? " ▲" : " ▼";
 }
 
-async function addCategory() {
-  const name = newCategoryName.value.trim();
-  if (!name) {
-    showToast("⚠️ Bitte Kategorienamen angeben");
-    return;
-  }
-  try {
-    await store.addCategory(name);
-    newCategoryName.value = "";
-    if (!newProductCategory.value) newProductCategory.value = name;
-    showToast("✅ Kategorie angelegt");
-    await delay(400);
-  } catch (err) {
-    console.error("[addCategory]", err);
-    showToast("⚠️ Fehler beim Anlegen der Kategorie");
-  }
-}
-
-async function saveCategory(c: any) {
-  const name = String(c.name ?? "").trim();
-  if (!name) {
-    showToast("⚠️ Kategorie darf nicht leer sein");
-    return;
-  }
-  try {
-    await store.updateCategory({
-      ...c,
-      name,
-      sort_order: Number(c.sort_order ?? 0),
-    });
-    showToast("✅ Kategorie gespeichert");
-    await delay(400);
-  } catch (err) {
-    console.error("[saveCategory]", err);
-    showToast("⚠️ Fehler beim Speichern der Kategorie");
-  }
-}
-
 /* 💾 Speichert alle Produkte, die im Store aktuell stehen */
 async function saveAll() {
   try {
@@ -308,6 +269,12 @@ async function deleteProduct(p: any) {
       <h2 class="text-xl font-semibold text-primary">Artikelverwaltung</h2>
 
       <div class="flex gap-2">
+        <RouterLink
+          to="/admin/product-categories"
+          class="bg-primary/10 text-primary px-4 py-2 rounded-lg shadow hover:bg-primary/20 transition"
+        >
+          Kategorien
+        </RouterLink>
         <button
           @click="saveAll"
           class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition"
@@ -325,72 +292,6 @@ async function deleteProduct(p: any) {
 
     <div v-if="store.loading" class="text-center py-10 text-gray-500">
       ⏳ Artikel werden geladen...
-    </div>
-
-    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3">
-      <div class="flex items-center justify-between gap-3">
-        <h3 class="font-semibold text-primary">Kategorien</h3>
-        <div class="flex items-center gap-2">
-          <input
-            v-model="newCategoryName"
-            placeholder="Neue Kategorie"
-            class="border rounded-md px-3 py-1.5 text-sm w-52"
-          />
-          <button
-            @click="addCategory"
-            class="bg-primary text-white px-3 py-1.5 rounded-md hover:bg-primary/90 text-sm"
-          >
-            + Kategorie
-          </button>
-        </div>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-sm text-gray-700">
-          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
-            <tr>
-              <th class="px-3 py-2 text-left">Name</th>
-              <th class="px-3 py-2 text-right">Sortierung</th>
-              <th class="px-3 py-2 text-center">Aktiv</th>
-              <th class="px-3 py-2 text-right">Produkte</th>
-              <th class="px-3 py-2 text-center">Aktion</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in store.categories" :key="c.id" class="border-t">
-              <td class="px-3 py-2">
-                <input
-                  v-model="c.name"
-                  class="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                />
-              </td>
-              <td class="px-3 py-2 text-right">
-                <input
-                  v-model.number="c.sort_order"
-                  type="number"
-                  class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                />
-              </td>
-              <td class="px-3 py-2 text-center">
-                <input
-                  type="checkbox"
-                  v-model="c.active"
-                  class="scale-125 accent-primary"
-                />
-              </td>
-              <td class="px-3 py-2 text-right">{{ c.product_count }}</td>
-              <td class="px-3 py-2 text-center">
-                <button
-                  @click="saveCategory(c)"
-                  class="bg-primary/10 text-primary px-3 py-1 rounded-md hover:bg-primary/20 text-sm font-medium"
-                >
-                  Speichern
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </div>
 
     <div
