@@ -153,6 +153,13 @@ begin
     set pin_plain = excluded.pin_plain;
 
   -- 4) Products (20 in 2 categories: Getraenke + Essen)
+  insert into public.product_categories (name, active, sort_order)
+  values
+    ('Getraenke', true, 10),
+    ('Essen', true, 20),
+    ('Sonstiges', true, 999)
+  on conflict (name) do nothing;
+
   with seed(name, category, price, guest_price, inventoried) as (
     values
       ('Cola 0.33', 'Getraenke', 180, 220, true),
@@ -203,6 +210,7 @@ begin
   select
     p.id,
     p.name,
+    p.category,
     p.price,
     p.guest_price,
     p.inventoried,
