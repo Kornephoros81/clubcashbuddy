@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAppAuthStore } from "@/stores/useAppAuthStore";
 
 const email = ref("");
@@ -66,14 +66,25 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAppAuthStore();
+
+function getPostLoginRedirect() {
+  const rawRedirect = route.query.redirect;
+  const redirect = Array.isArray(rawRedirect) ? rawRedirect[0] : rawRedirect;
+
+  if (typeof redirect === "string" && redirect.startsWith("/admin/")) {
+    return redirect;
+  }
+  return "/admin/dashboard";
+}
 
 async function login() {
   error.value = null;
   loading.value = true;
   try {
     await authStore.loginAdmin(email.value.trim(), password.value);
-    router.push("/admin/dashboard");
+    await router.push(getPostLoginRedirect());
   } catch (e: any) {
     error.value = "❌ " + (e?.message || "Login fehlgeschlagen");
   } finally {

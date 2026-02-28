@@ -61,6 +61,15 @@ async function handleSubmit() {
         <span v-else>⏳ Wird überprüft...</span>
       </button>
 
+      <div class="mt-3">
+        <RouterLink
+          :to="{ path: '/login', query: { redirect: '/admin/device-pairing' } }"
+          class="text-sm text-gray-600 hover:text-blue-700 underline"
+        >
+          Zum Admin-Login
+        </RouterLink>
+      </div>
+
       <p
         v-if="errorMsg"
         class="text-red-600 text-center mt-3 text-sm"
