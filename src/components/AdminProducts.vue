@@ -18,6 +18,8 @@ const newGuestPrice = ref<number | null>(null);
 const newProductInventoried = ref(true);
 const uploadingImageById = ref<Record<string, boolean>>({});
 const brokenPreviewById = ref<Record<string, boolean>>({});
+const sortBy = ref<"name" | "category">("category");
+const sortDir = ref<"asc" | "desc">("asc");
 
 onMounted(async () => {
   await store.initCategories();
@@ -136,6 +138,37 @@ const productCategoryOptions = computed(() => {
     .filter((c) => c.active || used.has(c.name))
     .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 });
+
+const sortedProducts = computed(() => {
+  const collator = new Intl.Collator("de", { sensitivity: "base", numeric: true });
+  const factor = sortDir.value === "asc" ? 1 : -1;
+  return [...store.products].sort((a: any, b: any) => {
+    const av = String(a?.[sortBy.value] ?? "");
+    const bv = String(b?.[sortBy.value] ?? "");
+    const primary = collator.compare(av, bv) * factor;
+    if (primary !== 0) return primary;
+    if (sortBy.value === "category") {
+      const an = String(a?.name ?? "");
+      const bn = String(b?.name ?? "");
+      return collator.compare(an, bn);
+    }
+    return 0;
+  });
+});
+
+function toggleSort(column: "name" | "category") {
+  if (sortBy.value === column) {
+    sortDir.value = sortDir.value === "asc" ? "desc" : "asc";
+    return;
+  }
+  sortBy.value = column;
+  sortDir.value = "asc";
+}
+
+function sortIndicator(column: "name" | "category") {
+  if (sortBy.value !== column) return "";
+  return sortDir.value === "asc" ? " ▲" : " ▼";
+}
 
 async function addCategory() {
   const name = newCategoryName.value.trim();
@@ -369,10 +402,18 @@ async function deleteProduct(p: any) {
           class="bg-primary/10 text-primary uppercase text-xs font-semibold"
         >
           <tr>
-            <th class="px-4 py-3 text-left">Name</th>
+            <th class="px-4 py-3 text-left">
+              <button @click="toggleSort('name')" class="hover:underline normal-case">
+                Name{{ sortIndicator("name") }}
+              </button>
+            </th>
             <th class="px-4 py-3 text-right">Preis (€)</th>
             <th class="px-4 py-3 text-right">Gast (€)</th>
-            <th class="px-4 py-3 text-left">Kategorie</th>
+            <th class="px-4 py-3 text-left">
+              <button @click="toggleSort('category')" class="hover:underline normal-case">
+                Kategorie{{ sortIndicator("category") }}
+              </button>
+            </th>
             <th class="px-4 py-3 text-left">Bild</th>
             <th class="px-4 py-3 text-center">Aktiv</th>
             <th class="px-4 py-3 text-center">Inventarisiert</th>
@@ -382,7 +423,7 @@ async function deleteProduct(p: any) {
 
         <tbody>
           <tr
-            v-for="p in store.products"
+            v-for="p in sortedProducts"
             :key="p.id"
             class="border-t hover:bg-primary/5 transition-colors"
           >
