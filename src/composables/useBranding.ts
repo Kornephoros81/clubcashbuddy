@@ -12,12 +12,21 @@ const DEFAULT_LOGO_URL = "/icons/icon-192.png";
 const appTitle = ref<string>(DEFAULT_TITLE);
 const logoUrl = ref<string>(DEFAULT_LOGO_URL);
 
+function syncDocumentTitle(title: string) {
+  if (typeof document !== "undefined") {
+    document.title = title;
+  }
+}
+
 function applyBranding(data: Partial<BrandingSettings> | null | undefined) {
   const nextTitle = String(data?.app_title ?? "").trim() || DEFAULT_TITLE;
   const nextLogoRaw = String(data?.logo_url ?? "").trim();
   appTitle.value = nextTitle;
   logoUrl.value = nextLogoRaw || DEFAULT_LOGO_URL;
+  syncDocumentTitle(nextTitle);
 }
+
+syncDocumentTitle(appTitle.value);
 
 async function loadBrandingPublic() {
   const res = await fetch("/api/branding", { method: "GET", cache: "no-store" });
