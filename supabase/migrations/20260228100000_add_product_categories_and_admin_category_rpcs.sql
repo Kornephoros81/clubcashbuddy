@@ -11,9 +11,6 @@ create table if not exists public.product_categories (
   constraint product_categories_name_not_blank_chk check (btrim(name) <> '')
 );
 
-create unique index if not exists product_categories_name_ci_key
-  on public.product_categories ((lower(name)));
-
 -- Normalize existing product category values first.
 update public.products p
 set category = coalesce(nullif(btrim(p.category), ''), 'Sonstiges')
