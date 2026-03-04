@@ -473,6 +473,47 @@ async function handleRoute(route, req, res) {
     return json(res, 405, { error: "Method not allowed" });
   }
 
+  if (route === "admin-product-categories") {
+    const token = extractBearerToken(req);
+    if (!token) return json(res, 401, { error: "Unauthorized" });
+
+    if (req.method === "GET") {
+      const { data, error } = await supabase.rpc("api_admin_list_product_categories", {
+        p_token: token,
+      });
+      if (error) return json(res, 403, { error: error.message || "Forbidden" });
+      return json(res, 200, data ?? []);
+    }
+
+    if (req.method === "POST") {
+      const name = String(body.name ?? "").trim();
+      if (!name) return json(res, 400, { error: "Missing name" });
+      const { data, error } = await supabase.rpc("api_admin_create_product_category", {
+        p_token: token,
+        p_name: name,
+        p_active: body.active ?? true,
+        p_sort_order: body.sort_order ?? 0,
+      });
+      if (error) return json(res, 403, { error: error.message || "Forbidden" });
+      return json(res, 201, data);
+    }
+
+    if (req.method === "PATCH") {
+      if (!body.id) return json(res, 400, { error: "Missing id" });
+      const { data, error } = await supabase.rpc("api_admin_update_product_category", {
+        p_token: token,
+        p_id: body.id,
+        p_name: body.name ?? null,
+        p_active: body.active ?? null,
+        p_sort_order: body.sort_order ?? null,
+      });
+      if (error) return json(res, 403, { error: error.message || "Forbidden" });
+      return json(res, 200, data);
+    }
+
+    return json(res, 405, { error: "Method not allowed" });
+  }
+
   if (route === "admin-product-image") {
     if (req.method !== "POST" && req.method !== "DELETE") {
       return json(res, 405, { error: "Method not allowed" });

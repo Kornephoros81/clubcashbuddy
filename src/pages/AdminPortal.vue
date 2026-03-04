@@ -92,6 +92,12 @@ onMounted(async () => {
               >🧃 Artikel</RouterLink
             >
             <RouterLink
+              to="/admin/product-categories"
+              class="block px-4 py-2 hover:bg-gray-100"
+              @click="showAdmin = false"
+              >🧩 Kategorien</RouterLink
+            >
+            <RouterLink
               to="/admin/storage"
               class="block px-4 py-2 hover:bg-gray-100"
               @click="showAdmin = false"

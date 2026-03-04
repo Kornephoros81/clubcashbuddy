@@ -26,6 +26,7 @@ async function apiRequest(path: string, method = "GET", body?: unknown) {
 export const useAdminProductsStore = defineStore("adminProducts", {
   state: () => ({
     products: [] as any[],
+    categories: [] as any[],
     loading: false,
   }),
 
@@ -40,6 +41,36 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         guestPriceEuro: p.guest_price / 100,
       }));
       this.loading = false;
+    },
+
+    async initCategories() {
+      const data = await apiRequest("/api/admin-product-categories");
+      this.categories = (data ?? []).map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        active: Boolean(c.active),
+        sort_order: Number(c.sort_order ?? 0),
+        created_at: c.created_at ?? null,
+        product_count: Number(c.product_count ?? 0),
+      }));
+    },
+
+    async addCategory(name: string) {
+      await apiRequest("/api/admin-product-categories", "POST", {
+        name,
+      });
+      await this.initCategories();
+    },
+
+    async updateCategory(category: any) {
+      await apiRequest("/api/admin-product-categories", "PATCH", {
+        id: category.id,
+        name: category.name,
+        active: category.active,
+        sort_order: category.sort_order,
+      });
+      await this.initCategories();
+      await this.initProducts();
     },
 
     async addProduct(p: any) {

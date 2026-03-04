@@ -8607,6 +8607,20 @@ alter table public.products
 notify pgrst, 'reload schema';
 -- <<< END 20260225130000_store_product_images_in_db.sql
 
+-- Initial admin for fresh installations.
+insert into public.app_users (username, password_hash, role, active)
+values (
+  'clubadmin',
+  crypt('ClubCashBuddy', gen_salt('bf')),
+  'admin',
+  true
+)
+on conflict (username) do update
+set
+  password_hash = excluded.password_hash,
+  role = 'admin',
+  active = true;
+
 commit;
 
 

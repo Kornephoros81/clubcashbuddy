@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useAdminProductsStore } from "@/stores/useAdminProductsStore";
 import { useToast } from "@/composables/useToast";
 import { useModal } from "@/composables/useModal";
@@ -11,15 +11,21 @@ const { confirm } = useModal();
 
 const showNewProductModal = ref(false);
 const newProductName = ref("");
-const newProductCategory = ref("");
+const newProductCategory = ref("Sonstiges");
 const newProductPrice = ref<number | null>(null);
 const newGuestPrice = ref<number | null>(null);
 const newProductInventoried = ref(true);
 const uploadingImageById = ref<Record<string, boolean>>({});
 const brokenPreviewById = ref<Record<string, boolean>>({});
+const sortBy = ref<"name" | "category">("category");
+const sortDir = ref<"asc" | "desc">("asc");
 
 onMounted(async () => {
+  await store.initCategories();
   await store.initProducts();
+  if (!store.categories.some((c) => c.name === newProductCategory.value)) {
+    newProductCategory.value = activeCategoryOptions.value[0]?.name ?? "Sonstiges";
+  }
 });
 
 async function delay(ms = 800) {
@@ -119,6 +125,50 @@ async function removeProductImage(product: any) {
   }
 }
 
+const activeCategoryOptions = computed(() =>
+  [...store.categories]
+    .filter((c) => c.active)
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+);
+
+const productCategoryOptions = computed(() => {
+  const used = new Set((store.products ?? []).map((p: any) => String(p.category ?? "")));
+  return [...store.categories]
+    .filter((c) => c.active || used.has(c.name))
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+});
+
+const sortedProducts = computed(() => {
+  const collator = new Intl.Collator("de", { sensitivity: "base", numeric: true });
+  const factor = sortDir.value === "asc" ? 1 : -1;
+  return [...store.products].sort((a: any, b: any) => {
+    const av = String(a?.[sortBy.value] ?? "");
+    const bv = String(b?.[sortBy.value] ?? "");
+    const primary = collator.compare(av, bv) * factor;
+    if (primary !== 0) return primary;
+    if (sortBy.value === "category") {
+      const an = String(a?.name ?? "");
+      const bn = String(b?.name ?? "");
+      return collator.compare(an, bn);
+    }
+    return 0;
+  });
+});
+
+function toggleSort(column: "name" | "category") {
+  if (sortBy.value === column) {
+    sortDir.value = sortDir.value === "asc" ? "desc" : "asc";
+    return;
+  }
+  sortBy.value = column;
+  sortDir.value = "asc";
+}
+
+function sortIndicator(column: "name" | "category") {
+  if (sortBy.value !== column) return "";
+  return sortDir.value === "asc" ? " ▲" : " ▼";
+}
+
 /* 💾 Speichert alle Produkte, die im Store aktuell stehen */
 async function saveAll() {
   try {
@@ -162,7 +212,7 @@ async function confirmAddProduct() {
     showToast("✅ Neuer Artikel angelegt");
     await delay();
     newProductName.value = "";
-    newProductCategory.value = "";
+    newProductCategory.value = activeCategoryOptions.value[0]?.name ?? "Sonstiges";
     newProductPrice.value = null;
     newGuestPrice.value = null;
     newProductInventoried.value = true;
@@ -219,6 +269,12 @@ async function deleteProduct(p: any) {
       <h2 class="text-xl font-semibold text-primary">Artikelverwaltung</h2>
 
       <div class="flex gap-2">
+        <RouterLink
+          to="/admin/product-categories"
+          class="bg-primary/10 text-primary px-4 py-2 rounded-lg shadow hover:bg-primary/20 transition"
+        >
+          Kategorien
+        </RouterLink>
         <button
           @click="saveAll"
           class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition"
@@ -239,7 +295,7 @@ async function deleteProduct(p: any) {
     </div>
 
     <div
-      v-else
+      v-if="!store.loading"
       class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
     >
       <table class="min-w-full text-sm text-gray-700">
@@ -247,10 +303,18 @@ async function deleteProduct(p: any) {
           class="bg-primary/10 text-primary uppercase text-xs font-semibold"
         >
           <tr>
-            <th class="px-4 py-3 text-left">Name</th>
+            <th class="px-4 py-3 text-left">
+              <button @click="toggleSort('name')" class="hover:underline normal-case">
+                Name{{ sortIndicator("name") }}
+              </button>
+            </th>
             <th class="px-4 py-3 text-right">Preis (€)</th>
             <th class="px-4 py-3 text-right">Gast (€)</th>
-            <th class="px-4 py-3 text-left">Kategorie</th>
+            <th class="px-4 py-3 text-left">
+              <button @click="toggleSort('category')" class="hover:underline normal-case">
+                Kategorie{{ sortIndicator("category") }}
+              </button>
+            </th>
             <th class="px-4 py-3 text-left">Bild</th>
             <th class="px-4 py-3 text-center">Aktiv</th>
             <th class="px-4 py-3 text-center">Inventarisiert</th>
@@ -260,7 +324,7 @@ async function deleteProduct(p: any) {
 
         <tbody>
           <tr
-            v-for="p in store.products"
+            v-for="p in sortedProducts"
             :key="p.id"
             class="border-t hover:bg-primary/5 transition-colors"
           >
@@ -299,10 +363,14 @@ async function deleteProduct(p: any) {
 
             <!-- Kategorie -->
             <td class="px-4 py-2">
-              <input
+              <select
                 v-model="p.category"
                 class="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-              />
+              >
+                <option v-for="c in productCategoryOptions" :key="c.id" :value="c.name">
+                  {{ c.name }}
+                </option>
+              </select>
             </td>
 
             <!-- Bild -->
@@ -407,10 +475,14 @@ async function deleteProduct(p: any) {
         />
 
         <label class="block text-sm text-gray-600">Kategorie</label>
-        <input
+        <select
           v-model="newProductCategory"
           class="w-full border rounded-md p-2 text-sm"
-        />
+        >
+          <option v-for="c in activeCategoryOptions" :key="c.id" :value="c.name">
+            {{ c.name }}
+          </option>
+        </select>
 
         <label class="flex items-center gap-2 text-sm text-gray-600 mt-3">
           <input

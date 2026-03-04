@@ -5,6 +5,7 @@ import AdminPortal from "@/pages/AdminPortal.vue";
 import Dashboard from "@/pages/Dashboard.vue";
 import Login from "@/components/AdminLogin.vue";
 import AdminProducts from "@/components/AdminProducts.vue";
+import AdminProductCategories from "@/components/AdminProductCategories.vue";
 import AdminMembers from "@/components/AdminMembers.vue";
 import StockRefillView from "@/components/Terminal/StockRefillView.vue";
 import AdminInventoryReport from "@/components/AdminInventoryReport.vue";
@@ -33,6 +34,7 @@ const routes = [
       { path: "", redirect: "/admin/dashboard" },
       { path: "dashboard", component: Dashboard },
       { path: "products", component: AdminProducts },
+      { path: "product-categories", component: AdminProductCategories },
       { path: "members", component: AdminMembers },
       { path: "inventory-report", component: AdminInventoryReport },
       { path: "bookings-report", component: AdminBookingsReport },
