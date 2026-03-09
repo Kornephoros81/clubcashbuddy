@@ -8,9 +8,36 @@ type BrandingSettings = {
 
 const DEFAULT_TITLE = "ClubCashBuddy";
 const DEFAULT_LOGO_URL = "/icons/icon-192.png";
+const BRANDING_CACHE_KEY = "clubcashbuddy_branding";
 
-const appTitle = ref<string>(DEFAULT_TITLE);
-const logoUrl = ref<string>(DEFAULT_LOGO_URL);
+function readCachedBranding(): BrandingSettings | null {
+  if (typeof window === "undefined") return null;
+
+  const raw = window.localStorage.getItem(BRANDING_CACHE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<BrandingSettings> | null;
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      app_title: String(parsed.app_title ?? "").trim(),
+      logo_url: String(parsed.logo_url ?? "").trim() || null,
+    };
+  } catch {
+    window.localStorage.removeItem(BRANDING_CACHE_KEY);
+    return null;
+  }
+}
+
+function writeCachedBranding(data: BrandingSettings) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(BRANDING_CACHE_KEY, JSON.stringify(data));
+}
+
+const cachedBranding = readCachedBranding();
+
+const appTitle = ref<string>(cachedBranding?.app_title || DEFAULT_TITLE);
+const logoUrl = ref<string>(cachedBranding?.logo_url || DEFAULT_LOGO_URL);
 
 function syncDocumentTitle(title: string) {
   if (typeof document !== "undefined") {
@@ -23,6 +50,10 @@ function applyBranding(data: Partial<BrandingSettings> | null | undefined) {
   const nextLogoRaw = String(data?.logo_url ?? "").trim();
   appTitle.value = nextTitle;
   logoUrl.value = nextLogoRaw || DEFAULT_LOGO_URL;
+  writeCachedBranding({
+    app_title: nextTitle,
+    logo_url: nextLogoRaw || null,
+  });
   syncDocumentTitle(nextTitle);
 }
 

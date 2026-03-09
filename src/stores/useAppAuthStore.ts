@@ -3,10 +3,37 @@ import { defineStore } from "pinia";
 const ADMIN_TOKEN_KEY = "app_admin_token";
 const ADMIN_USER_KEY = "app_admin_user";
 
+function readAdminSessionValue(key: string) {
+  if (typeof window === "undefined") return null;
+  const sessionValue = window.sessionStorage.getItem(key);
+  if (sessionValue) return sessionValue;
+
+  const legacyValue = window.localStorage.getItem(key);
+  if (legacyValue) {
+    window.sessionStorage.setItem(key, legacyValue);
+    window.localStorage.removeItem(key);
+    return legacyValue;
+  }
+
+  return null;
+}
+
+function writeAdminSessionValue(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(key, value);
+  window.localStorage.removeItem(key);
+}
+
+function clearAdminSessionValue(key: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(key);
+  window.localStorage.removeItem(key);
+}
+
 export const useAppAuthStore = defineStore("appAuth", {
   state: () => ({
-    adminToken: (typeof localStorage !== "undefined" ? localStorage.getItem(ADMIN_TOKEN_KEY) : null) as string | null,
-    adminUser: (typeof localStorage !== "undefined" ? localStorage.getItem(ADMIN_USER_KEY) : null) as string | null,
+    adminToken: readAdminSessionValue(ADMIN_TOKEN_KEY) as string | null,
+    adminUser: readAdminSessionValue(ADMIN_USER_KEY) as string | null,
   }),
 
   getters: {
@@ -15,9 +42,8 @@ export const useAppAuthStore = defineStore("appAuth", {
 
   actions: {
     initFromStorage() {
-      if (typeof localStorage === "undefined") return;
-      this.adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
-      this.adminUser = localStorage.getItem(ADMIN_USER_KEY);
+      this.adminToken = readAdminSessionValue(ADMIN_TOKEN_KEY);
+      this.adminUser = readAdminSessionValue(ADMIN_USER_KEY);
     },
 
     async loginAdmin(username: string, password: string) {
@@ -37,10 +63,8 @@ export const useAppAuthStore = defineStore("appAuth", {
         throw new Error("Keine Session erhalten");
       }
 
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(ADMIN_TOKEN_KEY, token);
-        localStorage.setItem(ADMIN_USER_KEY, username);
-      }
+      writeAdminSessionValue(ADMIN_TOKEN_KEY, token);
+      writeAdminSessionValue(ADMIN_USER_KEY, username);
 
       this.adminToken = token;
       this.adminUser = username;
@@ -55,10 +79,8 @@ export const useAppAuthStore = defineStore("appAuth", {
           });
         }
       } finally {
-        if (typeof localStorage !== "undefined") {
-          localStorage.removeItem(ADMIN_TOKEN_KEY);
-          localStorage.removeItem(ADMIN_USER_KEY);
-        }
+        clearAdminSessionValue(ADMIN_TOKEN_KEY);
+        clearAdminSessionValue(ADMIN_USER_KEY);
         this.adminToken = null;
         this.adminUser = null;
       }

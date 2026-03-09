@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useAdminMembersStore } from "@/stores/useAdminMembersStore";
 import { useToast } from "@/composables/useToast";
 import { useModal } from "@/composables/useModal";
@@ -22,6 +22,25 @@ const pinDrafts = ref<Record<string, string>>({});
 const storedPins = ref<Record<string, string>>({});
 const showPinPlain = ref<Record<string, boolean>>({});
 const pinSaving = ref<Record<string, boolean>>({});
+const searchTerm = ref("");
+const activeFilter = ref<"all" | "active" | "inactive">("all");
+
+const filteredMembers = computed(() => {
+  const query = searchTerm.value.trim().toLocaleLowerCase("de-DE");
+  return store.members.filter((member) => {
+    const fullName = `${member.firstname ?? ""} ${member.lastname ?? ""}`
+      .trim()
+      .toLocaleLowerCase("de-DE");
+    const matchesSearch = !query || fullName.includes(query);
+    const matchesActive =
+      activeFilter.value === "all"
+        ? true
+        : activeFilter.value === "active"
+          ? Boolean(member.active)
+          : !member.active;
+    return matchesSearch && matchesActive;
+  });
+});
 
 // ✅ Initial Load (wartet auf gültige Session)
 onMounted(async () => {
@@ -254,14 +273,42 @@ async function confirmCredit() {
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">Mitgliederverwaltung</h2>
       <button
         @click="showNewMemberModal = true"
-        class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition"
+        class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition w-full sm:w-auto"
       >
         + Mitglied
       </button>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+      <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Suche</label>
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Name suchen"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Status</label>
+          <select
+            v-model="activeFilter"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          >
+            <option value="all">Alle</option>
+            <option value="active">Nur aktiv</option>
+            <option value="inactive">Nur inaktiv</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-3 text-xs text-gray-500">
+        {{ filteredMembers.length }} von {{ store.members.length }} Mitgliedern sichtbar
+      </div>
     </div>
 
     <!-- Ladezustand -->
@@ -270,10 +317,109 @@ async function confirmCredit() {
     </div>
 
     <!-- Tabelle -->
-    <div
-      v-else
-      class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
-    >
+    <div v-else class="space-y-4">
+      <div class="lg:hidden space-y-4">
+        <div
+          v-for="m in filteredMembers"
+          :key="m.id"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-4"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-base font-semibold text-gray-900">
+                {{ m.firstname }} {{ m.lastname }}
+              </div>
+              <div
+                class="text-sm font-mono mt-1"
+                :class="m.balance < 0 ? 'text-red-600' : 'text-green-700'"
+              >
+                {{ (m.balance / 100).toFixed(2) }} €
+              </div>
+            </div>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                v-model="m.active"
+                class="scale-125 accent-primary"
+              />
+              Aktiv
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Vorname</label>
+              <input
+                v-model="m.firstname"
+                class="w-full border rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Nachname</label>
+              <input
+                v-model="m.lastname"
+                class="w-full border rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">PIN</div>
+            <div class="flex flex-wrap items-center gap-2">
+              <input
+                :type="showPinPlain[m.id] ? 'text' : 'password'"
+                :value="pinDrafts[m.id] ?? ''"
+                maxlength="4"
+                class="w-24 border rounded-md px-3 py-2 text-sm"
+                placeholder="----"
+                @input="onPinInputEvent(m.id, $event)"
+              />
+              <button
+                @click="togglePin(m.id)"
+                class="bg-gray-100 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-200 text-sm"
+                title="PIN anzeigen/verstecken"
+              >
+                {{ showPinPlain[m.id] ? "🙈" : "👁️" }}
+              </button>
+              <button
+                @click="savePin(m)"
+                :disabled="pinSaving[m.id]"
+                class="bg-blue-100 text-blue-700 px-3 py-2 rounded-md hover:bg-blue-200 text-sm font-medium disabled:opacity-50"
+              >
+                PIN speichern
+              </button>
+            </div>
+            <div class="mt-2 text-xs text-gray-500">
+              {{ storedPins[m.id] ? "PIN gesetzt" : "kein PIN" }}
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              @click="save(m)"
+              class="bg-primary/10 text-primary px-3 py-2 rounded-md hover:bg-primary/20 text-sm font-medium"
+            >
+              💾 Speichern
+            </button>
+            <button
+              @click="openCreditModal(m)"
+              class="bg-green-100 text-green-700 px-3 py-2 rounded-md hover:bg-green-200 text-sm font-medium"
+            >
+              ➕ Guthaben
+            </button>
+            <button
+              @click="deleteMember(m)"
+              class="bg-red-100 text-red-700 px-3 py-2 rounded-md hover:bg-red-200 text-sm font-medium"
+            >
+              🗑️ Löschen
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
+      >
       <table class="min-w-full text-sm text-gray-700">
         <thead
           class="bg-primary/10 text-primary uppercase text-xs font-semibold"
@@ -289,7 +435,7 @@ async function confirmCredit() {
         </thead>
         <tbody>
           <tr
-            v-for="m in store.members"
+            v-for="m in filteredMembers"
             :key="m.id"
             class="border-t hover:bg-primary/5 transition-colors"
           >
@@ -368,8 +514,14 @@ async function confirmCredit() {
               </button>
             </td>
           </tr>
+          <tr v-if="filteredMembers.length === 0">
+            <td colspan="6" class="text-center py-6 text-gray-400 italic">
+              Keine Mitglieder für den gewählten Filter
+            </td>
+          </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Neues Mitglied Modal -->

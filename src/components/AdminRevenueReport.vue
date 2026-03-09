@@ -742,9 +742,9 @@ async function exportPdf() {
 
 <template>
   <div class="space-y-6" data-report-id="admin-revenue-report">
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">💶 Umsatzreport</h2>
-      <div class="flex items-center gap-3 no-print">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 no-print w-full lg:w-auto">
         <button
           @click="exportPdf"
           class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
@@ -760,7 +760,7 @@ async function exportPdf() {
       </div>
     </div>
 
-    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 flex flex-wrap gap-4 items-end">
+    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
       <div>
         <label class="block text-sm font-medium text-gray-600 mb-1">Startdatum</label>
         <Datepicker
@@ -825,7 +825,7 @@ async function exportPdf() {
         </select>
       </div>
 
-      <div v-if="loading" class="h-[38px] inline-flex items-center gap-2 text-xs text-gray-500">
+      <div v-if="loading" class="h-[38px] inline-flex items-center gap-2 text-xs text-gray-500 xl:self-end">
         <span class="inline-block h-3.5 w-3.5 rounded-full border-2 border-gray-300 border-t-primary animate-spin"></span>
         Lädt…
       </div>
