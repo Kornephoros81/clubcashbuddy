@@ -63,10 +63,6 @@ const filteredMembers = computed(() => {
   });
 });
 
-const activeMembersCount = computed(() => store.members.filter((m) => !isInactive(m)).length);
-const guestsCount = computed(() => store.members.filter((m) => m.is_guest).length);
-const todayCount = computed(() => bookedTodayIds.value.size);
-
 function toggleLetter(ch: string) {
   selectedLetter.value = selectedLetter.value === ch ? "" : ch;
 }
@@ -88,16 +84,9 @@ function splitMemberName(name: string) {
 
 <template>
   <div class="member-picker flex h-full w-full flex-col overflow-hidden">
-    <div class="border-b border-white/10 px-4 py-4 md:px-6">
-      <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div class="min-w-0">
-          <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Member Lounge</div>
-          <div class="mt-2 terminal-picker-display text-2xl text-white md:text-4xl">
-            Wer bucht gerade?
-          </div>
-        </div>
-
-        <div class="w-full max-w-xl">
+    <div class="border-b border-white/10 px-3 py-3">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div class="w-full lg:max-w-sm">
           <label class="sr-only" for="member-search">Mitglied suchen</label>
           <input
             id="member-search"
@@ -105,27 +94,11 @@ function splitMemberName(name: string) {
             type="search"
             autocomplete="off"
             placeholder="Mitglied suchen"
-            class="w-full rounded-[1.2rem] border border-white/10 bg-white/8 px-4 py-3 text-base text-white placeholder:text-slate-400 focus:border-cyan-300/40 focus:outline-none"
+            class="w-full rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 text-sm text-white placeholder:text-slate-400 focus:border-cyan-300/40 focus:outline-none"
           />
         </div>
-      </div>
 
-      <div class="mt-4 grid grid-cols-3 gap-2">
-        <div class="member-stat-card">
-          <div class="member-stat-label">Heute</div>
-          <div class="member-stat-value">{{ todayCount }}</div>
-        </div>
-        <div class="member-stat-card">
-          <div class="member-stat-label">Aktiv</div>
-          <div class="member-stat-value">{{ activeMembersCount }}</div>
-        </div>
-        <div class="member-stat-card">
-          <div class="member-stat-label">Gaeste</div>
-          <div class="member-stat-value">{{ guestsCount }}</div>
-        </div>
-      </div>
-
-      <div class="mt-4 flex overflow-x-auto gap-2 pb-1">
+        <div class="flex overflow-x-auto gap-2 pb-1">
         <button
           v-for="ch in alphabet"
           :key="ch"
@@ -142,27 +115,23 @@ function splitMemberName(name: string) {
         >
           {{ ch }}
         </button>
+        </div>
       </div>
     </div>
 
-    <div
-      class="flex-1 min-h-0 overflow-y-auto px-4 py-4 md:px-6"
-    >
-      <div
-        class="grid content-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-      >
+    <div class="flex-1 min-h-0 overflow-y-auto px-3 py-3">
+      <div class="grid content-start grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
       <template v-for="(m, i) in filteredMembers" :key="m.id">
         <div
           v-if="i > 0 && isInactive(m) && !isInactive(filteredMembers[i - 1])"
-          class="col-span-full my-3 rounded-2xl border border-dashed border-white/12 bg-white/4 px-4 py-3 text-center text-sm text-slate-400"
+          class="col-span-full my-2 border-t border-dashed border-white/12 py-2 text-center text-xs text-slate-400"
         >
           Länger als 30 Tage nicht gebucht ↓
         </div>
 
         <button
           @click="selectMember(m.id)"
-          class="member-card group flex min-h-[132px] flex-col justify-between rounded-[1.6rem] border p-4 text-left transition"
-          :style="{ animationDelay: `${Math.min(i * 24, 320)}ms` }"
+          class="member-card group flex h-20 flex-col justify-center rounded-xl border px-3 py-3 text-center transition"
           :class="[
             m.is_guest
               ? 'border-amber-300/25 bg-amber-400/12 text-amber-50 hover:bg-amber-400/18'
@@ -173,51 +142,26 @@ function splitMemberName(name: string) {
               : 'border-white/10 bg-white/6 text-slate-100 hover:border-white/20 hover:bg-white/10',
           ]"
         >
-          <div class="flex items-start justify-between gap-3">
+          <span class="block px-1 whitespace-normal break-words">
             <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/10 text-sm font-semibold"
-            >
-              {{ splitMemberName(m.name).lastName.slice(0, 1) || "?" }}
-            </span>
-            <span
-              class="rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em]"
-              :class="
-                m.is_guest
-                  ? 'border-amber-200/30 bg-amber-50/10 text-amber-100'
-                  : bookedTodayIds.has(m.id)
-                  ? 'border-emerald-200/30 bg-emerald-50/10 text-emerald-100'
-                  : 'border-white/10 bg-white/8 text-slate-300'
-              "
-            >
-              {{ m.is_guest ? "Gast" : bookedTodayIds.has(m.id) ? "Heute" : "Mitglied" }}
-            </span>
-          </div>
-
-          <span class="mt-4 block px-1 whitespace-normal break-words">
-            <span
-              class="block text-[clamp(1rem,0.9vw+0.7rem,1.38rem)] font-semibold leading-tight text-white"
+              class="block text-[clamp(0.9rem,1vw+0.4rem,1.2rem)] font-semibold leading-tight text-white"
             >
               {{ splitMemberName(m.name).lastName }}
             </span>
             <span
               v-if="splitMemberName(m.name).firstName"
-              class="mt-1 block text-[clamp(0.8rem,0.8vw+0.25rem,1rem)] leading-tight text-slate-300/80"
+              class="block text-[clamp(0.7rem,0.8vw+0.2rem,0.95rem)] leading-tight text-slate-300/80"
             >
               {{ splitMemberName(m.name).firstName }}
             </span>
           </span>
-
-          <div class="mt-4 flex items-center justify-between text-xs text-slate-400">
-            <span>{{ getLastNameInitial(m.name) }}</span>
-            <span>{{ isInactive(m) ? "Ruhend" : "Aktiv" }}</span>
-          </div>
         </button>
       </template>
       </div>
 
       <p
         v-if="!filteredMembers.length"
-        class="col-span-full rounded-2xl border border-dashed border-white/12 bg-white/4 py-10 text-center text-slate-400"
+        class="col-span-full py-8 text-center text-sm text-slate-400"
       >
         Kein Mitglied gefunden
       </p>
@@ -227,58 +171,16 @@ function splitMemberName(name: string) {
 
 <style scoped>
 .member-picker {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 26%),
-    rgba(2, 6, 23, 0.18);
-}
-
-.terminal-picker-display {
-  font-family: "Georgia", "Times New Roman", serif;
-  line-height: 0.95;
-  letter-spacing: -0.03em;
+  background: rgba(2, 6, 23, 0.14);
 }
 
 .member-card {
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
-  backdrop-filter: blur(14px);
-  animation: member-card-rise 0.42s ease both;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(10px);
 }
 
 .member-card:hover {
-  transform: translateY(-2px);
-}
-
-.member-stat-card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 1.1rem;
-  padding: 0.85rem 1rem;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
-}
-
-.member-stat-label {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: rgba(148, 163, 184, 0.9);
-}
-
-.member-stat-value {
-  margin-top: 0.35rem;
-  font-size: 1.35rem;
-  font-weight: 600;
-  color: white;
-}
-
-@keyframes member-card-rise {
-  from {
-    opacity: 0;
-    transform: translateY(16px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  transform: translateY(-1px);
 }
 
 ::-webkit-scrollbar {

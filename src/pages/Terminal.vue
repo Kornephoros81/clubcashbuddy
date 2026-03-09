@@ -39,9 +39,6 @@ const {
 provide("terminalLogic", terminalLogic);
 const { appTitle, logoUrl, loadBrandingPublic, DEFAULT_LOGO_URL } = useBranding();
 
-const memberCount = computed(() => store.members.filter((m) => !m.is_guest).length);
-const guestCount = computed(() => store.members.filter((m) => m.is_guest).length);
-const bookedTodayCount = computed(() => bookedTodayIds.value.size);
 const queueBadgeText = computed(() => {
   if (failedQueueCount.value > 0) {
     return `${failedQueueCount.value} Fehler`;
@@ -66,13 +63,6 @@ const queueBadgeClass = computed(() => {
   }
   return "bg-emerald-500/15 text-emerald-50 ring-1 ring-emerald-300/30";
 });
-const terminalSubtitle = computed(() =>
-  selectedMember.value
-    ? selectedMember.value.is_guest
-      ? "Gastbuchung aktiv"
-      : "Mitgliedsbuchung aktiv"
-    : "Schnelles Buchen, ruhige Uebersicht, klare Statuslage"
-);
 const selectedMemberInitials = computed(() => {
   const name = String(selectedMember.value?.name ?? "").trim();
   if (!name) return "CC";
@@ -352,66 +342,27 @@ watch(showPinModal, async (isOpen) => {
     <header
       class="sticky top-0 z-40 border-b border-white/10 bg-slate-950/72 backdrop-blur-xl"
     >
-      <div class="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 md:px-6 xl:px-8">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div class="mx-auto flex w-full max-w-[1600px] flex-col gap-3 px-4 py-3 md:px-6 xl:px-8">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <button
             @click="reloadPage"
-            class="flex max-w-full items-center gap-4 rounded-[1.75rem] border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_18px_60px_rgba(15,23,42,0.35)] transition hover:bg-white/12"
+            class="flex max-w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/8 px-3 py-2 text-left shadow-[0_12px_40px_rgba(15,23,42,0.26)] transition hover:bg-white/12"
           >
-            <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/90 shadow-inner shadow-slate-200/60">
+            <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-inner shadow-slate-200/60">
               <img
                 :src="logoUrl"
                 :alt="`${appTitle} Logo`"
-                class="h-10 w-10 object-contain"
+                class="h-8 w-8 object-contain"
                 @error="onLogoError"
               />
             </span>
             <span class="min-w-0">
-              <span class="block terminal-wordmark truncate text-xl md:text-2xl text-white">
+              <span class="block terminal-wordmark truncate text-lg md:text-xl text-white">
                 {{ appTitle }}
-              </span>
-              <span class="block truncate text-sm text-slate-300/85">
-                {{ terminalSubtitle }}
               </span>
             </span>
           </button>
 
-          <div class="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:justify-end">
-            <div
-              class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_12px_40px_rgba(15,23,42,0.24)]"
-            >
-              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">Mitglieder</div>
-              <div class="mt-1 text-xl font-semibold text-white">{{ memberCount }}</div>
-            </div>
-            <div
-              class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_12px_40px_rgba(15,23,42,0.24)]"
-            >
-              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">Heute aktiv</div>
-              <div class="mt-1 text-xl font-semibold text-white">{{ bookedTodayCount }}</div>
-            </div>
-            <div
-              class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_12px_40px_rgba(15,23,42,0.24)]"
-            >
-              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">Gaeste</div>
-              <div class="mt-1 text-xl font-semibold text-white">{{ guestCount }}</div>
-            </div>
-            <div
-              class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_12px_40px_rgba(15,23,42,0.24)]"
-            >
-              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">Sync</div>
-              <div class="mt-1">
-                <span
-                  class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-semibold"
-                  :class="queueBadgeClass"
-                >
-                  {{ queueBadgeText }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div class="flex flex-wrap items-center gap-2 text-sm">
             <span class="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-slate-200">
               {{ auth.deviceName || "Terminal" }}
@@ -425,9 +376,12 @@ watch(showPinModal, async (isOpen) => {
             >
               {{ selectedMember.is_guest ? "Gast" : "Mitglied" }}
             </span>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-2">
+            <span
+              class="inline-flex items-center rounded-full px-3 py-1.5 text-sm font-semibold"
+              :class="queueBadgeClass"
+            >
+              {{ queueBadgeText }}
+            </span>
             <RouterLink
               to="/admin/dashboard"
               class="terminal-action-button terminal-action-button--ghost"
@@ -452,33 +406,25 @@ watch(showPinModal, async (isOpen) => {
 
         <div
           v-if="selectedMember"
-          class="terminal-selected-member flex flex-col gap-4 rounded-[2rem] px-4 py-4 md:px-5 lg:flex-row lg:items-center lg:justify-between"
+          class="terminal-selected-member flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5"
         >
           <div class="flex items-center gap-4 min-w-0">
             <span
-              class="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.4rem] bg-white/12 text-xl font-semibold text-white ring-1 ring-white/15"
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/12 text-sm font-semibold text-white ring-1 ring-white/15"
             >
               {{ selectedMemberInitials }}
             </span>
             <div class="min-w-0">
-              <div class="text-[0.68rem] uppercase tracking-[0.28em] text-cyan-100/70">
-                Aktive Buchung
-              </div>
-              <div class="truncate text-2xl font-semibold text-white md:text-3xl">
+              <div class="truncate text-lg font-semibold text-white md:text-xl">
                 {{ selectedMember.name }}
-              </div>
-              <div class="mt-1 text-sm text-cyan-50/75">
-                {{ selectedMember.is_guest ? "Gastprofil mit abrechenbarer Session" : "Mitgliedsauswahl fuer schnelle Produktbuchungen" }}
               </div>
             </div>
           </div>
 
-          <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <div class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
-              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-cyan-100/65">Summe heute</div>
-              <div class="mt-1 text-2xl font-semibold text-white">
-                {{ (totalToday / 100).toFixed(2) }} €
-              </div>
+          <div class="flex items-center gap-3">
+            <div class="rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-right">
+              <div class="text-xs text-cyan-100/65">Heute</div>
+              <div class="text-lg font-semibold text-white">{{ (totalToday / 100).toFixed(2) }} €</div>
             </div>
             <button
               @click="onBackToMembers"
@@ -501,62 +447,21 @@ watch(showPinModal, async (isOpen) => {
     </transition>
 
     <main
-      class="mx-auto flex w-full max-w-[1600px] flex-1 px-3 py-4 md:px-6 xl:px-8"
+      class="mx-auto flex w-full max-w-[1600px] flex-1 px-3 py-3 md:px-6 xl:px-8"
     >
       <div
         v-if="!selectedMember"
-        class="grid w-full gap-5 lg:grid-cols-[minmax(0,1.15fr)_340px]"
+        class="w-full overflow-hidden rounded-[1.6rem] border border-white/10 bg-slate-950/45 shadow-[0_24px_90px_rgba(15,23,42,0.26)] backdrop-blur-xl"
       >
-        <section
-          class="terminal-panel overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/45 shadow-[0_32px_120px_rgba(15,23,42,0.32)] backdrop-blur-xl"
-        >
-          <div class="border-b border-white/10 px-5 py-5 md:px-6">
-            <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Buchungsstart</div>
-            <div class="mt-2 max-w-3xl terminal-display text-3xl text-white md:text-5xl">
-              Mitglieder auswaehlen, Produkt tippen, in Sekunden buchen.
-            </div>
-            <div class="mt-3 max-w-2xl text-sm leading-6 text-slate-300/80 md:text-base">
-              Die Auswahl priorisiert aktive Mitglieder, markiert heutige Buchungen und bleibt auch bei vielen Datensaetzen schnell bedienbar.
-            </div>
-          </div>
-          <MemberPicker @select="handleMemberSelect" class="min-h-0 flex-1" />
-        </section>
-
-        <aside class="terminal-column flex flex-col gap-4">
-          <section class="terminal-sidecard">
-            <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Status</div>
-            <div class="mt-3 grid grid-cols-2 gap-3">
-              <div class="terminal-metric-card">
-                <div class="text-xs uppercase tracking-[0.22em] text-slate-400">Verfuegbar</div>
-                <div class="mt-2 text-2xl font-semibold text-white">{{ store.products.length }}</div>
-                <div class="mt-1 text-xs text-slate-400">Produkte im Katalog</div>
-              </div>
-              <div class="terminal-metric-card">
-                <div class="text-xs uppercase tracking-[0.22em] text-slate-400">Queue</div>
-                <div class="mt-2 text-2xl font-semibold text-white">
-                  {{ pendingQueueCount + failedQueueCount }}
-                </div>
-                <div class="mt-1 text-xs text-slate-400">Offene Sync-Vorgaenge</div>
-              </div>
-            </div>
-          </section>
-
-          <section class="terminal-sidecard">
-            <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Betriebsmodus</div>
-            <div class="mt-3 space-y-3 text-sm text-slate-300/80">
-              <p>Das Terminal ist auf schnelle Touch-Bedienung mit ruhiger visueller Fuehrung optimiert.</p>
-              <p>Offline, Queue und Live-Betrieb bleiben sichtbar, ohne den Kassenfluss zu stoeren.</p>
-            </div>
-          </section>
-        </aside>
+        <MemberPicker @select="handleMemberSelect" class="h-[calc(100vh-7.8rem)]" />
       </div>
 
       <div
         v-else
-        class="grid w-full gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"
+        class="grid w-full gap-4 xl:grid-cols-[minmax(0,1fr)_330px]"
       >
         <div
-          class="terminal-panel overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/45 shadow-[0_32px_120px_rgba(15,23,42,0.32)] backdrop-blur-xl"
+          class="overflow-hidden rounded-[1.6rem] border border-white/10 bg-slate-950/45 shadow-[0_24px_90px_rgba(15,23,42,0.26)] backdrop-blur-xl"
         >
           <ProductGrid
             :products="store.products"
@@ -568,20 +473,12 @@ watch(showPinModal, async (isOpen) => {
         </div>
 
         <aside
-          class="terminal-ledger relative flex min-h-0 flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/58 shadow-[0_28px_90px_rgba(15,23,42,0.34)] backdrop-blur-xl"
+          class="relative flex min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/10 bg-slate-950/58 shadow-[0_24px_90px_rgba(15,23,42,0.28)] backdrop-blur-xl"
         >
-          <div class="border-b border-white/10 px-5 py-5">
-            <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Live Ledger</div>
-            <div class="mt-2 terminal-display text-3xl text-white">Buchungsfluss</div>
-            <div class="mt-1 text-sm text-slate-300/75">
-              Bestaetigte und neue Positionen bleiben getrennt, aber in einer gemeinsamen visuellen Logik.
-            </div>
-          </div>
-
-          <div class="flex-1 min-h-0 overflow-y-auto space-y-5 px-4 py-4">
+          <div class="flex-1 min-h-0 overflow-y-auto space-y-4 px-3 py-3">
             <section>
               <div
-                class="px-1 pb-2 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-slate-400"
+                class="px-1 pb-1 text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-slate-400"
               >
                 Heute gebucht
               </div>
@@ -596,7 +493,7 @@ watch(showPinModal, async (isOpen) => {
 
             <section>
               <div
-                class="px-1 pb-2 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-amber-300/85"
+                class="px-1 pb-1 text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-amber-300/85"
               >
                 Neu
               </div>
@@ -611,52 +508,49 @@ watch(showPinModal, async (isOpen) => {
           </div>
 
           <div
-            class="terminal-totalbar shrink-0 flex items-end justify-between gap-4 px-5 py-5"
+            class="terminal-totalbar shrink-0 flex items-center justify-between gap-3 px-4 py-3"
           >
-            <div>
-              <div class="text-[0.68rem] uppercase tracking-[0.28em] text-cyan-100/60">Summe heute</div>
-              <div class="mt-2 terminal-display text-4xl text-white">
-                {{ (totalToday / 100).toFixed(2) }} €
-              </div>
+            <div class="text-sm font-semibold text-white">
+              {{ (totalToday / 100).toFixed(2) }} €
             </div>
-            <div class="text-right text-sm text-cyan-50/70">
+            <div class="text-right text-xs text-cyan-50/70">
               <div>{{ confirmedBookings.length }} bestaetigt</div>
               <div>{{ queuedBookings.length }} neu</div>
             </div>
           </div>
 
           <div
-            class="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-black/10 p-4"
+            class="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-black/10 p-3"
           >
             <button
               @click="showBookings = true"
-              class="terminal-action-button terminal-action-button--ghost h-14 justify-center"
+              class="terminal-action-button terminal-action-button--ghost h-12 justify-center"
             >
               Uebersicht
             </button>
             <button
               @click="showFreeAmount = true"
-              class="terminal-action-button terminal-action-button--primary h-14 justify-center"
+              class="terminal-action-button terminal-action-button--primary h-12 justify-center"
             >
               Freier Betrag
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showPartialModal = true"
-              class="terminal-action-button h-14 justify-center bg-amber-500/90 text-amber-950 hover:bg-amber-400"
+              class="terminal-action-button h-12 justify-center bg-amber-500/90 text-amber-950 hover:bg-amber-400"
             >
               Teilabrechnung
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showSettleModal = true"
-              class="terminal-action-button h-14 justify-center bg-rose-500/90 text-white hover:bg-rose-400"
+              class="terminal-action-button h-12 justify-center bg-rose-500/90 text-white hover:bg-rose-400"
             >
               Abrechnung
             </button>
             <div
               v-else
-              class="col-span-2 h-14 rounded-2xl border border-dashed border-white/10 bg-white/5"
+              class="col-span-2 h-12 rounded-xl border border-dashed border-white/10 bg-white/5"
             ></div>
           </div>
         </aside>
@@ -802,52 +696,17 @@ watch(showPinModal, async (isOpen) => {
   letter-spacing: 0.01em;
 }
 
-.terminal-display {
-  font-family: "Georgia", "Times New Roman", serif;
-  line-height: 0.95;
-  letter-spacing: -0.03em;
-}
-
 .terminal-selected-member {
   background:
     linear-gradient(135deg, rgba(14, 116, 144, 0.42), rgba(15, 23, 42, 0.4)),
     rgba(255, 255, 255, 0.04);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  animation: terminal-float-in 0.45s ease both;
-}
-
-.terminal-sidecard {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(15, 23, 42, 0.55);
-  border-radius: 1.75rem;
-  padding: 1.25rem;
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
-  animation: terminal-float-in 0.5s ease both;
-}
-
-.terminal-metric-card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 1.25rem;
-  padding: 1rem;
 }
 
 .terminal-totalbar {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
-    rgba(15, 23, 42, 0.45);
-}
-
-.terminal-panel {
-  animation: terminal-float-in 0.45s ease both;
-}
-
-.terminal-column {
-  animation: terminal-float-in 0.52s ease both;
-}
-
-.terminal-ledger {
-  animation: terminal-float-in 0.55s ease both;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(15, 23, 42, 0.38);
 }
 
 .terminal-action-button {
@@ -855,8 +714,8 @@ watch(showPinModal, async (isOpen) => {
   align-items: center;
   gap: 0.5rem;
   border-radius: 1rem;
-  padding: 0.9rem 1.15rem;
-  font-size: 0.92rem;
+  padding: 0.72rem 0.95rem;
+  font-size: 0.86rem;
   font-weight: 600;
   transition:
     transform 0.2s ease,
@@ -891,17 +750,6 @@ watch(showPinModal, async (isOpen) => {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.08);
   color: white;
-}
-
-@keyframes terminal-float-in {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .fade-enter-active,
