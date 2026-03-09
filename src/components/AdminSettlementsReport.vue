@@ -99,9 +99,9 @@ async function exportPdf() {
 
 <template>
   <div class="space-y-6" data-report-id="admin-settlements-report">
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">📒 Abrechnungsprotokoll</h2>
-      <div class="flex items-center gap-3 no-print">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 no-print w-full lg:w-auto">
         <button
           @click="exportPdf"
           class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
@@ -114,7 +114,7 @@ async function exportPdf() {
       </div>
     </div>
 
-    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 flex flex-wrap gap-4 items-end">
+    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
       <div>
         <label class="block text-sm font-medium text-gray-600 mb-1">Startdatum</label>
         <Datepicker
@@ -160,7 +160,30 @@ async function exportPdf() {
       {{ error }}
     </div>
 
-    <div v-else class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
+    <div v-else class="space-y-4">
+      <div class="lg:hidden space-y-3">
+        <div
+          v-for="row in rows"
+          :key="row.settlement_id"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-base font-semibold text-gray-900">{{ row.member_name }}</div>
+              <div class="text-sm text-gray-500 mt-1">{{ row.user_name }}</div>
+            </div>
+            <div class="text-sm font-semibold text-gray-900">{{ (row.amount / 100).toFixed(2) }} €</div>
+          </div>
+          <div class="text-sm text-gray-600">
+            {{ new Date(row.settled_at).toLocaleString("de-DE") }}
+          </div>
+        </div>
+        <div v-if="rows.length === 0" class="bg-white rounded-2xl shadow border border-gray-200 p-6 text-center text-gray-400 italic">
+          Keine Abrechnungen im gewählten Zeitraum
+        </div>
+      </div>
+
+      <div class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
       <table class="min-w-full text-sm text-gray-700">
         <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
           <tr>
@@ -194,6 +217,7 @@ async function exportPdf() {
           </tr>
         </tfoot>
       </table>
+      </div>
     </div>
   </div>
 </template>

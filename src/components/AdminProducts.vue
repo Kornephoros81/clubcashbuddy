@@ -19,6 +19,9 @@ const uploadingImageById = ref<Record<string, boolean>>({});
 const brokenPreviewById = ref<Record<string, boolean>>({});
 const sortBy = ref<"name" | "category">("category");
 const sortDir = ref<"asc" | "desc">("asc");
+const searchTerm = ref("");
+const statusFilter = ref<"all" | "active" | "inactive">("all");
+const categoryFilter = ref("");
 
 onMounted(async () => {
   await store.initCategories();
@@ -141,7 +144,23 @@ const productCategoryOptions = computed(() => {
 const sortedProducts = computed(() => {
   const collator = new Intl.Collator("de", { sensitivity: "base", numeric: true });
   const factor = sortDir.value === "asc" ? 1 : -1;
-  return [...store.products].sort((a: any, b: any) => {
+  const query = searchTerm.value.trim().toLocaleLowerCase("de-DE");
+  return [...store.products]
+    .filter((product: any) => {
+      const matchesSearch =
+        !query
+        || String(product?.name ?? "").toLocaleLowerCase("de-DE").includes(query);
+      const matchesStatus =
+        statusFilter.value === "all"
+          ? true
+          : statusFilter.value === "active"
+            ? Boolean(product?.active)
+            : !product?.active;
+      const matchesCategory =
+        !categoryFilter.value || String(product?.category ?? "") === categoryFilter.value;
+      return matchesSearch && matchesStatus && matchesCategory;
+    })
+    .sort((a: any, b: any) => {
     const av = String(a?.[sortBy.value] ?? "");
     const bv = String(b?.[sortBy.value] ?? "");
     const primary = collator.compare(av, bv) * factor;
@@ -151,8 +170,8 @@ const sortedProducts = computed(() => {
       const bn = String(b?.name ?? "");
       return collator.compare(an, bn);
     }
-    return 0;
-  });
+      return 0;
+    });
 });
 
 function toggleSort(column: "name" | "category") {
@@ -290,6 +309,46 @@ async function deleteProduct(p: any) {
       </div>
     </div>
 
+    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Suche</label>
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Artikelname suchen"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Status</label>
+          <select
+            v-model="statusFilter"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          >
+            <option value="all">Alle</option>
+            <option value="active">Nur aktiv</option>
+            <option value="inactive">Nur inaktiv</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Kategorie</label>
+          <select
+            v-model="categoryFilter"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          >
+            <option value="">Alle Kategorien</option>
+            <option v-for="c in productCategoryOptions" :key="c.id" :value="c.name">
+              {{ c.name }}
+            </option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-3 text-xs text-gray-500">
+        {{ sortedProducts.length }} von {{ store.products.length }} Artikeln sichtbar
+      </div>
+    </div>
+
     <div v-if="store.loading" class="text-center py-10 text-gray-500">
       ⏳ Artikel werden geladen...
     </div>
@@ -421,6 +480,9 @@ async function deleteProduct(p: any) {
           >
             🗑️ Löschen
           </button>
+        </div>
+        <div v-if="sortedProducts.length === 0" class="bg-white rounded-2xl shadow border border-gray-200 p-6 text-center text-gray-400 italic">
+          Keine Artikel für den gewählten Filter
         </div>
       </div>
 
@@ -567,6 +629,11 @@ async function deleteProduct(p: any) {
               >
                 🗑️ Löschen
               </button>
+            </td>
+          </tr>
+          <tr v-if="sortedProducts.length === 0">
+            <td colspan="8" class="text-center py-6 text-gray-400 italic">
+              Keine Artikel für den gewählten Filter
             </td>
           </tr>
         </tbody>

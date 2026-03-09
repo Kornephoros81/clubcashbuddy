@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useAdminMembersStore } from "@/stores/useAdminMembersStore";
 import { useToast } from "@/composables/useToast";
 import { useModal } from "@/composables/useModal";
@@ -22,6 +22,25 @@ const pinDrafts = ref<Record<string, string>>({});
 const storedPins = ref<Record<string, string>>({});
 const showPinPlain = ref<Record<string, boolean>>({});
 const pinSaving = ref<Record<string, boolean>>({});
+const searchTerm = ref("");
+const activeFilter = ref<"all" | "active" | "inactive">("all");
+
+const filteredMembers = computed(() => {
+  const query = searchTerm.value.trim().toLocaleLowerCase("de-DE");
+  return store.members.filter((member) => {
+    const fullName = `${member.firstname ?? ""} ${member.lastname ?? ""}`
+      .trim()
+      .toLocaleLowerCase("de-DE");
+    const matchesSearch = !query || fullName.includes(query);
+    const matchesActive =
+      activeFilter.value === "all"
+        ? true
+        : activeFilter.value === "active"
+          ? Boolean(member.active)
+          : !member.active;
+    return matchesSearch && matchesActive;
+  });
+});
 
 // ✅ Initial Load (wartet auf gültige Session)
 onMounted(async () => {
@@ -264,6 +283,34 @@ async function confirmCredit() {
       </button>
     </div>
 
+    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+      <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Suche</label>
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Name suchen"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Status</label>
+          <select
+            v-model="activeFilter"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          >
+            <option value="all">Alle</option>
+            <option value="active">Nur aktiv</option>
+            <option value="inactive">Nur inaktiv</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-3 text-xs text-gray-500">
+        {{ filteredMembers.length }} von {{ store.members.length }} Mitgliedern sichtbar
+      </div>
+    </div>
+
     <!-- Ladezustand -->
     <div v-if="store.loading" class="text-center py-10 text-gray-500">
       ⏳ Mitglieder werden geladen...
@@ -273,7 +320,7 @@ async function confirmCredit() {
     <div v-else class="space-y-4">
       <div class="lg:hidden space-y-4">
         <div
-          v-for="m in store.members"
+          v-for="m in filteredMembers"
           :key="m.id"
           class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-4"
         >
@@ -388,7 +435,7 @@ async function confirmCredit() {
         </thead>
         <tbody>
           <tr
-            v-for="m in store.members"
+            v-for="m in filteredMembers"
             :key="m.id"
             class="border-t hover:bg-primary/5 transition-colors"
           >
@@ -465,6 +512,11 @@ async function confirmCredit() {
               >
                 🗑️ Löschen
               </button>
+            </td>
+          </tr>
+          <tr v-if="filteredMembers.length === 0">
+            <td colspan="6" class="text-center py-6 text-gray-400 italic">
+              Keine Mitglieder für den gewählten Filter
             </td>
           </tr>
         </tbody>
