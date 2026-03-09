@@ -7,17 +7,17 @@ const logic = useTerminalLogic();
 
 const visible = computed(
   () =>
-    !logic.isOnline ||
-    logic.pendingQueueCount > 0 ||
-    logic.failedQueueCount > 0
+    !logic.isOnline.value ||
+    logic.pendingQueueCount.value > 0 ||
+    logic.failedQueueCount.value > 0
 );
 
 const message = computed(() => {
-  if (logic.failedQueueCount > 0)
-    return `⚠️ ${logic.failedQueueCount} Buchungen fehlgeschlagen`;
-  if (!logic.isOnline) return "📴 Offline-Modus";
-  if (logic.pendingQueueCount > 0)
-    return `⏳ ${logic.pendingQueueCount} Buchungen werden synchronisiert`;
+  if (logic.failedQueueCount.value > 0)
+    return `⚠️ ${logic.failedQueueCount.value} Buchungen fehlgeschlagen`;
+  if (!logic.isOnline.value) return "📴 Offline-Modus";
+  if (logic.pendingQueueCount.value > 0)
+    return `⏳ ${logic.pendingQueueCount.value} Buchungen werden synchronisiert`;
   return "";
 });
 </script>
@@ -26,7 +26,7 @@ const message = computed(() => {
   <transition name="fade">
     <div
       v-if="visible"
-      class="fixed bottom-3 right-3 z-50 px-3 py-2 text-xs font-medium rounded-md shadow-md bg-gray-800 text-white opacity-90 select-none"
+      class="offline-chip fixed bottom-4 right-4 z-50 rounded-2xl border border-white/10 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_60px_rgba(15,23,42,0.42)] backdrop-blur-xl select-none"
     >
       {{ message }}
     </div>
@@ -34,6 +34,11 @@ const message = computed(() => {
 </template>
 
 <style scoped>
+.offline-chip {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.88));
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.25s ease;

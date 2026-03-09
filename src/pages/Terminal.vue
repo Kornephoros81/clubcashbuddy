@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, provide, nextTick } from "vue";
+import { ref, watch, onMounted, onUnmounted, provide, nextTick, computed } from "vue";
 import { useTerminalLogic } from "@/composables/useTerminalLogic";
 import DeviceAuthDialog from "@/components/DeviceAuthDialog.vue";
 import MemberPicker from "@/components/Terminal/MemberPicker.vue";
@@ -23,6 +23,10 @@ const {
   totalToday,
   loading,
   toast,
+  bookedTodayIds,
+  pendingQueueCount,
+  failedQueueCount,
+  isOnline,
   openMember,
   closeMember,
   addProduct,
@@ -34,6 +38,51 @@ const {
 } = terminalLogic;
 provide("terminalLogic", terminalLogic);
 const { appTitle, logoUrl, loadBrandingPublic, DEFAULT_LOGO_URL } = useBranding();
+
+const memberCount = computed(() => store.members.filter((m) => !m.is_guest).length);
+const guestCount = computed(() => store.members.filter((m) => m.is_guest).length);
+const bookedTodayCount = computed(() => bookedTodayIds.value.size);
+const queueBadgeText = computed(() => {
+  if (failedQueueCount.value > 0) {
+    return `${failedQueueCount.value} Fehler`;
+  }
+  if (!isOnline.value) {
+    return "Offline";
+  }
+  if (pendingQueueCount.value > 0) {
+    return `${pendingQueueCount.value} in Queue`;
+  }
+  return "Live";
+});
+const queueBadgeClass = computed(() => {
+  if (failedQueueCount.value > 0) {
+    return "bg-rose-500/15 text-rose-100 ring-1 ring-rose-300/30";
+  }
+  if (!isOnline.value) {
+    return "bg-amber-500/15 text-amber-50 ring-1 ring-amber-300/30";
+  }
+  if (pendingQueueCount.value > 0) {
+    return "bg-sky-500/15 text-sky-50 ring-1 ring-sky-300/30";
+  }
+  return "bg-emerald-500/15 text-emerald-50 ring-1 ring-emerald-300/30";
+});
+const terminalSubtitle = computed(() =>
+  selectedMember.value
+    ? selectedMember.value.is_guest
+      ? "Gastbuchung aktiv"
+      : "Mitgliedsbuchung aktiv"
+    : "Schnelles Buchen, ruhige Uebersicht, klare Statuslage"
+);
+const selectedMemberInitials = computed(() => {
+  const name = String(selectedMember.value?.name ?? "").trim();
+  if (!name) return "CC";
+  return name
+    .split(/[,\s]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+});
 
 function onLogoError(event: Event) {
   const target = event.target as HTMLImageElement | null;
@@ -294,116 +343,245 @@ watch(showPinModal, async (isOpen) => {
 <template>
   <DeviceAuthDialog v-if="!auth.authenticated" />
 
-  <div v-else class="min-h-screen flex flex-col bg-gray-50 text-gray-800">
+  <div
+    v-else
+    class="terminal-shell min-h-screen flex flex-col text-slate-100"
+  >
     <OfflineStatus />
 
-    <!-- HEADER -->
     <header
-      class="flex flex-col bg-white shadow-sm sticky top-0 z-40 border-b border-gray-200"
+      class="sticky top-0 z-40 border-b border-white/10 bg-slate-950/72 backdrop-blur-xl"
     >
-      <!-- Topbar -->
-      <div class="flex items-center justify-between px-4 py-2">
-        <h1
-          @click="reloadPage"
-          class="text-lg md:text-xl font-semibold text-primary flex items-center gap-2 cursor-pointer select-none hover:text-blue-700 transition-colors"
-        >
-          <img
-            :src="logoUrl"
-            :alt="`${appTitle} Logo`"
-            class="h-8 w-8 object-contain"
-            @error="onLogoError"
-          />
-          <span>{{ appTitle }}</span>
-        </h1>
-
-        <div class="flex items-center gap-2">
-          <RouterLink
-            to="/admin/dashboard"
-            class="bg-gray-200 text-gray-800 text-sm px-3 py-2 rounded-md hover:bg-gray-300 transition"
-          >
-            🔧 Admin
-          </RouterLink>
+      <div class="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 md:px-6 xl:px-8">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <button
-            @click="showAddGuestModal = true"
-            class="bg-green-600 text-white text-sm px-3 py-2 rounded-md hover:bg-green-700 transition"
+            @click="reloadPage"
+            class="flex max-w-full items-center gap-4 rounded-[1.75rem] border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_18px_60px_rgba(15,23,42,0.35)] transition hover:bg-white/12"
           >
-            ➕ Gast anlegen
+            <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/90 shadow-inner shadow-slate-200/60">
+              <img
+                :src="logoUrl"
+                :alt="`${appTitle} Logo`"
+                class="h-10 w-10 object-contain"
+                @error="onLogoError"
+              />
+            </span>
+            <span class="min-w-0">
+              <span class="block terminal-wordmark truncate text-xl md:text-2xl text-white">
+                {{ appTitle }}
+              </span>
+              <span class="block truncate text-sm text-slate-300/85">
+                {{ terminalSubtitle }}
+              </span>
+            </span>
           </button>
-          <RouterLink
-            v-if="auth.authenticated"
-            to="/stock-refill"
-            class="bg-blue-600 text-white text-sm px-3 py-2 rounded-md hover:bg-blue-700 transition"
-          >
-            📦 Nachfüllen
-          </RouterLink>
-        </div>
-      </div>
 
-      <!-- Statuszeile -->
-      <div
-        v-if="selectedMember"
-        class="flex items-center justify-between bg-blue-50 border-t border-blue-200 px-4 py-3 text-blue-900"
-      >
-        <button
-          @click="onBackToMembers"
-          class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md font-medium shadow hover:bg-blue-700 active:scale-[0.97] transition-transform"
+          <div class="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:justify-end">
+            <div
+              class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_12px_40px_rgba(15,23,42,0.24)]"
+            >
+              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">Mitglieder</div>
+              <div class="mt-1 text-xl font-semibold text-white">{{ memberCount }}</div>
+            </div>
+            <div
+              class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_12px_40px_rgba(15,23,42,0.24)]"
+            >
+              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">Heute aktiv</div>
+              <div class="mt-1 text-xl font-semibold text-white">{{ bookedTodayCount }}</div>
+            </div>
+            <div
+              class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_12px_40px_rgba(15,23,42,0.24)]"
+            >
+              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">Gaeste</div>
+              <div class="mt-1 text-xl font-semibold text-white">{{ guestCount }}</div>
+            </div>
+            <div
+              class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-left shadow-[0_12px_40px_rgba(15,23,42,0.24)]"
+            >
+              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">Sync</div>
+              <div class="mt-1">
+                <span
+                  class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-semibold"
+                  :class="queueBadgeClass"
+                >
+                  {{ queueBadgeText }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <span class="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-slate-200">
+              {{ auth.deviceName || "Terminal" }}
+            </span>
+            <span class="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-slate-200">
+              {{ isOnline ? "Online bereit" : "Offline aktiv" }}
+            </span>
+            <span
+              v-if="selectedMember"
+              class="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-slate-200"
+            >
+              {{ selectedMember.is_guest ? "Gast" : "Mitglied" }}
+            </span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <RouterLink
+              to="/admin/dashboard"
+              class="terminal-action-button terminal-action-button--ghost"
+            >
+              Admin
+            </RouterLink>
+            <button
+              @click="showAddGuestModal = true"
+              class="terminal-action-button terminal-action-button--accent"
+            >
+              Gast anlegen
+            </button>
+            <RouterLink
+              v-if="auth.authenticated"
+              to="/stock-refill"
+              class="terminal-action-button terminal-action-button--primary"
+            >
+              Nachfuellen
+            </RouterLink>
+          </div>
+        </div>
+
+        <div
+          v-if="selectedMember"
+          class="terminal-selected-member flex flex-col gap-4 rounded-[2rem] px-4 py-4 md:px-5 lg:flex-row lg:items-center lg:justify-between"
         >
-          ← Zurück
-        </button>
-        <div class="flex-1 text-center">
-          <span
-            class="block text-lg md:text-xl font-semibold leading-tight truncate"
-          >
-            {{ selectedMember.name }}
-          </span>
+          <div class="flex items-center gap-4 min-w-0">
+            <span
+              class="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.4rem] bg-white/12 text-xl font-semibold text-white ring-1 ring-white/15"
+            >
+              {{ selectedMemberInitials }}
+            </span>
+            <div class="min-w-0">
+              <div class="text-[0.68rem] uppercase tracking-[0.28em] text-cyan-100/70">
+                Aktive Buchung
+              </div>
+              <div class="truncate text-2xl font-semibold text-white md:text-3xl">
+                {{ selectedMember.name }}
+              </div>
+              <div class="mt-1 text-sm text-cyan-50/75">
+                {{ selectedMember.is_guest ? "Gastprofil mit abrechenbarer Session" : "Mitgliedsauswahl fuer schnelle Produktbuchungen" }}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            <div class="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
+              <div class="text-[0.68rem] uppercase tracking-[0.24em] text-cyan-100/65">Summe heute</div>
+              <div class="mt-1 text-2xl font-semibold text-white">
+                {{ (totalToday / 100).toFixed(2) }} €
+              </div>
+            </div>
+            <button
+              @click="onBackToMembers"
+              class="terminal-action-button terminal-action-button--light"
+            >
+              Zurueck zur Auswahl
+            </button>
+          </div>
         </div>
       </div>
     </header>
 
-    <!-- Toast -->
     <transition name="fade">
       <div
         v-if="toast"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-accent text-gray-900 font-semibold py-2 px-6 rounded-full shadow-lg z-50"
+        class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/92 px-6 py-3 font-semibold text-white shadow-[0_18px_60px_rgba(15,23,42,0.45)] backdrop-blur-xl"
       >
         {{ toast }}
       </div>
     </transition>
 
-    <!-- MAIN -->
     <main
-      class="flex-1 max-w-7xl mx-auto w-full px-3 md:px-6 py-3 overflow-hidden"
+      class="mx-auto flex w-full max-w-[1600px] flex-1 px-3 py-4 md:px-6 xl:px-8"
     >
-      <!-- Member-Auswahl -->
-      <div v-if="!selectedMember" class="flex flex-col h-[calc(100vh-8rem)]">
-        <!-- MemberPicker direkt hier, nicht im Footer -->
-        <MemberPicker @select="handleMemberSelect" class="flex-1" />
+      <div
+        v-if="!selectedMember"
+        class="grid w-full gap-5 lg:grid-cols-[minmax(0,1.15fr)_340px]"
+      >
+        <section
+          class="terminal-panel overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/45 shadow-[0_32px_120px_rgba(15,23,42,0.32)] backdrop-blur-xl"
+        >
+          <div class="border-b border-white/10 px-5 py-5 md:px-6">
+            <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Buchungsstart</div>
+            <div class="mt-2 max-w-3xl terminal-display text-3xl text-white md:text-5xl">
+              Mitglieder auswaehlen, Produkt tippen, in Sekunden buchen.
+            </div>
+            <div class="mt-3 max-w-2xl text-sm leading-6 text-slate-300/80 md:text-base">
+              Die Auswahl priorisiert aktive Mitglieder, markiert heutige Buchungen und bleibt auch bei vielen Datensaetzen schnell bedienbar.
+            </div>
+          </div>
+          <MemberPicker @select="handleMemberSelect" class="min-h-0 flex-1" />
+        </section>
+
+        <aside class="terminal-column flex flex-col gap-4">
+          <section class="terminal-sidecard">
+            <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Status</div>
+            <div class="mt-3 grid grid-cols-2 gap-3">
+              <div class="terminal-metric-card">
+                <div class="text-xs uppercase tracking-[0.22em] text-slate-400">Verfuegbar</div>
+                <div class="mt-2 text-2xl font-semibold text-white">{{ store.products.length }}</div>
+                <div class="mt-1 text-xs text-slate-400">Produkte im Katalog</div>
+              </div>
+              <div class="terminal-metric-card">
+                <div class="text-xs uppercase tracking-[0.22em] text-slate-400">Queue</div>
+                <div class="mt-2 text-2xl font-semibold text-white">
+                  {{ pendingQueueCount + failedQueueCount }}
+                </div>
+                <div class="mt-1 text-xs text-slate-400">Offene Sync-Vorgaenge</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="terminal-sidecard">
+            <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Betriebsmodus</div>
+            <div class="mt-3 space-y-3 text-sm text-slate-300/80">
+              <p>Das Terminal ist auf schnelle Touch-Bedienung mit ruhiger visueller Fuehrung optimiert.</p>
+              <p>Offline, Queue und Live-Betrieb bleiben sichtbar, ohne den Kassenfluss zu stoeren.</p>
+            </div>
+          </section>
+        </aside>
       </div>
 
-      <!-- Buchungsansicht -->
       <div
         v-else
-        class="flex flex-col lg:flex-row gap-4 h-[calc(100vh-9rem)] overflow-hidden"
+        class="grid w-full gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"
       >
-        <!-- Produktbereich -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        <div
+          class="terminal-panel overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/45 shadow-[0_32px_120px_rgba(15,23,42,0.32)] backdrop-blur-xl"
+        >
           <ProductGrid
             :products="store.products"
             :loading="loading"
             :isGuest="selectedMember?.is_guest"
             @add="addProduct"
-            class="flex-1 overflow-hidden"
+            class="h-full"
           />
         </div>
 
-        <!-- Sidebar -->
         <aside
-          class="relative w-full lg:w-[26%] flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm min-h-0"
+          class="terminal-ledger relative flex min-h-0 flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/58 shadow-[0_28px_90px_rgba(15,23,42,0.34)] backdrop-blur-xl"
         >
-          <div class="flex-1 min-h-0 overflow-y-auto space-y-3 p-2">
+          <div class="border-b border-white/10 px-5 py-5">
+            <div class="text-[0.68rem] uppercase tracking-[0.3em] text-cyan-100/55">Live Ledger</div>
+            <div class="mt-2 terminal-display text-3xl text-white">Buchungsfluss</div>
+            <div class="mt-1 text-sm text-slate-300/75">
+              Bestaetigte und neue Positionen bleiben getrennt, aber in einer gemeinsamen visuellen Logik.
+            </div>
+          </div>
+
+          <div class="flex-1 min-h-0 overflow-y-auto space-y-5 px-4 py-4">
             <section>
               <div
-                class="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500"
+                class="px-1 pb-2 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-slate-400"
               >
                 Heute gebucht
               </div>
@@ -418,7 +596,7 @@ watch(showPinModal, async (isOpen) => {
 
             <section>
               <div
-                class="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-amber-700"
+                class="px-1 pb-2 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-amber-300/85"
               >
                 Neu
               </div>
@@ -433,54 +611,57 @@ watch(showPinModal, async (isOpen) => {
           </div>
 
           <div
-            class="shrink-0 flex justify-between items-center px-3 py-2 text-base font-semibold text-gray-700 bg-blue-50 border-t border-blue-200"
+            class="terminal-totalbar shrink-0 flex items-end justify-between gap-4 px-5 py-5"
           >
-            <span>Summe heute</span>
-            <span>{{ (totalToday / 100).toFixed(2) }} €</span>
+            <div>
+              <div class="text-[0.68rem] uppercase tracking-[0.28em] text-cyan-100/60">Summe heute</div>
+              <div class="mt-2 terminal-display text-4xl text-white">
+                {{ (totalToday / 100).toFixed(2) }} €
+              </div>
+            </div>
+            <div class="text-right text-sm text-cyan-50/70">
+              <div>{{ confirmedBookings.length }} bestaetigt</div>
+              <div>{{ queuedBookings.length }} neu</div>
+            </div>
           </div>
 
           <div
-            class="shrink-0 grid grid-cols-2 border-t border-gray-300 bg-white"
+            class="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-black/10 p-4"
           >
             <button
               @click="showBookings = true"
-              class="h-12 bg-gray-200 text-gray-800 font-medium text-sm border border-gray-300 hover:bg-gray-300 transition"
+              class="terminal-action-button terminal-action-button--ghost h-14 justify-center"
             >
-              📅 Übersicht
+              Uebersicht
             </button>
             <button
               @click="showFreeAmount = true"
-              class="h-12 bg-blue-600 text-white font-medium text-sm border border-blue-700 hover:bg-blue-700 transition"
+              class="terminal-action-button terminal-action-button--primary h-14 justify-center"
             >
-              💶 Freier Betrag
+              Freier Betrag
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showPartialModal = true"
-              class="h-12 bg-yellow-500 text-white font-medium text-sm border border-yellow-600 hover:bg-yellow-600 transition"
+              class="terminal-action-button h-14 justify-center bg-amber-500/90 text-amber-950 hover:bg-amber-400"
             >
-              💰 Teilabrechnung
+              Teilabrechnung
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showSettleModal = true"
-              class="h-12 bg-red-600 text-white font-medium text-sm border border-red-700 hover:bg-red-700 transition"
+              class="terminal-action-button h-14 justify-center bg-rose-500/90 text-white hover:bg-rose-400"
             >
-              🧾 Abrechnung
+              Abrechnung
             </button>
             <div
               v-else
-              class="h-12 bg-gray-50 border border-transparent col-span-2"
+              class="col-span-2 h-14 rounded-2xl border border-dashed border-white/10 bg-white/5"
             ></div>
           </div>
         </aside>
       </div>
     </main>
-
-    <!-- FOOTER -->
-    <footer
-      class="bg-white border-t border-gray-200 shadow-inner py-2 px-4 sticky bottom-0 z-20"
-    ></footer>
   </div>
 
   <!-- Overlays/Modals (fehlten zuvor) -->
@@ -609,6 +790,120 @@ watch(showPinModal, async (isOpen) => {
 </template>
 
 <style scoped>
+.terminal-shell {
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 28%),
+    radial-gradient(circle at top right, rgba(45, 212, 191, 0.14), transparent 24%),
+    linear-gradient(160deg, #020617 0%, #0f172a 48%, #111827 100%);
+}
+
+.terminal-wordmark {
+  font-family: "Georgia", "Times New Roman", serif;
+  letter-spacing: 0.01em;
+}
+
+.terminal-display {
+  font-family: "Georgia", "Times New Roman", serif;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+}
+
+.terminal-selected-member {
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.42), rgba(15, 23, 42, 0.4)),
+    rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: terminal-float-in 0.45s ease both;
+}
+
+.terminal-sidecard {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.55);
+  border-radius: 1.75rem;
+  padding: 1.25rem;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+  animation: terminal-float-in 0.5s ease both;
+}
+
+.terminal-metric-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 1.25rem;
+  padding: 1rem;
+}
+
+.terminal-totalbar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(15, 23, 42, 0.45);
+}
+
+.terminal-panel {
+  animation: terminal-float-in 0.45s ease both;
+}
+
+.terminal-column {
+  animation: terminal-float-in 0.52s ease both;
+}
+
+.terminal-ledger {
+  animation: terminal-float-in 0.55s ease both;
+}
+
+.terminal-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 1rem;
+  padding: 0.9rem 1.15rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.terminal-action-button:hover {
+  transform: translateY(-1px);
+}
+
+.terminal-action-button--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.terminal-action-button--primary {
+  background: linear-gradient(135deg, #38bdf8, #0f766e);
+  color: white;
+  box-shadow: 0 16px 40px rgba(8, 145, 178, 0.25);
+}
+
+.terminal-action-button--accent {
+  background: linear-gradient(135deg, #f59e0b, #fb7185);
+  color: #fff7ed;
+  box-shadow: 0 16px 40px rgba(251, 113, 133, 0.24);
+}
+
+.terminal-action-button--light {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+@keyframes terminal-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.25s, transform 0.25s ease;

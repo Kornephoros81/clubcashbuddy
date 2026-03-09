@@ -10,17 +10,17 @@ defineEmits(["undo"]);
 
 <template>
   <div
-    class="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col"
+    class="booking-list flex flex-col overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/6"
   >
-    <ul class="divide-y divide-gray-100">
+    <ul class="divide-y divide-white/8">
       <li
         v-for="(b, i) in bookings"
         :key="i"
-        class="px-3 py-2 text-sm grid grid-cols-[1fr_auto_auto] items-center gap-2"
+        class="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 text-sm"
       >
         <div class="min-w-0">
           <div
-            class="font-medium text-gray-800 leading-snug whitespace-normal break-words hyphens-auto"
+            class="whitespace-normal break-words font-medium leading-snug text-slate-100 hyphens-auto"
             style="
               display: -webkit-box;
               -webkit-line-clamp: 2;
@@ -35,23 +35,27 @@ defineEmits(["undo"]);
           </div>
           <div
             v-if="b.syncStatus === 'pending'"
-            class="text-xs text-amber-600 font-semibold mt-0.5"
+            class="mt-1 text-xs font-semibold text-amber-300"
             title="Noch nicht synchronisiert"
           >
-            🕓 Ausstehend
+            Ausstehend
           </div>
           <div
             v-else-if="b.syncStatus === 'failed'"
-            class="text-xs text-red-600 font-semibold mt-0.5"
+            class="mt-1 text-xs font-semibold text-rose-300"
             title="Synchronisation fehlgeschlagen"
           >
-            ⚠️ Fehler
+            Fehler
           </div>
         </div>
 
         <span
-          class="justify-self-end font-semibold whitespace-nowrap text-right"
-          :class="b.amount < 0 ? 'text-red-600' : 'text-green-700'"
+          class="justify-self-end whitespace-nowrap rounded-full px-2.5 py-1 text-right text-sm font-semibold"
+          :class="
+            b.amount < 0
+              ? 'bg-rose-500/12 text-rose-100'
+              : 'bg-emerald-500/12 text-emerald-100'
+          "
         >
           {{ (Math.abs(b.amount) / 100).toFixed(2) }} €
         </span>
@@ -60,26 +64,32 @@ defineEmits(["undo"]);
           v-if="b.amount < 0"
           @click="$emit('undo', b)"
           :disabled="loading || b.syncStatus"
-          class="justify-self-end text-gray-400 hover:text-red-600 transition-colors text-base disabled:opacity-50 disabled:cursor-not-allowed"
+          class="justify-self-end rounded-full border border-white/10 bg-white/6 px-2.5 py-1.5 text-sm text-slate-300 transition-colors hover:text-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
           :title="
             b.syncStatus
               ? 'Ausstehende Buchungen können nicht storniert werden'
               : 'Buchung stornieren'
           "
         >
-          🗑️
+          Storno
         </button>
-        <span v-else class="justify-self-end text-gray-300 text-base">🔒</span>
+        <span v-else class="justify-self-end text-base text-slate-600">•</span>
       </li>
     </ul>
 
-    <!-- interne Summe nur falls gewünscht -->
     <div
       v-if="showTotal && bookings.length"
-      class="mt-2 flex justify-between border-t border-gray-200 pt-2 text-base font-semibold text-gray-700 px-3 pb-2"
+      class="mt-2 flex justify-between border-t border-white/10 px-4 pb-3 pt-3 text-base font-semibold text-slate-100"
     >
       <span>Summe heute</span>
       <span>{{ (totalToday / 100).toFixed(2) }} €</span>
     </div>
   </div>
 </template>
+
+<style scoped>
+.booking-list {
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(14px);
+}
+</style>
