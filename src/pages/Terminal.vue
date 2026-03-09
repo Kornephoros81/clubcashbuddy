@@ -295,6 +295,8 @@ watch(showPinModal, async (isOpen) => {
   <DeviceAuthDialog v-if="!auth.authenticated" />
 
   <div v-else class="min-h-screen flex flex-col bg-gray-50 text-gray-800">
+    <OfflineStatus />
+
     <!-- HEADER -->
     <header
       class="flex flex-col bg-white shadow-sm sticky top-0 z-40 border-b border-gray-200"
