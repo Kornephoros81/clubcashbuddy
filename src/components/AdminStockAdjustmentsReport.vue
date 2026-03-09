@@ -720,8 +720,6 @@ async function exportPdf() {
       </table>
     </div>
 
-      </div>
-
       <div class="lg:hidden space-y-3">
         <div
           v-for="row in rows"
