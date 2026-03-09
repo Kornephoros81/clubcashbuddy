@@ -265,13 +265,13 @@ async function deleteProduct(p: any) {
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">Artikelverwaltung</h2>
 
-      <div class="flex gap-2">
+      <div class="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
         <RouterLink
           to="/admin/product-categories"
-          class="bg-primary/10 text-primary px-4 py-2 rounded-lg shadow hover:bg-primary/20 transition"
+          class="bg-primary/10 text-primary px-4 py-2 rounded-lg shadow hover:bg-primary/20 transition text-center"
         >
           Kategorien
         </RouterLink>
@@ -294,10 +294,139 @@ async function deleteProduct(p: any) {
       ⏳ Artikel werden geladen...
     </div>
 
-    <div
-      v-if="!store.loading"
-      class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
-    >
+    <div v-if="!store.loading" class="space-y-4">
+      <div class="lg:hidden space-y-4">
+        <div
+          v-for="p in sortedProducts"
+          :key="p.id"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-4"
+        >
+          <div class="flex items-start gap-3">
+            <div class="shrink-0">
+              <img
+                v-if="hasPreviewImage(p)"
+                :src="p.image_url"
+                :alt="`Bild ${p.name}`"
+                class="w-16 h-16 object-contain rounded border bg-white"
+                @error="onPreviewImageError(p.id)"
+              />
+              <div
+                v-else
+                class="w-16 h-16 rounded border bg-gray-100 text-[10px] text-gray-500 flex items-center justify-center text-center leading-tight px-1"
+              >
+                Kein Bild
+              </div>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-base font-semibold text-gray-900 truncate">{{ p.name }}</div>
+              <div class="text-sm text-gray-500 mt-1">{{ p.category }}</div>
+              <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                <span class="rounded-full px-2 py-1" :class="p.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'">
+                  {{ p.active ? "Aktiv" : "Inaktiv" }}
+                </span>
+                <span class="rounded-full px-2 py-1" :class="p.inventoried ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
+                  {{ p.inventoried ? "Inventarisiert" : "Nicht inventarisiert" }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Name</label>
+              <input
+                v-model="p.name"
+                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Preis (€)</label>
+              <input
+                v-model.number="p.priceEuro"
+                type="number"
+                step="0.01"
+                min="0"
+                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Gast (€)</label>
+              <input
+                v-model.number="p.guestPriceEuro"
+                type="number"
+                step="0.01"
+                min="0"
+                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Kategorie</label>
+              <select
+                v-model="p.category"
+                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+              >
+                <option v-for="c in productCategoryOptions" :key="c.id" :value="c.name">
+                  {{ c.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                v-model="p.active"
+                class="scale-125 accent-primary"
+              />
+              Aktiv
+            </label>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                v-model="p.inventoried"
+                class="scale-125 accent-primary"
+              />
+              Inventarisiert
+            </label>
+          </div>
+
+          <div>
+            <div class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Bild</div>
+            <div class="flex flex-col gap-2">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                :disabled="isUploading(p.id)"
+                class="text-xs w-full"
+                @change="onProductImageSelected(p, $event)"
+              />
+              <div class="flex flex-wrap items-center gap-3 text-xs">
+                <button
+                  v-if="p.image_url"
+                  @click="removeProductImage(p)"
+                  :disabled="isUploading(p.id)"
+                  class="text-red-700 hover:text-red-900 text-left disabled:opacity-50"
+                >
+                  Bild entfernen
+                </button>
+                <span v-if="isUploading(p.id)" class="text-gray-500">Upload läuft...</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            @click="deleteProduct(p)"
+            class="w-full bg-red-100 text-red-700 px-3 py-2 rounded-md hover:bg-red-200 text-sm font-medium"
+          >
+            🗑️ Löschen
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
+      >
       <table class="min-w-full text-sm text-gray-700">
         <thead
           class="bg-primary/10 text-primary uppercase text-xs font-semibold"
@@ -442,6 +571,7 @@ async function deleteProduct(p: any) {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Modal -->

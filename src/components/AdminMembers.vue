@@ -254,11 +254,11 @@ async function confirmCredit() {
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">Mitgliederverwaltung</h2>
       <button
         @click="showNewMemberModal = true"
-        class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition"
+        class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition w-full sm:w-auto"
       >
         + Mitglied
       </button>
@@ -270,10 +270,109 @@ async function confirmCredit() {
     </div>
 
     <!-- Tabelle -->
-    <div
-      v-else
-      class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
-    >
+    <div v-else class="space-y-4">
+      <div class="lg:hidden space-y-4">
+        <div
+          v-for="m in store.members"
+          :key="m.id"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-4"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-base font-semibold text-gray-900">
+                {{ m.firstname }} {{ m.lastname }}
+              </div>
+              <div
+                class="text-sm font-mono mt-1"
+                :class="m.balance < 0 ? 'text-red-600' : 'text-green-700'"
+              >
+                {{ (m.balance / 100).toFixed(2) }} €
+              </div>
+            </div>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                v-model="m.active"
+                class="scale-125 accent-primary"
+              />
+              Aktiv
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Vorname</label>
+              <input
+                v-model="m.firstname"
+                class="w-full border rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Nachname</label>
+              <input
+                v-model="m.lastname"
+                class="w-full border rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">PIN</div>
+            <div class="flex flex-wrap items-center gap-2">
+              <input
+                :type="showPinPlain[m.id] ? 'text' : 'password'"
+                :value="pinDrafts[m.id] ?? ''"
+                maxlength="4"
+                class="w-24 border rounded-md px-3 py-2 text-sm"
+                placeholder="----"
+                @input="onPinInputEvent(m.id, $event)"
+              />
+              <button
+                @click="togglePin(m.id)"
+                class="bg-gray-100 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-200 text-sm"
+                title="PIN anzeigen/verstecken"
+              >
+                {{ showPinPlain[m.id] ? "🙈" : "👁️" }}
+              </button>
+              <button
+                @click="savePin(m)"
+                :disabled="pinSaving[m.id]"
+                class="bg-blue-100 text-blue-700 px-3 py-2 rounded-md hover:bg-blue-200 text-sm font-medium disabled:opacity-50"
+              >
+                PIN speichern
+              </button>
+            </div>
+            <div class="mt-2 text-xs text-gray-500">
+              {{ storedPins[m.id] ? "PIN gesetzt" : "kein PIN" }}
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              @click="save(m)"
+              class="bg-primary/10 text-primary px-3 py-2 rounded-md hover:bg-primary/20 text-sm font-medium"
+            >
+              💾 Speichern
+            </button>
+            <button
+              @click="openCreditModal(m)"
+              class="bg-green-100 text-green-700 px-3 py-2 rounded-md hover:bg-green-200 text-sm font-medium"
+            >
+              ➕ Guthaben
+            </button>
+            <button
+              @click="deleteMember(m)"
+              class="bg-red-100 text-red-700 px-3 py-2 rounded-md hover:bg-red-200 text-sm font-medium"
+            >
+              🗑️ Löschen
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
+      >
       <table class="min-w-full text-sm text-gray-700">
         <thead
           class="bg-primary/10 text-primary uppercase text-xs font-semibold"
@@ -370,6 +469,7 @@ async function confirmCredit() {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Neues Mitglied Modal -->
