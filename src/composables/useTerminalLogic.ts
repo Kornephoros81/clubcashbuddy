@@ -65,6 +65,7 @@ function createLogic() {
   const pendingQueueCount = ref(0);
   const failedQueueCount = ref(0);
   let syncTimer: ReturnType<typeof setTimeout> | null = null;
+  const DIRECT_SYNC_DELAY_MS = 200;
   async function refreshQueueCount() {
     const all = await getQueueEntries();
     pendingQueueCount.value = all.filter((e: any) => e.status !== "failed")
@@ -166,7 +167,7 @@ function createLogic() {
         await refreshQueueCount();
         syncTimer = null;
       }
-    }, 1000);
+    }, DIRECT_SYNC_DELAY_MS);
   }
 
   function isQueuedCancel(entry: any) {
