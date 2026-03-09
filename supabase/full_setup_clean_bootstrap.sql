@@ -15,7 +15,7 @@ alter schema public owner to postgres;
 
 
 
--- >>> BEGIN 20260212000000_init.sql
+-- >> BEGIN 20260212000000_init.sql
 create table if not exists public.admins (
   user_id uuid not null,
   constraint admins_pkey primary key (user_id)
