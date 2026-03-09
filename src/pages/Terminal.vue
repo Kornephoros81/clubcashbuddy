@@ -181,6 +181,11 @@ async function handleMemberSelect(memberId: string) {
   pinInput.value = "";
   pendingMemberId.value = null;
 
+  if (!isOnline.value) {
+    await openMember(memberId);
+    return;
+  }
+
   const known = pinRequiredMap.value[memberId];
   if (known === false) {
     await openMember(memberId);
