@@ -45,19 +45,42 @@ function syncDocumentTitle(title: string) {
   }
 }
 
+function syncDocumentIcons(iconUrl: string) {
+  if (typeof document === "undefined") return;
+
+  const links = Array.from(
+    document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']")
+  );
+
+  if (links.length) {
+    for (const link of links) {
+      link.href = iconUrl;
+    }
+    return;
+  }
+
+  const link = document.createElement("link");
+  link.rel = "icon";
+  link.href = iconUrl;
+  document.head.appendChild(link);
+}
+
 function applyBranding(data: Partial<BrandingSettings> | null | undefined) {
   const nextTitle = String(data?.app_title ?? "").trim() || DEFAULT_TITLE;
   const nextLogoRaw = String(data?.logo_url ?? "").trim();
+  const nextLogo = nextLogoRaw || DEFAULT_LOGO_URL;
   appTitle.value = nextTitle;
-  logoUrl.value = nextLogoRaw || DEFAULT_LOGO_URL;
+  logoUrl.value = nextLogo;
   writeCachedBranding({
     app_title: nextTitle,
     logo_url: nextLogoRaw || null,
   });
   syncDocumentTitle(nextTitle);
+  syncDocumentIcons(nextLogo);
 }
 
 syncDocumentTitle(appTitle.value);
+syncDocumentIcons(logoUrl.value);
 
 async function loadBrandingPublic() {
   const res = await fetch("/api/branding", { method: "GET", cache: "no-store" });
