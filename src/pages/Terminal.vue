@@ -23,6 +23,7 @@ const {
   totalToday,
   loading,
   toast,
+  isOnline,
   openMember,
   closeMember,
   addProduct,
