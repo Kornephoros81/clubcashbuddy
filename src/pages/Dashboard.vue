@@ -294,6 +294,7 @@ const productSummary = computed(() => {
       canceled: number;
       bookings: number;
       cancellations: number;
+      net_quantity: number;
     }
   >();
 
@@ -305,9 +306,11 @@ const productSummary = computed(() => {
       canceled: 0,
       bookings: 0,
       cancellations: 0,
+      net_quantity: 0,
     };
     rec.revenue += Number(row.amount_abs ?? 0);
     rec.bookings += 1;
+    rec.net_quantity += 1;
     map.set(key, rec);
   }
 
@@ -319,21 +322,27 @@ const productSummary = computed(() => {
       canceled: 0,
       bookings: 0,
       cancellations: 0,
+      net_quantity: 0,
     };
     rec.canceled += Number(row.amount_abs ?? 0);
     rec.cancellations += 1;
+    rec.net_quantity -= 1;
     map.set(key, rec);
   }
 
-  return [...map.values()].sort((a, b) => b.revenue - a.revenue);
+  return [...map.values()].sort((a, b) =>
+    b.net_quantity - a.net_quantity
+    || (b.revenue - b.canceled) - (a.revenue - a.canceled)
+    || b.revenue - a.revenue,
+  );
 });
 
 const topProducts = computed(() => productSummary.value.slice(0, 10));
 const topProductMaxAbs = computed(() =>
-  Math.max(1, ...topProducts.value.map((p) => Math.abs(Number(p.revenue ?? 0)))),
+  Math.max(1, ...topProducts.value.map((p) => Math.abs(Number(p.net_quantity ?? 0)))),
 );
 const topProductTotalNet = computed(() =>
-  topProducts.value.reduce((sum, p) => sum + Number(p.revenue ?? 0), 0),
+  topProducts.value.reduce((sum, p) => sum + Math.max(0, Number(p.net_quantity ?? 0)), 0),
 );
 
 const heatScaleP95 = computed(() => {
@@ -852,7 +861,7 @@ onBeforeUnmount(destroyCharts);
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div class="bg-white p-6 rounded-2xl shadow border border-gray-200">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">🥇 Top-Produkte nach Umsatz</h2>
+            <h2 class="text-lg font-semibold">🥇 Top-Produkte nach Netto-Menge</h2>
             <button
               class="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
               @click="goToRevenue()"
@@ -875,17 +884,17 @@ onBeforeUnmount(destroyCharts);
                 </div>
                 <div
                   class="text-sm font-semibold whitespace-nowrap"
-                  :class="row.revenue >= 0 ? 'text-emerald-700' : 'text-rose-700'"
+                  :class="row.net_quantity >= 0 ? 'text-emerald-700' : 'text-rose-700'"
                 >
-                  {{ euro(row.revenue) }}
+                  {{ row.net_quantity }} netto
                 </div>
               </div>
               <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-500" :style="productBarStyle(row.revenue)"></div>
+                <div class="h-full rounded-full transition-all duration-500" :style="productBarStyle(row.net_quantity)"></div>
               </div>
               <div class="mt-2 flex items-center justify-between text-xs text-gray-500">
-                <span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos</span>
-                <span>{{ productSharePercent(row.revenue).toFixed(1) }}% Anteil</span>
+                <span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos · {{ euro(row.revenue - row.canceled) }}</span>
+                <span>{{ productSharePercent(row.net_quantity).toFixed(1) }}% Anteil</span>
               </div>
             </div>
             <div v-if="topProducts.length === 0" class="text-sm text-gray-400 italic py-8 text-center">
