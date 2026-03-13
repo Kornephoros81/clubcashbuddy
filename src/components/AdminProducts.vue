@@ -12,7 +12,6 @@ const { confirm } = useModal();
 const showNewProductModal = ref(false);
 const newProductName = ref("");
 const newProductCategory = ref("Sonstiges");
-const newCategoryName = ref("");
 const newProductPrice = ref<number | null>(null);
 const newGuestPrice = ref<number | null>(null);
 const newProductInventoried = ref(true);
@@ -20,6 +19,9 @@ const uploadingImageById = ref<Record<string, boolean>>({});
 const brokenPreviewById = ref<Record<string, boolean>>({});
 const sortBy = ref<"name" | "category">("category");
 const sortDir = ref<"asc" | "desc">("asc");
+const searchTerm = ref("");
+const statusFilter = ref<"all" | "active" | "inactive">("all");
+const categoryFilter = ref("");
 
 onMounted(async () => {
   await store.initCategories();
@@ -142,7 +144,23 @@ const productCategoryOptions = computed(() => {
 const sortedProducts = computed(() => {
   const collator = new Intl.Collator("de", { sensitivity: "base", numeric: true });
   const factor = sortDir.value === "asc" ? 1 : -1;
-  return [...store.products].sort((a: any, b: any) => {
+  const query = searchTerm.value.trim().toLocaleLowerCase("de-DE");
+  return [...store.products]
+    .filter((product: any) => {
+      const matchesSearch =
+        !query
+        || String(product?.name ?? "").toLocaleLowerCase("de-DE").includes(query);
+      const matchesStatus =
+        statusFilter.value === "all"
+          ? true
+          : statusFilter.value === "active"
+            ? Boolean(product?.active)
+            : !product?.active;
+      const matchesCategory =
+        !categoryFilter.value || String(product?.category ?? "") === categoryFilter.value;
+      return matchesSearch && matchesStatus && matchesCategory;
+    })
+    .sort((a: any, b: any) => {
     const av = String(a?.[sortBy.value] ?? "");
     const bv = String(b?.[sortBy.value] ?? "");
     const primary = collator.compare(av, bv) * factor;
@@ -152,8 +170,8 @@ const sortedProducts = computed(() => {
       const bn = String(b?.name ?? "");
       return collator.compare(an, bn);
     }
-    return 0;
-  });
+      return 0;
+    });
 });
 
 function toggleSort(column: "name" | "category") {
@@ -168,44 +186,6 @@ function toggleSort(column: "name" | "category") {
 function sortIndicator(column: "name" | "category") {
   if (sortBy.value !== column) return "";
   return sortDir.value === "asc" ? " ▲" : " ▼";
-}
-
-async function addCategory() {
-  const name = newCategoryName.value.trim();
-  if (!name) {
-    showToast("⚠️ Bitte Kategorienamen angeben");
-    return;
-  }
-  try {
-    await store.addCategory(name);
-    newCategoryName.value = "";
-    if (!newProductCategory.value) newProductCategory.value = name;
-    showToast("✅ Kategorie angelegt");
-    await delay(400);
-  } catch (err) {
-    console.error("[addCategory]", err);
-    showToast("⚠️ Fehler beim Anlegen der Kategorie");
-  }
-}
-
-async function saveCategory(c: any) {
-  const name = String(c.name ?? "").trim();
-  if (!name) {
-    showToast("⚠️ Kategorie darf nicht leer sein");
-    return;
-  }
-  try {
-    await store.updateCategory({
-      ...c,
-      name,
-      sort_order: Number(c.sort_order ?? 0),
-    });
-    showToast("✅ Kategorie gespeichert");
-    await delay(400);
-  } catch (err) {
-    console.error("[saveCategory]", err);
-    showToast("⚠️ Fehler beim Speichern der Kategorie");
-  }
 }
 
 /* 💾 Speichert alle Produkte, die im Store aktuell stehen */
@@ -304,10 +284,16 @@ async function deleteProduct(p: any) {
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">Artikelverwaltung</h2>
 
-      <div class="flex gap-2">
+      <div class="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
+        <RouterLink
+          to="/admin/product-categories"
+          class="bg-primary/10 text-primary px-4 py-2 rounded-lg shadow hover:bg-primary/20 transition text-center"
+        >
+          Kategorien
+        </RouterLink>
         <button
           @click="saveAll"
           class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition"
@@ -323,80 +309,186 @@ async function deleteProduct(p: any) {
       </div>
     </div>
 
+    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Suche</label>
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Artikelname suchen"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Status</label>
+          <select
+            v-model="statusFilter"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          >
+            <option value="all">Alle</option>
+            <option value="active">Nur aktiv</option>
+            <option value="inactive">Nur inaktiv</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Kategorie</label>
+          <select
+            v-model="categoryFilter"
+            class="w-full border rounded-md px-3 py-2 text-sm"
+          >
+            <option value="">Alle Kategorien</option>
+            <option v-for="c in productCategoryOptions" :key="c.id" :value="c.name">
+              {{ c.name }}
+            </option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-3 text-xs text-gray-500">
+        {{ sortedProducts.length }} von {{ store.products.length }} Artikeln sichtbar
+      </div>
+    </div>
+
     <div v-if="store.loading" class="text-center py-10 text-gray-500">
       ⏳ Artikel werden geladen...
     </div>
 
-    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3">
-      <div class="flex items-center justify-between gap-3">
-        <h3 class="font-semibold text-primary">Kategorien</h3>
-        <div class="flex items-center gap-2">
-          <input
-            v-model="newCategoryName"
-            placeholder="Neue Kategorie"
-            class="border rounded-md px-3 py-1.5 text-sm w-52"
-          />
+    <div v-if="!store.loading" class="space-y-4">
+      <div class="lg:hidden space-y-4">
+        <div
+          v-for="p in sortedProducts"
+          :key="p.id"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-4"
+        >
+          <div class="flex items-start gap-3">
+            <div class="shrink-0">
+              <img
+                v-if="hasPreviewImage(p)"
+                :src="p.image_url"
+                :alt="`Bild ${p.name}`"
+                class="w-16 h-16 object-contain rounded border bg-white"
+                @error="onPreviewImageError(p.id)"
+              />
+              <div
+                v-else
+                class="w-16 h-16 rounded border bg-gray-100 text-[10px] text-gray-500 flex items-center justify-center text-center leading-tight px-1"
+              >
+                Kein Bild
+              </div>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-base font-semibold text-gray-900 truncate">{{ p.name }}</div>
+              <div class="text-sm text-gray-500 mt-1">{{ p.category }}</div>
+              <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                <span class="rounded-full px-2 py-1" :class="p.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'">
+                  {{ p.active ? "Aktiv" : "Inaktiv" }}
+                </span>
+                <span class="rounded-full px-2 py-1" :class="p.inventoried ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
+                  {{ p.inventoried ? "Inventarisiert" : "Nicht inventarisiert" }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Name</label>
+              <input
+                v-model="p.name"
+                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Preis (€)</label>
+              <input
+                v-model.number="p.priceEuro"
+                type="number"
+                step="0.01"
+                min="0"
+                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Gast (€)</label>
+              <input
+                v-model.number="p.guestPriceEuro"
+                type="number"
+                step="0.01"
+                min="0"
+                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Kategorie</label>
+              <select
+                v-model="p.category"
+                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+              >
+                <option v-for="c in productCategoryOptions" :key="c.id" :value="c.name">
+                  {{ c.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                v-model="p.active"
+                class="scale-125 accent-primary"
+              />
+              Aktiv
+            </label>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                v-model="p.inventoried"
+                class="scale-125 accent-primary"
+              />
+              Inventarisiert
+            </label>
+          </div>
+
+          <div>
+            <div class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Bild</div>
+            <div class="flex flex-col gap-2">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                :disabled="isUploading(p.id)"
+                class="text-xs w-full"
+                @change="onProductImageSelected(p, $event)"
+              />
+              <div class="flex flex-wrap items-center gap-3 text-xs">
+                <button
+                  v-if="p.image_url"
+                  @click="removeProductImage(p)"
+                  :disabled="isUploading(p.id)"
+                  class="text-red-700 hover:text-red-900 text-left disabled:opacity-50"
+                >
+                  Bild entfernen
+                </button>
+                <span v-if="isUploading(p.id)" class="text-gray-500">Upload läuft...</span>
+              </div>
+            </div>
+          </div>
+
           <button
-            @click="addCategory"
-            class="bg-primary text-white px-3 py-1.5 rounded-md hover:bg-primary/90 text-sm"
+            @click="deleteProduct(p)"
+            class="w-full bg-red-100 text-red-700 px-3 py-2 rounded-md hover:bg-red-200 text-sm font-medium"
           >
-            + Kategorie
+            🗑️ Löschen
           </button>
+        </div>
+        <div v-if="sortedProducts.length === 0" class="bg-white rounded-2xl shadow border border-gray-200 p-6 text-center text-gray-400 italic">
+          Keine Artikel für den gewählten Filter
         </div>
       </div>
 
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-sm text-gray-700">
-          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
-            <tr>
-              <th class="px-3 py-2 text-left">Name</th>
-              <th class="px-3 py-2 text-right">Sortierung</th>
-              <th class="px-3 py-2 text-center">Aktiv</th>
-              <th class="px-3 py-2 text-right">Produkte</th>
-              <th class="px-3 py-2 text-center">Aktion</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in store.categories" :key="c.id" class="border-t">
-              <td class="px-3 py-2">
-                <input
-                  v-model="c.name"
-                  class="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                />
-              </td>
-              <td class="px-3 py-2 text-right">
-                <input
-                  v-model.number="c.sort_order"
-                  type="number"
-                  class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                />
-              </td>
-              <td class="px-3 py-2 text-center">
-                <input
-                  type="checkbox"
-                  v-model="c.active"
-                  class="scale-125 accent-primary"
-                />
-              </td>
-              <td class="px-3 py-2 text-right">{{ c.product_count }}</td>
-              <td class="px-3 py-2 text-center">
-                <button
-                  @click="saveCategory(c)"
-                  class="bg-primary/10 text-primary px-3 py-1 rounded-md hover:bg-primary/20 text-sm font-medium"
-                >
-                  Speichern
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div
-      v-if="!store.loading"
-      class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
-    >
+      <div
+        class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
+      >
       <table class="min-w-full text-sm text-gray-700">
         <thead
           class="bg-primary/10 text-primary uppercase text-xs font-semibold"
@@ -539,8 +631,14 @@ async function deleteProduct(p: any) {
               </button>
             </td>
           </tr>
+          <tr v-if="sortedProducts.length === 0">
+            <td colspan="8" class="text-center py-6 text-gray-400 italic">
+              Keine Artikel für den gewählten Filter
+            </td>
+          </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Modal -->

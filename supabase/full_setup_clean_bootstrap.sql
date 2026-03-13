@@ -15,7 +15,7 @@ alter schema public owner to postgres;
 
 
 
--- >>> BEGIN 20260212000000_init.sql
+-- >> BEGIN 20260212000000_init.sql
 create table if not exists public.admins (
   user_id uuid not null,
   constraint admins_pkey primary key (user_id)
@@ -8606,6 +8606,20 @@ alter table public.products
 
 notify pgrst, 'reload schema';
 -- <<< END 20260225130000_store_product_images_in_db.sql
+
+-- Initial admin for fresh installations.
+insert into public.app_users (username, password_hash, role, active)
+values (
+  'clubadmin',
+  crypt('ClubCashBuddy', gen_salt('bf')),
+  'admin',
+  true
+)
+on conflict (username) do update
+set
+  password_hash = excluded.password_hash,
+  role = 'admin',
+  active = true;
 
 commit;
 

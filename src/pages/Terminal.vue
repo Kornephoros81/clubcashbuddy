@@ -23,6 +23,7 @@ const {
   totalToday,
   loading,
   toast,
+  isOnline,
   openMember,
   closeMember,
   addProduct,
@@ -181,6 +182,11 @@ async function handleMemberSelect(memberId: string) {
   pinInput.value = "";
   pendingMemberId.value = null;
 
+  if (!isOnline.value) {
+    await openMember(memberId);
+    return;
+  }
+
   const known = pinRequiredMap.value[memberId];
   if (known === false) {
     await openMember(memberId);
@@ -295,6 +301,8 @@ watch(showPinModal, async (isOpen) => {
   <DeviceAuthDialog v-if="!auth.authenticated" />
 
   <div v-else class="min-h-screen flex flex-col bg-gray-50 text-gray-800">
+    <OfflineStatus />
+
     <!-- HEADER -->
     <header
       class="flex flex-col bg-white shadow-sm sticky top-0 z-40 border-b border-gray-200"

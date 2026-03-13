@@ -341,9 +341,9 @@ async function exportPdf() {
 
 <template>
   <div class="space-y-6" data-report-id="admin-stock-adjustments-report">
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">📉 Fehlbestände & Anpassungen</h2>
-      <div class="flex items-center gap-3 no-print">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 no-print w-full lg:w-auto">
         <button
           @click="exportPdf"
           class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
@@ -359,7 +359,7 @@ async function exportPdf() {
       </div>
     </div>
 
-    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 flex flex-wrap gap-4 items-end">
+    <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
       <div>
         <label class="block text-sm font-medium text-gray-600 mb-1">Startdatum</label>
         <Datepicker
@@ -394,12 +394,14 @@ async function exportPdf() {
         </select>
       </div>
 
-      <button
-        @click="loadReport"
-        class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition"
-      >
-        Bericht laden
-      </button>
+      <div class="xl:self-end">
+        <button
+          @click="loadReport"
+          class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition w-full"
+        >
+          Bericht laden
+        </button>
+      </div>
     </div>
 
     <div v-if="loading" class="text-center py-10 text-gray-500">
@@ -409,7 +411,148 @@ async function exportPdf() {
       {{ error }}
     </div>
 
-    <div v-else class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
+    <div v-else class="space-y-4">
+      <div v-if="groupBy === 'product'" class="lg:hidden space-y-3">
+        <div
+          v-for="row in groupedByProduct"
+          :key="row.product_id"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm text-gray-500">{{ row.product_category }}</div>
+              <div class="text-base font-semibold text-gray-900">{{ row.product_name }}</div>
+            </div>
+            <div class="text-right text-xs text-gray-500">
+              <div>Anpassungen</div>
+              <div class="text-sm font-semibold text-gray-900">{{ row.adjustments_count }}</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div class="text-xs uppercase text-gray-500">Fehlbestand</div>
+              <div class="text-red-700 font-semibold">{{ row.fehlbestand }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Überbestand</div>
+              <div class="text-amber-700 font-semibold">{{ row.ueberbestand }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Abw. Kühlschrank</div>
+              <div :class="deltaClass(row.fridge_delta)">{{ row.fridge_delta }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Abw. Lager</div>
+              <div :class="deltaClass(row.warehouse_delta)">{{ row.warehouse_delta }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Netto</div>
+              <div :class="deltaClass(row.fridge_delta + row.warehouse_delta)">
+                {{ row.fridge_delta + row.warehouse_delta }}
+              </div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Letzte Anpassung</div>
+              <div>{{ new Date(row.last_adjustment_at).toLocaleString("de-DE") }}</div>
+            </div>
+          </div>
+          <details class="rounded-xl bg-gray-50 p-3">
+            <summary class="cursor-pointer text-sm font-medium text-primary">
+              Tage ({{ drilldownProductToDays[row.product_id]?.length ?? 0 }})
+            </summary>
+            <div class="mt-2 space-y-2 text-sm text-gray-600">
+              <div
+                v-for="dayRow in drilldownProductToDays[row.product_id] ?? []"
+                :key="`${row.product_id}-${dayRow.day}`"
+                class="flex items-start justify-between gap-4"
+              >
+                <span>{{ formatDayKey(dayRow.day) }}</span>
+                <span class="text-right">
+                  F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} ({{ dayRow.adjustments_count }}x)
+                </span>
+              </div>
+            </div>
+          </details>
+        </div>
+        <div
+          v-if="groupedByProduct.length === 0"
+          class="bg-white rounded-2xl shadow border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500"
+        >
+          Keine Anpassungen im gewählten Zeitraum
+        </div>
+      </div>
+
+      <div v-else class="lg:hidden space-y-3">
+        <div
+          v-for="row in groupedByDay"
+          :key="row.day"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm text-gray-500">Tag</div>
+              <div class="text-base font-semibold text-gray-900">{{ formatDayKey(row.day) }}</div>
+            </div>
+            <div class="text-right text-xs text-gray-500">
+              <div>Anpassungen</div>
+              <div class="text-sm font-semibold text-gray-900">{{ row.adjustments_count }}</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div class="text-xs uppercase text-gray-500">Produkte</div>
+              <div>{{ row.products_count }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Fehlbestand</div>
+              <div class="text-red-700 font-semibold">{{ row.fehlbestand }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Überbestand</div>
+              <div class="text-amber-700 font-semibold">{{ row.ueberbestand }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Abw. Kühlschrank</div>
+              <div :class="deltaClass(row.fridge_delta)">{{ row.fridge_delta }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Abw. Lager</div>
+              <div :class="deltaClass(row.warehouse_delta)">{{ row.warehouse_delta }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Netto</div>
+              <div :class="deltaClass(row.fridge_delta + row.warehouse_delta)">
+                {{ row.fridge_delta + row.warehouse_delta }}
+              </div>
+            </div>
+          </div>
+          <details class="rounded-xl bg-gray-50 p-3">
+            <summary class="cursor-pointer text-sm font-medium text-primary">
+              Produkte ({{ drilldownDayToProducts[row.day]?.length ?? 0 }})
+            </summary>
+            <div class="mt-2 space-y-2 text-sm text-gray-600">
+              <div
+                v-for="productRow in drilldownDayToProducts[row.day] ?? []"
+                :key="`${row.day}-${productRow.product_id}`"
+                class="flex items-start justify-between gap-4"
+              >
+                <span>{{ productRow.product_name }}</span>
+                <span class="text-right">
+                  F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} ({{ productRow.adjustments_count }}x)
+                </span>
+              </div>
+            </div>
+          </details>
+        </div>
+        <div
+          v-if="groupedByDay.length === 0"
+          class="bg-white rounded-2xl shadow border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500"
+        >
+          Keine Anpassungen im gewählten Zeitraum
+        </div>
+      </div>
+
+      <div class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
       <table v-if="groupBy === 'product'" class="min-w-full text-sm text-gray-700">
         <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
           <tr>
@@ -577,7 +720,55 @@ async function exportPdf() {
       </table>
     </div>
 
-    <div class="bg-white rounded-2xl shadow border border-gray-200 overflow-x-auto">
+      <div class="lg:hidden space-y-3">
+        <div
+          v-for="row in rows"
+          :key="`${row.created_at}-${row.product_id}-${row.location}-${row.delta}`"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm text-gray-500">{{ new Date(row.created_at).toLocaleString("de-DE") }}</div>
+              <div class="text-base font-semibold text-gray-900">{{ row.product_name }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs uppercase text-gray-500">Delta</div>
+              <div
+                class="text-sm font-semibold"
+                :class="row.delta < 0 ? 'text-red-700' : row.delta > 0 ? 'text-amber-700' : 'text-green-700'"
+              >
+                {{ row.delta }}
+              </div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div class="text-xs uppercase text-gray-500">Ort</div>
+              <div>{{ locationLabel(row.location) }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Typ</div>
+              <div>{{ row.adjustment_kind }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Grund</div>
+              <div>{{ reasonLabel(row.reason) }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Notiz</div>
+              <div>{{ row.note || "-" }}</div>
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="rows.length === 0"
+          class="bg-white rounded-2xl shadow border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500"
+        >
+          Keine Detaildaten im gewählten Zeitraum
+        </div>
+      </div>
+
+      <div class="hidden lg:block bg-white rounded-2xl shadow border border-gray-200 overflow-x-auto">
       <table class="min-w-full text-sm text-gray-700">
         <thead class="bg-gray-100 text-gray-700 uppercase text-xs font-semibold">
           <tr>
@@ -609,6 +800,7 @@ async function exportPdf() {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 </template>
