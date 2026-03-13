@@ -68,22 +68,13 @@ function selectMember(id: string) {
   emit("select", id);
 }
 
-function formatNameStyled(name: string): string {
-  if (!name) return "";
+function splitMemberName(name: string) {
+  if (!name) return { lastName: "", firstName: "" };
   const [last, ...rest] = String(name).split(",");
-  const first = rest.join(",").trim();
-  return `
-    <span class='block text-[clamp(0.9rem,1vw+0.4rem,1.2rem)] font-semibold leading-tight'>
-      ${(last ?? "").trim()}
-    </span>
-    ${
-      first
-        ? `<span class='block text-[clamp(0.7rem,1vw+0.2rem,1rem)] text-gray-500 leading-tight'>
-            ${first}
-          </span>`
-        : ""
-    }
-  `;
+  return {
+    lastName: (last ?? "").trim(),
+    firstName: rest.join(",").trim(),
+  };
 }
 </script>
 
@@ -136,10 +127,19 @@ function formatNameStyled(name: string): string {
               : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-100',
           ]"
         >
-          <span
-            class="px-1 whitespace-normal break-words text-center"
-            v-html="formatNameStyled(m.name)"
-          ></span>
+          <span class="px-1 whitespace-normal break-words text-center">
+            <span
+              class="block text-[clamp(0.9rem,1vw+0.4rem,1.2rem)] font-semibold leading-tight"
+            >
+              {{ splitMemberName(m.name).lastName }}
+            </span>
+            <span
+              v-if="splitMemberName(m.name).firstName"
+              class="block text-[clamp(0.7rem,1vw+0.2rem,1rem)] text-gray-500 leading-tight"
+            >
+              {{ splitMemberName(m.name).firstName }}
+            </span>
+          </span>
         </button>
       </template>
 

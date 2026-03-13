@@ -165,9 +165,9 @@ async function exportPdf() {
 
 <template>
   <div class="space-y-6" data-report-id="admin-inventory-report">
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">📦 Inventurabgleich</h2>
-      <div class="flex items-center gap-3 no-print">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 no-print w-full lg:w-auto">
         <button
           @click="exportPdf"
           class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
@@ -184,7 +184,7 @@ async function exportPdf() {
     </div>
 
     <div
-      class="bg-white rounded-2xl shadow border border-gray-200 p-4 flex flex-wrap gap-4 items-end"
+      class="bg-white rounded-2xl shadow border border-gray-200 p-4 grid grid-cols-1 lg:grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-4 items-end"
     >
       <label class="inline-flex items-center gap-2 text-sm text-gray-700">
         <input v-model="showInactive" type="checkbox" class="accent-primary" />
@@ -227,10 +227,79 @@ async function exportPdf() {
       {{ error }}
     </div>
 
-    <div
-      v-else
-      class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
-    >
+    <div v-else class="space-y-4">
+      <div class="lg:hidden space-y-3">
+        <div
+          v-for="p in filteredReport"
+          :key="p.product_id"
+          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm text-gray-500">{{ p.category }}</div>
+              <div class="text-base font-semibold text-gray-900">{{ p.name }}</div>
+            </div>
+            <span
+              class="px-2 py-1 rounded-full text-xs font-semibold"
+              :class="p.active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'"
+            >
+              {{ p.active ? "Aktiv" : "Inaktiv" }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div class="text-xs uppercase text-gray-500">Soll Lager</div>
+              <div>{{ p.soll_warehouse_stock }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Ist Lager</div>
+              <input
+                v-model.number="counts[p.product_id].ist_warehouse_stock"
+                type="number"
+                min="0"
+                class="w-full text-right border rounded-md px-2 py-1 text-sm"
+              />
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Soll Kühlschrank</div>
+              <div>{{ p.soll_fridge_stock }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Ist Kühlschrank</div>
+              <input
+                v-model.number="counts[p.product_id].ist_fridge_stock"
+                type="number"
+                min="0"
+                class="w-full text-right border rounded-md px-2 py-1 text-sm"
+              />
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <div class="text-xs uppercase text-gray-500">Abw. Lager</div>
+              <div :class="deltaClass(getDeltaWarehouse(p))">{{ getDeltaWarehouse(p) }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Abw. Kühlschrank</div>
+              <div :class="deltaClass(getDeltaFridge(p))">{{ getDeltaFridge(p) }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Abw. gesamt</div>
+              <div :class="deltaClass(getDeltaTotal(p))">{{ getDeltaTotal(p) }}</div>
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="filteredReport.length === 0"
+          class="bg-white rounded-2xl shadow border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500"
+        >
+          Keine inventarisierten Artikel vorhanden
+        </div>
+      </div>
+
+      <div
+        class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
+      >
       <table class="min-w-full text-sm text-gray-700">
         <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
           <tr>
@@ -319,6 +388,7 @@ async function exportPdf() {
           </tr>
         </tfoot>
       </table>
+      </div>
     </div>
   </div>
 </template>

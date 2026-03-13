@@ -25,46 +25,60 @@ async function isReallyOnline(): Promise<boolean> {
 }
 
 // Singleton-Backoff
-let pollingId: number | null = null;
+let pollTimerId: number | null = null;
 let inFlight = false;
 let backoffMs = 15000; // 15s Start
 const MAX_BACKOFF = 5 * 60_000; // 5min
+const INITIAL_BACKOFF = 15000;
 
-async function trySync() {
-  if (inFlight) return;
+async function trySync(): Promise<boolean> {
+  if (inFlight) return false;
   const auth = useDeviceAuthStore();
-  if (!auth.token) return;
+  if (!auth.token) return false;
   inFlight = true;
   try {
-    if (await isReallyOnline()) {
-      const processed = await syncQueue(auth.token);
-      // UI gezielt aktualisieren statt Hard-Reload
-      if (processed && processed > 0) {
-        window.dispatchEvent(
-          new CustomEvent("queue-synced", { detail: { processed } })
-        );
-      }
-      backoffMs = 15000;
+    const online = await isReallyOnline();
+    if (!online) return false;
+
+    const processed = await syncQueue(auth.token);
+    // UI gezielt aktualisieren statt Hard-Reload
+    if (processed && processed > 0) {
+      window.dispatchEvent(
+        new CustomEvent("queue-synced", { detail: { processed } })
+      );
     }
+    return true;
   } catch {
-    /* noop */
+    return false;
   } finally {
     inFlight = false;
   }
 }
 
+function clearPoller() {
+  if (pollTimerId !== null) {
+    window.clearTimeout(pollTimerId);
+    pollTimerId = null;
+  }
+}
+
+function scheduleNextPoll(delayMs = backoffMs) {
+  clearPoller();
+  pollTimerId = window.setTimeout(runPollCycle, delayMs);
+}
+
+async function runPollCycle() {
+  pollTimerId = null;
+  const synced = await trySync();
+  backoffMs = synced
+    ? INITIAL_BACKOFF
+    : Math.min(Math.max(backoffMs, INITIAL_BACKOFF) * 2, MAX_BACKOFF);
+  scheduleNextPoll(backoffMs);
+}
+
 function ensurePoller() {
-  if (pollingId) return;
-  pollingId = window.setInterval(async () => {
-    await trySync();
-    // exponentielles Backoff erst anwenden, wenn offline/fehlgeschlagen
-    if (!inFlight) {
-      clearInterval(pollingId!);
-      pollingId = null;
-      setTimeout(ensurePoller, backoffMs);
-      backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF);
-    }
-  }, backoffMs);
+  if (pollTimerId !== null) return;
+  scheduleNextPoll(backoffMs);
 }
 
 async function bootstrap() {
@@ -77,13 +91,22 @@ async function bootstrap() {
   await auth.initFromStorage();
 
   // bisheriger Online-Listener bleibt – aber ist unter Android oft wirkungslos
-  window.addEventListener("online", trySync);
+  window.addEventListener("online", () => {
+    void trySync();
+    scheduleNextPoll(INITIAL_BACKOFF);
+  });
 
   // zusätzliche Trigger
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") trySync();
+    if (document.visibilityState === "visible") {
+      void trySync();
+      scheduleNextPoll(INITIAL_BACKOFF);
+    }
   });
-  window.addEventListener("focus", trySync);
+  window.addEventListener("focus", () => {
+    void trySync();
+    scheduleNextPoll(INITIAL_BACKOFF);
+  });
 
   // Polling starten
   ensurePoller();

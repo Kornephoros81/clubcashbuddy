@@ -115,10 +115,6 @@ export async function syncQueue(token: string): Promise<number> {
 
   syncInFlight = (async () => {
     if (!navigator.onLine) return 0;
-
-    const entries = (await getQueueEntries()).sort(
-      (a: any, b: any) => Number(a?.id ?? 0) - Number(b?.id ?? 0)
-    );
     let successCount = 0;
 
     const processEntry = async (entry: any): Promise<boolean> => {
@@ -300,33 +296,41 @@ export async function syncQueue(token: string): Promise<number> {
       return runSuccess;
     };
 
-    let i = 0;
-    while (i < entries.length) {
-      const current = entries[i];
-      const payload = (current?.payload ?? {}) as QueuePayload;
-      const isCancel = Object.prototype.hasOwnProperty.call(
-        payload,
-        "cancel_tx_id"
-      );
+    while (navigator.onLine) {
+      const entries = (await getQueueEntries())
+        .filter((entry: any) => entry?.status !== "failed")
+        .sort((a: any, b: any) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
 
-      if (isCancel) {
-        const ok = await processEntry(current);
-        if (ok) successCount += 1;
-        i += 1;
-        continue;
-      }
+      if (!entries.length) break;
 
-      const run: any[] = [];
+      let i = 0;
       while (i < entries.length) {
-        const e = entries[i];
-        const p = (e?.payload ?? {}) as QueuePayload;
-        const cancel = Object.prototype.hasOwnProperty.call(p, "cancel_tx_id");
-        if (cancel) break;
-        run.push(e);
-        i += 1;
-      }
+        const current = entries[i];
+        const payload = (current?.payload ?? {}) as QueuePayload;
+        const isCancel = Object.prototype.hasOwnProperty.call(
+          payload,
+          "cancel_tx_id"
+        );
 
-      successCount += await processBookingRun(run);
+        if (isCancel) {
+          const ok = await processEntry(current);
+          if (ok) successCount += 1;
+          i += 1;
+          continue;
+        }
+
+        const run: any[] = [];
+        while (i < entries.length) {
+          const e = entries[i];
+          const p = (e?.payload ?? {}) as QueuePayload;
+          const cancel = Object.prototype.hasOwnProperty.call(p, "cancel_tx_id");
+          if (cancel) break;
+          run.push(e);
+          i += 1;
+        }
+
+        successCount += await processBookingRun(run);
+      }
     }
 
     if (successCount > 0) {
