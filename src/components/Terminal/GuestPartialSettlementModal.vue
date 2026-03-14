@@ -223,13 +223,11 @@ watch(() => props.show, loadTransactions);
               :key="group.key"
               class="rounded-[22px] border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.05)]"
             >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0 flex items-center gap-3 flex-1">
                   <div class="text-[1.02rem] font-semibold text-slate-900 leading-tight">
                     {{ group.name }}
                   </div>
-                </div>
-                <div class="shrink-0 mr-2 flex items-center gap-2">
                   <div class="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
                     {{ selectedCountForGroup(group) }} / {{ group.txs.length }}
                   </div>
@@ -244,6 +242,7 @@ watch(() => props.show, loadTransactions);
                     {{ (Math.abs(amountForSelection(group, selectedCountForGroup(group))) / 100).toFixed(2) }} €
                   </div>
                 </div>
+                <div class="shrink-0 w-[6.5rem]"></div>
               </div>
 
               <div class="mt-2 flex items-stretch gap-3">
