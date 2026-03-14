@@ -7,8 +7,8 @@
   --surface: rgba(255, 255, 255, 0.88);
   --surface-strong: rgba(255, 255, 255, 0.96);
   --surface-soft: rgba(248, 250, 252, 0.84);
-  --line-soft: rgba(148, 163, 184, 0.2);
-  --line-strong: rgba(148, 163, 184, 0.32);
+  --line-soft: rgba(100, 116, 139, 0.28);
+  --line-strong: rgba(100, 116, 139, 0.42);
   --text-main: #122033;
   --text-soft: #5f6f86;
   --brand: #1e3a8a;
@@ -18,8 +18,8 @@
   --success-strong: #0f766e;
   --warning-soft: #fff1bf;
   --danger-soft: #fde2e2;
-  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.08);
-  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.1);
+  --shadow-card: 0 12px 32px rgba(15, 23, 42, 0.1);
 }
 
 html {
@@ -77,6 +77,11 @@ button {
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow-soft);
   border: 1px solid var(--line-strong);
+}
+
+.button-outline-strong {
+  border-width: 1.5px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
 .section-chip {

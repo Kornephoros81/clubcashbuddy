@@ -51,11 +51,11 @@ const groupedProducts = computed(() => {
       >
         <!-- Kategorie: kompakt, nicht sticky, keine Überdeckung -->
         <div class="w-full flex items-center my-1.5 xl:my-1">
-          <div class="flex-1 border-t border-slate-200"></div>
+          <div class="flex-1 border-t border-slate-300"></div>
           <div class="section-chip mx-3">
             {{ category }}
           </div>
-          <div class="flex-1 border-t border-slate-200"></div>
+          <div class="flex-1 border-t border-slate-300"></div>
         </div>
 
         <!-- Grid für 1280×800: 6 Spalten auf groß, kleine Gaps, flache Buttons -->
@@ -70,13 +70,13 @@ const groupedProducts = computed(() => {
             class="group relative flex flex-col rounded-[24px] border h-[102px] xl:h-[94px] px-2 xl:px-1.5 pt-2 xl:pt-1.5 pb-5 xl:pb-4 transition active:scale-[0.985] overflow-hidden"
             :class="[
               p.stock === 0
-                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                : 'bg-white/96 hover:bg-blue-50 border-slate-200 hover:border-blue-300 shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_16px_34px_rgba(30,58,138,0.14)]',
+                ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
+                : 'bg-white hover:bg-blue-50 border-slate-300 hover:border-blue-400 shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_16px_34px_rgba(30,58,138,0.14)]',
             ]"
           >
             <span
               class="absolute inset-x-2 top-2 h-px"
-              :class="p.stock === 0 ? 'bg-slate-200' : 'bg-slate-100 group-hover:bg-blue-100'"
+              :class="p.stock === 0 ? 'bg-slate-300' : 'bg-slate-200 group-hover:bg-blue-200'"
             ></span>
 
             <!-- Fester Medienbereich -->

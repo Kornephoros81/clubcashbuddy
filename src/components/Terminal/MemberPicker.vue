@@ -93,8 +93,8 @@ function splitMemberName(name: string) {
             selectedLetter === ch
               ? 'bg-slate-900 text-white border-slate-900 shadow-md'
               : availableLetters.includes(ch)
-              ? 'bg-white/90 text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200'
-              : 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed',
+              ? 'bg-white text-slate-700 border-slate-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300'
+              : 'bg-slate-100 text-slate-300 border-slate-300 cursor-not-allowed',
           ]"
         >
           {{ ch }}
@@ -119,17 +119,17 @@ function splitMemberName(name: string) {
           class="group relative h-[5.4rem] xl:h-[4.75rem] rounded-[22px] border transition flex flex-col items-center justify-center text-center px-3 xl:px-2.5 py-3 xl:py-2.5 overflow-hidden"
           :class="[
             m.is_guest
-              ? 'bg-gradient-to-br from-amber-50 to-orange-100 text-slate-800 border-amber-200 hover:border-amber-300 hover:shadow-md'
+              ? 'bg-gradient-to-br from-amber-50 to-orange-100 text-slate-800 border-amber-300 hover:border-amber-400 hover:shadow-md'
               : m.id === selected
               ? 'bg-gradient-to-br from-primary to-blue-700 text-white border-blue-800 scale-[1.02] shadow-lg'
               : bookedTodayIds.has(m.id)
-              ? 'bg-gradient-to-br from-emerald-50 to-teal-100 text-slate-800 border-emerald-200 hover:border-emerald-300 hover:shadow-md'
-              : 'bg-white/92 text-slate-800 border-slate-200 hover:border-blue-200 hover:bg-slate-50 hover:shadow-md',
+              ? 'bg-gradient-to-br from-emerald-50 to-teal-100 text-slate-800 border-emerald-300 hover:border-emerald-400 hover:shadow-md'
+              : 'bg-white text-slate-800 border-slate-300 hover:border-blue-300 hover:bg-slate-50 hover:shadow-md',
           ]"
         >
           <span
             class="absolute inset-x-3 top-2 h-px opacity-70"
-            :class="m.id === selected ? 'bg-white/40' : 'bg-slate-200'"
+            :class="m.id === selected ? 'bg-white/40' : 'bg-slate-300'"
           ></span>
           <span class="px-1 whitespace-normal break-words text-center">
             <span

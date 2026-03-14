@@ -12,7 +12,7 @@ defineEmits(["undo"]);
   <div
     class="glass-panel rounded-[24px] flex flex-col overflow-hidden"
   >
-    <ul class="divide-y divide-gray-100">
+    <ul class="divide-y divide-slate-200">
       <li
         v-for="(b, i) in bookings"
         :key="i"
@@ -63,7 +63,7 @@ defineEmits(["undo"]);
           v-if="b.amount < 0"
           @click="$emit('undo', b)"
           :disabled="loading || b.syncStatus"
-          class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-white text-slate-400 border border-slate-200 hover:text-red-600 hover:border-red-200 transition-colors text-base xl:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-white text-slate-500 border border-slate-300 hover:text-red-600 hover:border-red-300 transition-colors text-base xl:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           :title="
             b.syncStatus
               ? 'Ausstehende Buchungen können nicht storniert werden'
@@ -72,14 +72,14 @@ defineEmits(["undo"]);
         >
           🗑️
         </button>
-        <span v-else class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-slate-50 text-slate-300 border border-transparent text-base xl:text-sm">🔒</span>
+        <span v-else class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-slate-50 text-slate-400 border border-slate-200 text-base xl:text-sm">🔒</span>
       </li>
     </ul>
 
     <!-- interne Summe nur falls gewünscht -->
     <div
       v-if="showTotal && bookings.length"
-      class="mt-2 flex justify-between border-t border-slate-200 pt-3 text-base font-semibold text-slate-700 px-3 pb-3"
+      class="mt-2 flex justify-between border-t border-slate-300 pt-3 text-base font-semibold text-slate-700 px-3 pb-3"
     >
       <span>Summe heute</span>
       <span>{{ (totalToday / 100).toFixed(2) }} €</span>

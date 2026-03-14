@@ -97,22 +97,22 @@ watch([currentDate, viewMode], loadBookings);
       class="glass-panel-strong fixed right-0 top-0 h-full w-full max-w-[28rem] xl:max-w-[26rem] 2xl:max-w-[30rem] z-50 flex flex-col rounded-l-[30px] overflow-hidden"
     >
       <!-- Header -->
-      <div class="p-4 border-b border-slate-200/80 flex justify-between items-center bg-white/75">
+      <div class="p-4 border-b border-slate-300 flex justify-between items-center bg-white/85">
         <div>
           <div class="section-chip mb-2">Historie</div>
           <h3 class="display-brand text-xl font-semibold text-primary">Buchungsübersicht</h3>
         </div>
         <button
           @click="onClose?.()"
-          class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:text-slate-800 text-xl leading-none"
+          class="button-outline-strong flex h-11 w-11 items-center justify-center rounded-full border-slate-300 bg-white text-slate-500 hover:text-slate-800 text-xl leading-none"
         >
           ×
         </button>
       </div>
 
       <!-- Steuerleiste -->
-      <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-200/80 bg-slate-50/80">
-        <button @click="changePeriod(-1)" class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-primary text-xl shadow-sm">‹</button>
+      <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-300 bg-slate-50/85">
+        <button @click="changePeriod(-1)" class="button-outline-strong flex h-11 w-11 items-center justify-center rounded-full border-slate-300 bg-white text-primary text-xl">‹</button>
 
         <div class="text-center min-w-0">
           <div class="font-medium text-lg flex flex-col items-center">
@@ -133,18 +133,18 @@ watch([currentDate, viewMode], loadBookings);
 
           <select
             v-model="viewMode"
-            class="mt-3 rounded-full border border-slate-200 px-3 py-1.5 text-sm bg-white text-slate-700 font-medium"
+            class="button-outline-strong mt-3 rounded-full border-slate-300 px-3 py-1.5 text-sm bg-white text-slate-700 font-medium"
           >
             <option value="month">Monat</option>
             <option value="day">Tag</option>
           </select>
         </div>
 
-        <button @click="changePeriod(1)" class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-primary text-xl shadow-sm">›</button>
+        <button @click="changePeriod(1)" class="button-outline-strong flex h-11 w-11 items-center justify-center rounded-full border-slate-300 bg-white text-primary text-xl">›</button>
       </div>
 
       <!-- Inhalt -->
-      <div class="soft-scrollbar touch-scroll flex-1 overflow-y-auto overscroll-contain p-4 xl:p-3.5 bg-white/35">
+      <div class="soft-scrollbar touch-scroll flex-1 overflow-y-auto overscroll-contain p-4 xl:p-3.5 bg-white/45">
         <div v-if="loading" class="text-center text-slate-400 py-8">
           Lade Buchungen …
         </div>
@@ -154,7 +154,7 @@ watch([currentDate, viewMode], loadBookings);
           <div
             v-for="g in bookings"
             :key="g.local_day"
-            class="mb-4 xl:mb-3 rounded-[24px] border border-slate-200/80 bg-white/92 p-4 xl:p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
+            class="mb-4 xl:mb-3 rounded-[24px] border border-slate-300 bg-white p-4 xl:p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
           >
             <div class="flex justify-between items-center mb-2">
               <h4 class="text-sm font-semibold text-slate-600">
@@ -177,7 +177,7 @@ watch([currentDate, viewMode], loadBookings);
               </span>
             </div>
 
-            <ul class="divide-y divide-slate-100">
+            <ul class="divide-y divide-slate-200">
               <li
                 v-for="b in g.items"
                 :key="b.id"
@@ -212,7 +212,7 @@ watch([currentDate, viewMode], loadBookings);
           <!-- Monats-Gesamtsumme -->
           <div
             v-if="bookings.length > 0"
-            class="text-right text-base font-semibold mt-6 border-t border-slate-200 pt-3"
+            class="text-right text-base font-semibold mt-6 border-t border-slate-300 pt-3"
             :class="totalSum < 0 ? 'text-red-600' : 'text-green-600'"
           >
             Gesamt: {{ (totalSum / 100).toFixed(2) }} €
@@ -221,7 +221,7 @@ watch([currentDate, viewMode], loadBookings);
 
         <!-- Tagesansicht (flach) -->
         <template v-else>
-          <ul class="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white/92 divide-y divide-slate-100 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+          <ul class="overflow-hidden rounded-[24px] border border-slate-300 bg-white divide-y divide-slate-200 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
             <li
               v-for="b in bookings"
               :key="b.id"
@@ -254,7 +254,7 @@ watch([currentDate, viewMode], loadBookings);
 
           <div
             v-if="bookings.length > 0"
-            class="text-right text-base font-semibold mt-4 border-t border-slate-200 pt-3"
+            class="text-right text-base font-semibold mt-4 border-t border-slate-300 pt-3"
             :class="totalSum < 0 ? 'text-red-600' : 'text-green-600'"
           >
             Gesamt: {{ (totalSum / 100).toFixed(2) }} €

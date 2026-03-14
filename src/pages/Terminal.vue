@@ -344,20 +344,20 @@ watch(showPinModal, async (isOpen) => {
           <div class="flex flex-wrap items-center justify-end gap-2">
           <RouterLink
             to="/admin/dashboard"
-            class="rounded-2xl border border-slate-200 bg-white/85 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
+            class="button-outline-strong rounded-2xl border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
           >
             Admin
           </RouterLink>
           <button
             @click="showAddGuestModal = true"
-            class="rounded-2xl border border-emerald-600 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            class="button-outline-strong rounded-2xl border-emerald-700 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
           >
             Gast anlegen
           </button>
           <RouterLink
             v-if="auth.authenticated"
             to="/stock-refill"
-            class="rounded-2xl border border-blue-700 bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800"
+            class="button-outline-strong rounded-2xl border-blue-800 bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800"
           >
             Nachfüllen
           </RouterLink>
@@ -371,7 +371,7 @@ watch(showPinModal, async (isOpen) => {
         >
           <button
             @click="onBackToMembers"
-            class="flex items-center gap-2 rounded-2xl bg-primary px-3.5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-800 active:scale-[0.98] transition-transform"
+            class="button-outline-strong flex items-center gap-2 rounded-2xl border-blue-800 bg-primary px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:scale-[0.98] transition-transform"
           >
             ← Zurück
           </button>
@@ -481,27 +481,27 @@ watch(showPinModal, async (isOpen) => {
           >
             <button
               @click="showBookings = true"
-              class="h-12 xl:h-11 rounded-2xl bg-slate-100 text-slate-800 font-semibold text-sm border border-slate-200 hover:bg-slate-200 transition"
+              class="button-outline-strong h-12 xl:h-11 rounded-2xl border-slate-300 bg-slate-100 text-slate-800 font-semibold text-sm hover:bg-slate-200 transition"
             >
               Übersicht
             </button>
             <button
               @click="showFreeAmount = true"
-              class="h-12 xl:h-11 rounded-2xl bg-primary text-white font-semibold text-sm border border-blue-700 hover:bg-blue-800 transition"
+              class="button-outline-strong h-12 xl:h-11 rounded-2xl border-blue-800 bg-primary text-white font-semibold text-sm hover:bg-blue-800 transition"
             >
               Freier Betrag
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showPartialModal = true"
-              class="h-12 xl:h-11 rounded-2xl bg-amber-500 text-white font-semibold text-sm border border-amber-600 hover:bg-amber-600 transition"
+              class="button-outline-strong h-12 xl:h-11 rounded-2xl border-amber-700 bg-amber-500 text-white font-semibold text-sm hover:bg-amber-600 transition"
             >
               Teilabrechnung
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showSettleModal = true"
-              class="h-12 xl:h-11 rounded-2xl bg-red-600 text-white font-semibold text-sm border border-red-700 hover:bg-red-700 transition"
+              class="button-outline-strong h-12 xl:h-11 rounded-2xl border-red-800 bg-red-600 text-white font-semibold text-sm hover:bg-red-700 transition"
             >
               Abrechnung
             </button>
@@ -598,15 +598,15 @@ watch(showPinModal, async (isOpen) => {
   >
     <div class="space-y-3">
       <label class="block text-sm font-medium text-gray-600">Vorname</label>
-      <input
-        v-model="guestFirstname"
-        class="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
+        <input
+          v-model="guestFirstname"
+        class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
         placeholder="Vorname"
       />
       <label class="block text-sm font-medium text-gray-600">Nachname</label>
-      <input
-        v-model="guestLastname"
-        class="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
+        <input
+          v-model="guestLastname"
+        class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
         placeholder="Nachname"
       />
     </div>
@@ -632,7 +632,7 @@ watch(showPinModal, async (isOpen) => {
           pattern="[0-9]*"
           maxlength="4"
           autocomplete="off"
-          class="w-full border border-slate-200 rounded-2xl p-3 text-lg tracking-[0.45em] text-center font-semibold focus:ring-1 focus:ring-primary"
+          class="w-full border border-slate-300 rounded-2xl p-3 text-lg tracking-[0.45em] text-center font-semibold focus:ring-1 focus:ring-primary"
           placeholder="0000"
           @input="onPinInput"
         />
@@ -640,7 +640,7 @@ watch(showPinModal, async (isOpen) => {
         <div class="flex justify-end">
           <button
             @click="closePinModal"
-            class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-slate-600 font-medium hover:bg-slate-50"
+            class="button-outline-strong rounded-2xl border-slate-300 bg-white px-4 py-2 text-slate-600 font-medium hover:bg-slate-50"
           >
             Abbrechen
           </button>
