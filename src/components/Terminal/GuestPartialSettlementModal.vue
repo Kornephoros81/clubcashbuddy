@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import BaseModal from "@/components/BaseModal.vue";
+import { computed, ref, watch } from "vue";
 import { useModal } from "@/composables/useModal";
 import {
   clearMemberBookingsCache,
@@ -24,7 +23,6 @@ const transactions = ref<any[]>([]);
 const selected = ref<Set<string>>(new Set());
 const { confirm: confirmModal } = useModal();
 
-// 🔹 Gruppierung nach Produkt oder Notiz
 type Group = {
   key: string;
   name: string;
@@ -36,52 +34,70 @@ const grouped = computed<Group[]>(() => {
   const map = new Map<string, Group>();
 
   for (const tx of transactions.value) {
-    const name = tx.product_name ?? tx.note ?? "frei";
+    const name = tx.product_name ?? tx.note ?? "Freier Betrag";
     const key = tx.product_id ? `prod-${tx.product_id}` : `note-${name}`;
-    if (!map.has(key)) {
-      map.set(key, { key, name, txs: [tx], total: tx.amount });
-    } else {
-      const g = map.get(key)!;
-      g.txs.push(tx);
-      g.total += tx.amount;
+    const current = map.get(key);
+    if (current) {
+      current.txs.push(tx);
+      current.total += tx.amount;
+      continue;
     }
+    map.set(key, {
+      key,
+      name,
+      txs: [tx],
+      total: tx.amount,
+    });
   }
 
-  return Array.from(map.values()).sort((a, b) =>
-    a.name.localeCompare(b.name, "de")
-  );
+  for (const group of map.values()) {
+    group.txs.sort((a, b) => {
+      const aTime = new Date(a.created_at ?? 0).getTime();
+      const bTime = new Date(b.created_at ?? 0).getTime();
+      return aTime - bTime || String(a.id).localeCompare(String(b.id), "de");
+    });
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "de"));
 });
 
-// 💰 Teilsumme der Auswahl
 const totalSelected = computed(() =>
   transactions.value
     .filter((tx) => selected.value.has(tx.id))
     .reduce((sum, tx) => sum + tx.amount, 0)
 );
 
-// Auswahlsteuerung
-function toggleTx(id: string) {
-  if (selected.value.has(id)) selected.value.delete(id);
-  else selected.value.add(id);
+const selectedCount = computed(() => selected.value.size);
+
+function selectedCountForGroup(group: Group) {
+  return group.txs.filter((tx) => selected.value.has(tx.id)).length;
 }
 
-function toggleGroup(g: Group) {
-  const allSelected = g.txs.every((tx) => selected.value.has(tx.id));
-  g.txs.forEach((tx) =>
-    allSelected ? selected.value.delete(tx.id) : selected.value.add(tx.id)
-  );
+function amountForSelection(group: Group, count: number) {
+  return group.txs.slice(0, count).reduce((sum, tx) => sum + tx.amount, 0);
 }
 
-function isGroupFullySelected(g: Group) {
-  return g.txs.length > 0 && g.txs.every((tx) => selected.value.has(tx.id));
+function setGroupSelection(group: Group, count: number) {
+  const limitedCount = Math.max(0, Math.min(count, group.txs.length));
+  const nextSelected = new Set(selected.value);
+
+  group.txs.forEach((tx, index) => {
+    if (index < limitedCount) nextSelected.add(tx.id);
+    else nextSelected.delete(tx.id);
+  });
+
+  selected.value = nextSelected;
 }
 
-// 🧾 Daten laden (nur offene Transaktionen)
+function changeGroupSelection(group: Group, delta: number) {
+  setGroupSelection(group, selectedCountForGroup(group) + delta);
+}
+
 async function loadTransactions() {
   if (!props.show || !props.memberId) return;
   loading.value = true;
   error.value = null;
-  selected.value.clear();
+  selected.value = new Set();
 
   try {
     const token = localStorage.getItem("device_token");
@@ -93,23 +109,23 @@ async function loadTransactions() {
       end: new Date().toISOString(),
       excludeSettled: true,
     });
-    const flat: any[] = result.flatMap((g: any) => g.items || []);
-    transactions.value = flat;
+    transactions.value = result.flatMap((g: any) => g.items || []);
   } catch (e: any) {
-    error.value = e.message;
+    error.value = e.message || "Transaktionen konnten nicht geladen werden";
+    transactions.value = [];
   } finally {
     loading.value = false;
   }
 }
 
-// ✅ Teilabrechnung bestätigen
 async function confirmPartialSettlement() {
   try {
     const token = localStorage.getItem("device_token");
     if (!token) throw new Error("Kein Geräte-Token gefunden");
+
     const ids = Array.from(selected.value);
     if (ids.length === 0) {
-      error.value = "Keine Transaktionen ausgewählt";
+      error.value = "Bitte mindestens eine Buchung auswählen";
       return;
     }
 
@@ -125,7 +141,7 @@ async function confirmPartialSettlement() {
       }),
     });
 
-    const result = await res.json();
+    const result = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(result.error || "Fehler beim Abrechnen");
     clearMemberBookingsCache(props.memberId);
 
@@ -148,7 +164,7 @@ async function confirmPartialSettlement() {
           },
           body: JSON.stringify({ member_id: props.memberId }),
         });
-        const settleResult = await settleRes.json();
+        const settleResult = await settleRes.json().catch(() => ({}));
         if (!settleRes.ok) {
           throw new Error(
             settleResult.error || "Teilabrechnung ok, Gast konnte nicht beendet werden"
@@ -160,7 +176,7 @@ async function confirmPartialSettlement() {
 
     emit("confirm", { guestEnded });
   } catch (e: any) {
-    error.value = e.message;
+    error.value = e.message || "Fehler bei der Teilabrechnung";
   }
 }
 
@@ -168,111 +184,161 @@ watch(() => props.show, loadTransactions);
 </script>
 
 <template>
-  <BaseModal
-    :show="show"
-    :title="`💶 Teilabrechnung – ${memberName}`"
-    confirm-label="Teil abrechnen"
-    cancel-label="Abbrechen"
-    :danger="true"
-    @close="emit('close')"
-    @confirm="confirmPartialSettlement"
-  >
-    <!-- Ladezustände -->
-    <div v-if="loading" class="py-6 text-center text-gray-400">
-      Lade Transaktionen …
-    </div>
-
-    <div v-else-if="error" class="text-red-600 text-sm py-3">{{ error }}</div>
-
-    <!-- Gruppierte offene Transaktionen -->
-    <ul
-      v-else
-      class="divide-y divide-gray-100 max-h-96 overflow-y-auto text-sm mt-2"
+  <transition name="fade">
+    <div
+      v-if="show"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 backdrop-blur-sm"
     >
-      <li
-        v-for="g in grouped"
-        :key="g.key"
-        class="py-2 space-y-1 group hover:bg-gray-50 rounded-xl transition-colors duration-150 px-2"
+      <div
+        class="glass-panel-strong flex w-full max-w-3xl flex-col overflow-hidden rounded-[30px]"
       >
-        <!-- Gruppenüberschrift -->
-        <div
-          class="flex justify-between items-center cursor-pointer"
-          @click="g.txs.length > 1 && toggleGroup(g)"
-        >
-          <label class="flex items-center gap-2 font-medium cursor-pointer">
-            <input
-              type="checkbox"
-              :checked="isGroupFullySelected(g)"
-              @change="toggleGroup(g)"
-            />
-            <span>
-              {{ g.name }}
-              <span v-if="g.txs.length > 1" class="text-gray-500">
-                ×{{ g.txs.length }}
-              </span>
-            </span>
-          </label>
-          <span
-            class="font-mono"
-            :class="
-              isGroupFullySelected(g) ? 'text-green-600' : 'text-gray-700'
-            "
-          >
-            {{ (g.total / 100).toFixed(2) }} €
-          </span>
+        <div class="border-b border-slate-200 px-5 py-4">
+          <div class="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-emerald-600">
+            Teilabrechnung
+          </div>
+          <h3 class="mt-1 text-xl font-semibold text-primary">
+            Gast: {{ memberName }}
+          </h3>
         </div>
 
-        <!-- Einzeltransaktionen -->
-        <ul
-          v-if="g.txs.length > 1"
-          class="ml-6 mt-1 space-y-1 border-l border-gray-200 pl-3"
-        >
-          <li
-            v-for="tx in g.txs"
-            :key="tx.id"
-            class="flex justify-between items-center hover:bg-gray-100 rounded-md px-2 py-1 transition"
-          >
-            <label class="flex items-center gap-2">
-              <input
-                type="checkbox"
-                :checked="selected.has(tx.id)"
-                @change="toggleTx(tx.id)"
-              />
-              <span>Eintrag</span>
-            </label>
-            <span
-              class="font-mono"
-              :class="selected.has(tx.id) ? 'text-green-600' : 'text-gray-600'"
-            >
-              {{ (tx.amount / 100).toFixed(2) }} €
-            </span>
-          </li>
-        </ul>
-      </li>
-    </ul>
+        <div class="soft-scrollbar touch-scroll max-h-[65vh] overflow-y-auto px-4 py-4">
+          <div v-if="loading" class="py-10 text-center text-gray-400">
+            Lade Transaktionen …
+          </div>
 
-    <!-- Gesamtsumme unten -->
-    <div
-      class="mt-3 pt-3 border-t text-right font-semibold"
-      :class="totalSelected < 0 ? 'text-red-600' : 'text-green-600'"
-    >
-      Auswahl: {{ (totalSelected / 100).toFixed(2) }} €
+          <div
+            v-else-if="error"
+            class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {{ error }}
+          </div>
+
+          <div v-else-if="!grouped.length" class="py-10 text-center text-gray-400">
+            Keine offenen Buchungen vorhanden.
+          </div>
+
+          <div v-else class="space-y-3">
+            <section
+              v-for="group in grouped"
+              :key="group.key"
+              class="rounded-[24px] border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.05)]"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-base font-semibold text-slate-900 leading-tight">
+                    {{ group.name }}
+                  </div>
+                  <div class="mt-1 text-sm text-slate-500">
+                    {{ group.txs.length }} Buchung<span v-if="group.txs.length !== 1">en</span>
+                    offen
+                  </div>
+                </div>
+                <div class="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+                  {{ (Math.abs(group.total) / 100).toFixed(2) }} €
+                </div>
+              </div>
+
+              <div class="mt-3 flex items-center gap-2">
+                <button
+                  @click="changeGroupSelection(group, -1)"
+                  :disabled="selectedCountForGroup(group) === 0"
+                  class="button-outline-strong flex h-11 w-11 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
+                >
+                  −
+                </button>
+
+                <div class="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1">
+                  <button
+                    v-for="count in group.txs.length + 1"
+                    :key="`${group.key}-${count - 1}`"
+                    @click="setGroupSelection(group, count - 1)"
+                    class="min-w-[4.2rem] rounded-2xl border px-3 py-2 text-sm font-semibold transition"
+                    :class="
+                      selectedCountForGroup(group) === count - 1
+                        ? 'border-blue-700 bg-primary text-white shadow-sm'
+                        : 'border-slate-300 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'
+                    "
+                  >
+                    {{ count - 1 }}
+                  </button>
+                </div>
+
+                <button
+                  @click="changeGroupSelection(group, 1)"
+                  :disabled="selectedCountForGroup(group) === group.txs.length"
+                  class="button-outline-strong flex h-11 w-11 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
+                >
+                  +
+                </button>
+              </div>
+
+              <div class="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                <div class="text-sm text-slate-600">
+                  Auswahl: <span class="font-semibold text-slate-900">{{ selectedCountForGroup(group) }}</span>
+                  / {{ group.txs.length }}
+                </div>
+                <div
+                  class="rounded-full px-3 py-1 text-sm font-semibold"
+                  :class="
+                    selectedCountForGroup(group) > 0
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-slate-200 text-slate-600'
+                  "
+                >
+                  {{ (Math.abs(amountForSelection(group, selectedCountForGroup(group))) / 100).toFixed(2) }} €
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-200 bg-white px-4 py-4">
+          <div class="mb-3 flex items-center justify-between gap-3 rounded-[22px] bg-slate-50 px-4 py-3">
+            <div>
+              <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                Auswahl
+              </div>
+              <div class="text-sm text-slate-600">
+                {{ selectedCount }} Buchung<span v-if="selectedCount !== 1">en</span> ausgewählt
+              </div>
+            </div>
+            <div
+              class="text-xl font-semibold"
+              :class="selectedCount > 0 ? 'text-emerald-700' : 'text-slate-500'"
+            >
+              {{ (Math.abs(totalSelected) / 100).toFixed(2) }} €
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3">
+            <button
+              @click="emit('close')"
+              class="button-outline-strong rounded-2xl border-slate-300 bg-white px-5 py-3 text-base font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              @click="confirmPartialSettlement"
+              :disabled="selectedCount === 0"
+              class="button-outline-strong rounded-2xl border-red-800 bg-red-600 px-5 py-3 text-base font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              Teil abrechnen
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
-  </BaseModal>
+  </transition>
 </template>
 
 <style scoped>
-ul::-webkit-scrollbar {
-  width: 6px;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
 }
-ul::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-ul::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-.group:hover {
-  box-shadow: inset 0 0 0 1px #e2e8f0;
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
