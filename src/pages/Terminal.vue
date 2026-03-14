@@ -193,6 +193,19 @@ async function handleMemberSelect(memberId: string) {
     return;
   }
 
+  const member = store.members.find((m) => m.id === memberId);
+  if (typeof member?.has_pin === "boolean") {
+    pinRequiredMap.value[memberId] = member.has_pin;
+    if (!member.has_pin) {
+      await openMember(memberId);
+      return;
+    }
+
+    pendingMemberId.value = memberId;
+    showPinModal.value = true;
+    return;
+  }
+
   try {
     const res = await fetch("/api/member-pin-status", {
       method: "POST",

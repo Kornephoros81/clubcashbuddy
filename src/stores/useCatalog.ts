@@ -8,6 +8,22 @@ import {
   getCachedProducts,
 } from "@/utils/offlineDB";
 
+const PRODUCTS_CACHE_META_KEY = "clubcashbuddy_products_cache_meta";
+const PRODUCTS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function readProductsCacheFreshness(): boolean {
+  if (typeof window === "undefined") return false;
+  const raw = window.localStorage.getItem(PRODUCTS_CACHE_META_KEY);
+  if (!raw) return false;
+  const ts = Number(raw);
+  return Number.isFinite(ts) && Date.now() - ts < PRODUCTS_CACHE_TTL_MS;
+}
+
+function markProductsCacheFresh() {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PRODUCTS_CACHE_META_KEY, String(Date.now()));
+}
+
 export type Member = {
   id: string;
   name: string;
@@ -16,6 +32,7 @@ export type Member = {
   settled?: boolean;
   last_booking_at?: string | null;
   has_booked_today?: boolean;
+  has_pin?: boolean;
 };
 
 export type Product = {
@@ -39,6 +56,12 @@ export const useCatalog = defineStore("catalog", {
     async applyMembers(members: Member[]) {
       this.members.splice(0, this.members.length, ...(Array.isArray(members) ? members : []));
       await cacheMembers(this.members);
+    },
+
+    async applyProducts(products: Product[]) {
+      this.products.splice(0, this.products.length, ...(Array.isArray(products) ? products : []));
+      await cacheProducts(this.products);
+      markProductsCacheFresh();
     },
 
     async loadMembers() {
@@ -73,13 +96,23 @@ export const useCatalog = defineStore("catalog", {
 
     async loadProducts() {
       try {
+        if (readProductsCacheFreshness()) {
+          const cached = await getCachedProducts();
+          if (cached.length) {
+            this.products.splice(0, this.products.length, ...cached);
+            console.log(
+              `[useCatalog] Frischer Produkt-Cache verwendet (${cached.length})`
+            );
+            return;
+          }
+        }
+
         const res = await fetch("/api/catalog-products");
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
 
         // ✅ Reaktive Mutation
-        this.products.splice(0, this.products.length, ...(data ?? []));
-        await cacheProducts(this.products);
+        await this.applyProducts(data ?? []);
         console.log(`[useCatalog] Produkte geladen (${this.products.length})`);
       } catch (err) {
         console.warn("[useCatalog] Offline-Fallback Produkte:", err);

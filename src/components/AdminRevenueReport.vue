@@ -279,6 +279,7 @@ const productSummary = computed(() => {
       product_category: string;
       bookings: number;
       cancellations: number;
+      net_quantity: number;
       revenue: number;
       canceled: number;
     }
@@ -292,10 +293,12 @@ const productSummary = computed(() => {
       product_category: row.product_category,
       bookings: 0,
       cancellations: 0,
+      net_quantity: 0,
       revenue: 0,
       canceled: 0,
     };
     rec.bookings += 1;
+    rec.net_quantity += 1;
     rec.revenue += Number(row.amount_abs ?? 0);
     map.set(key, rec);
   }
@@ -308,23 +311,29 @@ const productSummary = computed(() => {
       product_category: row.product_category,
       bookings: 0,
       cancellations: 0,
+      net_quantity: 0,
       revenue: 0,
       canceled: 0,
     };
     rec.cancellations += 1;
+    rec.net_quantity -= 1;
     rec.canceled += Number(row.amount_abs ?? 0);
     map.set(key, rec);
   }
 
-  return [...map.values()].sort((a, b) => b.revenue - a.revenue);
+  return [...map.values()].sort((a, b) =>
+    b.net_quantity - a.net_quantity
+    || (b.revenue - b.canceled) - (a.revenue - a.canceled)
+    || b.revenue - a.revenue,
+  );
 });
 
 const topProducts = computed(() => productSummary.value.slice(0, 10));
 const topProductMaxAbs = computed(() =>
-  Math.max(1, ...topProducts.value.map((p) => Math.abs(Number(p.revenue ?? 0)))),
+  Math.max(1, ...topProducts.value.map((p) => Math.abs(Number(p.net_quantity ?? 0)))),
 );
 const topProductTotalNet = computed(() =>
-  topProducts.value.reduce((sum, p) => sum + Number(p.revenue ?? 0), 0),
+  topProducts.value.reduce((sum, p) => sum + Math.max(0, Number(p.net_quantity ?? 0)), 0),
 );
 
 const activityHeat = computed(() => {
@@ -905,7 +914,7 @@ async function exportPdf() {
 
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
-          <h3 class="font-semibold text-primary mb-3">Top 10 Produkte nach Umsatz</h3>
+          <h3 class="font-semibold text-primary mb-3">Top 10 Produkte nach Netto-Menge</h3>
           <div class="space-y-3">
             <div
               v-for="(row, idx) in topProducts"
@@ -921,17 +930,17 @@ async function exportPdf() {
                 </div>
                 <div
                   class="text-sm font-semibold whitespace-nowrap"
-                  :class="row.revenue >= 0 ? 'text-emerald-700' : 'text-rose-700'"
+                  :class="row.net_quantity >= 0 ? 'text-emerald-700' : 'text-rose-700'"
                 >
-                  {{ formatEuroFromCents(row.revenue) }}
+                  {{ row.net_quantity }} netto
                 </div>
               </div>
               <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-500" :style="productBarStyle(row.revenue)"></div>
+                <div class="h-full rounded-full transition-all duration-500" :style="productBarStyle(row.net_quantity)"></div>
               </div>
               <div class="mt-2 flex items-center justify-between text-xs text-gray-500">
-                <span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos</span>
-                <span>{{ productSharePercent(row.revenue).toFixed(1) }}% Anteil</span>
+                <span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos · {{ formatEuroFromCents(row.revenue - row.canceled) }}</span>
+                <span>{{ productSharePercent(row.net_quantity).toFixed(1) }}% Anteil</span>
               </div>
             </div>
             <div v-if="topProducts.length === 0" class="text-sm text-gray-400 italic py-8 text-center">
@@ -1007,6 +1016,7 @@ async function exportPdf() {
               <th class="px-4 py-3 text-left">Produkt</th>
               <th class="px-4 py-3 text-right">Buchungen</th>
               <th class="px-4 py-3 text-right">Stornos</th>
+              <th class="px-4 py-3 text-right">Netto</th>
               <th class="px-4 py-3 text-right">Umsatz</th>
               <th class="px-4 py-3 text-right">Storno</th>
               <th class="px-4 py-3 text-right">Stornoquote</th>
@@ -1022,6 +1032,7 @@ async function exportPdf() {
               <td class="px-4 py-2">{{ row.product_name }}</td>
               <td class="px-4 py-2 text-right">{{ row.bookings }}</td>
               <td class="px-4 py-2 text-right">{{ row.cancellations }}</td>
+              <td class="px-4 py-2 text-right font-semibold">{{ row.net_quantity }}</td>
               <td class="px-4 py-2 text-right">{{ formatEuroFromCents(row.revenue) }}</td>
               <td class="px-4 py-2 text-right text-red-700">{{ formatEuroFromCents(row.canceled) }}</td>
               <td class="px-4 py-2 text-right font-semibold text-gray-700">
@@ -1029,7 +1040,7 @@ async function exportPdf() {
               </td>
             </tr>
             <tr v-if="productSummary.length === 0">
-              <td colspan="7" class="text-center py-6 text-gray-400 italic">
+              <td colspan="8" class="text-center py-6 text-gray-400 italic">
                 Keine Umsätze im gewählten Zeitraum
               </td>
             </tr>
