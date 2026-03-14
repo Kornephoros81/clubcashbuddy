@@ -127,10 +127,6 @@ function splitMemberName(name: string) {
               : 'bg-white text-slate-800 border-slate-300 hover:border-blue-300 hover:bg-slate-50 hover:shadow-md',
           ]"
         >
-          <span
-            class="absolute inset-x-3 top-2 h-px opacity-70"
-            :class="m.id === selected ? 'bg-white/40' : 'bg-slate-300'"
-          ></span>
           <span class="px-1 whitespace-normal break-words text-center">
             <span
               class="block text-[clamp(0.92rem,1vw+0.42rem,1.18rem)] xl:text-[1rem] font-semibold leading-tight"
