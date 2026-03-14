@@ -129,7 +129,7 @@ function splitMemberName(name: string) {
         >
           <span class="px-1 whitespace-normal break-words text-center">
             <span
-              class="block text-[clamp(0.92rem,1vw+0.42rem,1.18rem)] xl:text-[1rem] font-semibold leading-tight"
+              class="block text-[clamp(0.98rem,1vw+0.46rem,1.24rem)] xl:text-[1.08rem] font-semibold leading-tight"
             >
               {{ splitMemberName(m.name).lastName }}
             </span>
