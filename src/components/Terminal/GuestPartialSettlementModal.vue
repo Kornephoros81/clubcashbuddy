@@ -229,7 +229,7 @@ watch(() => props.show, loadTransactions);
                     {{ group.name }}
                   </div>
                 </div>
-                <div class="shrink-0 flex items-center gap-2">
+                <div class="shrink-0 mr-2 flex items-center gap-2">
                   <div class="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
                     {{ selectedCountForGroup(group) }} / {{ group.txs.length }}
                   </div>
@@ -246,7 +246,7 @@ watch(() => props.show, loadTransactions);
                 </div>
               </div>
 
-              <div class="mt-2 flex items-center gap-2">
+              <div class="mt-2 flex items-stretch gap-3">
                 <div class="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1">
                   <button
                     v-for="count in group.txs.length + 1"
@@ -263,18 +263,18 @@ watch(() => props.show, loadTransactions);
                   </button>
                 </div>
 
-                <div class="shrink-0 flex items-center gap-2">
+                <div class="shrink-0 grid grid-cols-2 gap-2">
                   <button
                     @click="changeGroupSelection(group, -1)"
                     :disabled="selectedCountForGroup(group) === 0"
-                    class="button-outline-strong flex h-10 w-10 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
+                    class="button-outline-strong flex h-full min-h-[3.6rem] w-12 items-center justify-center rounded-2xl border-slate-300 bg-white text-xl font-semibold text-slate-700 disabled:opacity-40"
                   >
                     −
                   </button>
                   <button
                     @click="changeGroupSelection(group, 1)"
                     :disabled="selectedCountForGroup(group) === group.txs.length"
-                    class="button-outline-strong flex h-10 w-10 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
+                    class="button-outline-strong flex h-full min-h-[3.6rem] w-12 items-center justify-center rounded-2xl border-slate-300 bg-white text-xl font-semibold text-slate-700 disabled:opacity-40"
                   >
                     +
                   </button>
