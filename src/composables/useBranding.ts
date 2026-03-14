@@ -9,6 +9,13 @@ type BrandingSettings = {
 const DEFAULT_TITLE = "ClubCashBuddy";
 const DEFAULT_LOGO_URL = "/icons/icon-192.png";
 const BRANDING_CACHE_KEY = "clubcashbuddy_branding";
+const BRANDING_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+type CachedBrandingPayload = {
+  app_title: string;
+  logo_url: string | null;
+  cached_at: number;
+};
 
 function readCachedBranding(): BrandingSettings | null {
   if (typeof window === "undefined") return null;
@@ -17,8 +24,13 @@ function readCachedBranding(): BrandingSettings | null {
   if (!raw) return null;
 
   try {
-    const parsed = JSON.parse(raw) as Partial<BrandingSettings> | null;
+    const parsed = JSON.parse(raw) as Partial<CachedBrandingPayload> | null;
     if (!parsed || typeof parsed !== "object") return null;
+    const cachedAt = Number(parsed.cached_at ?? 0);
+    if (!Number.isFinite(cachedAt) || Date.now() - cachedAt > BRANDING_CACHE_TTL_MS) {
+      window.localStorage.removeItem(BRANDING_CACHE_KEY);
+      return null;
+    }
     return {
       app_title: String(parsed.app_title ?? "").trim(),
       logo_url: String(parsed.logo_url ?? "").trim() || null,
@@ -31,7 +43,11 @@ function readCachedBranding(): BrandingSettings | null {
 
 function writeCachedBranding(data: BrandingSettings) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(BRANDING_CACHE_KEY, JSON.stringify(data));
+  const payload: CachedBrandingPayload = {
+    ...data,
+    cached_at: Date.now(),
+  };
+  window.localStorage.setItem(BRANDING_CACHE_KEY, JSON.stringify(payload));
 }
 
 const cachedBranding = readCachedBranding();
@@ -83,7 +99,7 @@ syncDocumentTitle(appTitle.value);
 syncDocumentIcons(logoUrl.value);
 
 async function loadBrandingPublic() {
-  const res = await fetch("/api/branding", { method: "GET", cache: "no-store" });
+  const res = await fetch("/api/branding", { method: "GET", cache: "force-cache" });
   if (!res.ok) throw new Error("Branding konnte nicht geladen werden");
   const data = await res.json().catch(() => ({}));
   applyBranding(data?.data ?? data ?? null);

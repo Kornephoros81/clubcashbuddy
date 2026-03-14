@@ -7,39 +7,23 @@ import "./style.css";
 import { syncQueue } from "@/pwa/offlineSync";
 import { useDeviceAuthStore } from "@/stores/useDeviceAuthStore";
 
-// robuste Online-Prüfung
-async function isReallyOnline(): Promise<boolean> {
-  try {
-    const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 2000);
-    const res = await fetch("/api/ping", {
-      method: "HEAD",
-      cache: "no-store",
-      signal: c.signal,
-    });
-    clearTimeout(t);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 // Singleton-Backoff
 let pollTimerId: number | null = null;
 let inFlight = false;
-let backoffMs = 15000; // 15s Start
-const MAX_BACKOFF = 5 * 60_000; // 5min
-const INITIAL_BACKOFF = 15000;
+let backoffMs = 60_000; // 60s Start
+const MAX_BACKOFF = 15 * 60_000; // 15min
+const INITIAL_BACKOFF = 60_000;
 
 async function trySync(): Promise<boolean> {
   if (inFlight) return false;
   const auth = useDeviceAuthStore();
   if (!auth.token) return false;
+  if (typeof navigator !== "undefined" && !navigator.onLine) return false;
+  if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+    return false;
+  }
   inFlight = true;
   try {
-    const online = await isReallyOnline();
-    if (!online) return false;
-
     const processed = await syncQueue(auth.token);
     // UI gezielt aktualisieren statt Hard-Reload
     if (processed && processed > 0) {

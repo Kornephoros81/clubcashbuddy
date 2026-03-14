@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from "vue";
-import type { Transaction } from "@/types";
+import { fetchMemberBookingsCached } from "@/utils/memberBookingsCache";
 
 const props = defineProps<{
   memberId: string;
@@ -57,30 +57,20 @@ async function loadBookings() {
     const deviceToken = localStorage.getItem("device_token");
     if (!deviceToken) throw new Error("Kein Geräte-Token gefunden");
 
-    const res = await fetch("/api/get-member-bookings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${deviceToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        member_id: props.memberId,
-        start: start.toISOString(),
-        end: end.toISOString(),
-      }),
+    const result = await fetchMemberBookingsCached({
+      token: deviceToken,
+      memberId: props.memberId,
+      start: start.toISOString(),
+      end: end.toISOString(),
     });
-
-    const result = await res.json();
-    if (!res.ok || result.error)
-      throw new Error(result.error || "Fehler beim Abruf");
 
     // 🔹 Unterschiedliche Struktur je nach Modus
     if (viewMode.value === "day") {
       // Flatten der gruppierten Daten → Einzelbuchungen
-      bookings.value = (result.data || []).flatMap((g: any) => g.items || []);
+      bookings.value = result.flatMap((g: any) => g.items || []);
     } else {
       // Monatsansicht: gruppierte Struktur direkt übernehmen
-      bookings.value = result.data || [];
+      bookings.value = result;
     }
   } catch (err) {
     console.error("[loadBookings]", err);

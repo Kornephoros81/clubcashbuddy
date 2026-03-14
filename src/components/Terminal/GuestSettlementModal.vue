@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import BaseModal from "@/components/BaseModal.vue";
+import { fetchMemberBookingsCached } from "@/utils/memberBookingsCache";
 
 const props = defineProps<{
   show: boolean;
@@ -82,26 +83,16 @@ async function loadAllBookings() {
     const start = "1970-01-01T00:00:00.000Z";
     const end = new Date().toISOString();
 
-    const res = await fetch("/api/get-member-bookings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${deviceToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        member_id: props.memberId,
-        start,
-        end,
-        exclude_settled: true, // ⬅️ Alle Transaktionen
-      }),
+    const result = await fetchMemberBookingsCached({
+      token: deviceToken,
+      memberId: props.memberId,
+      start,
+      end,
+      excludeSettled: true,
     });
 
-    const result = await res.json();
-    if (!res.ok || result.error)
-      throw new Error(result.error || "Abruf fehlgeschlagen");
-
     // API liefert gruppiert nach local_day → flach ziehen
-    const flat: any[] = (result.data || []).flatMap((g: any) => g.items || []);
+    const flat: any[] = result.flatMap((g: any) => g.items || []);
 
     // Normalisieren
     rawItems.value = flat.map((tx: any) => ({
