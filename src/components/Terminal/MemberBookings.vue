@@ -87,6 +87,10 @@ const totalSum = computed(() =>
     : bookings.value.reduce((sum, tx) => sum + (tx.amount || 0), 0)
 );
 
+function setViewMode(mode: "day" | "month") {
+  viewMode.value = mode;
+}
+
 onMounted(loadBookings);
 watch([currentDate, viewMode], loadBookings);
 </script>
@@ -131,13 +135,30 @@ watch([currentDate, viewMode], loadBookings);
             </span>
           </div>
 
-          <select
-            v-model="viewMode"
-            class="button-outline-strong mt-3 rounded-full border-slate-300 px-3 py-1.5 text-sm bg-white text-slate-700 font-medium"
-          >
-            <option value="month">Monat</option>
-            <option value="day">Tag</option>
-          </select>
+          <div class="mt-3 inline-flex rounded-full border border-slate-300 bg-white p-1 shadow-sm">
+            <button
+              @click="setViewMode('day')"
+              class="rounded-full px-4 py-1.5 text-sm font-medium transition"
+              :class="
+                viewMode === 'day'
+                  ? 'bg-primary text-white'
+                  : 'text-slate-700 hover:bg-slate-100'
+              "
+            >
+              Tag
+            </button>
+            <button
+              @click="setViewMode('month')"
+              class="rounded-full px-4 py-1.5 text-sm font-medium transition"
+              :class="
+                viewMode === 'month'
+                  ? 'bg-primary text-white'
+                  : 'text-slate-700 hover:bg-slate-100'
+              "
+            >
+              Monat
+            </button>
+          </div>
         </div>
 
         <button @click="changePeriod(1)" class="button-outline-strong flex h-11 w-11 items-center justify-center rounded-full border-slate-300 bg-white text-primary text-xl">›</button>
