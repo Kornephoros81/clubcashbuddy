@@ -1,6 +1,7 @@
 // src/stores/useAdminProductsStore.ts
 import { defineStore } from "pinia";
 import { useAppAuthStore } from "@/stores/useAppAuthStore";
+import { invalidateProductsCache } from "@/utils/productCatalogCache";
 
 async function apiRequest(path: string, method = "GET", body?: unknown) {
   const auth = useAppAuthStore();
@@ -59,6 +60,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
       await apiRequest("/api/admin-product-categories", "POST", {
         name,
       });
+      await invalidateProductsCache();
       await this.initCategories();
     },
 
@@ -69,6 +71,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         active: category.active,
         sort_order: category.sort_order,
       });
+      await invalidateProductsCache();
       await this.initCategories();
       await this.initProducts();
     },
@@ -82,11 +85,12 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         active: p.active,
         inventoried: p.inventoried,
       });
+      await invalidateProductsCache();
       await this.initProducts();
     },
 
     async updateProduct(p: any) {
-      await apiRequest("/api/admin-products", "PATCH", {
+      const data = await apiRequest("/api/admin-products", "PATCH", {
         id: p.id,
         name: p.name,
         price: Math.round(p.priceEuro * 100),
@@ -95,6 +99,8 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         active: p.active,
         inventoried: p.inventoried,
       });
+      await invalidateProductsCache();
+      return data;
     },
 
     async deleteProduct(id: string, force = false) {
@@ -102,20 +108,24 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         id,
         force,
       });
+      await invalidateProductsCache();
       await this.initProducts();
     },
 
     async uploadProductImage(productId: string, imageDataUrl: string) {
-      return await apiRequest("/api/admin-product-image", "POST", {
+      const data = await apiRequest("/api/admin-product-image", "POST", {
         product_id: productId,
         image_data_url: imageDataUrl,
       });
+      await invalidateProductsCache();
+      return data;
     },
 
     async deleteProductImage(productId: string) {
       await apiRequest("/api/admin-product-image", "DELETE", {
         product_id: productId,
       });
+      await invalidateProductsCache();
     },
 
     // === Erweiterung für Lagerverwaltung ===

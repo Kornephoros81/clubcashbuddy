@@ -196,13 +196,16 @@ async function saveAll() {
       return;
     }
     showToast("💾 Änderungen werden gespeichert …");
-    for (const p of store.products) {
+    const snapshot = [...store.products];
+    for (const p of snapshot) {
       await store.updateProduct({
         ...p,
         priceEuro: p.priceEuro,
         guestPriceEuro: p.guestPriceEuro,
       });
     }
+    await store.initCategories();
+    await store.initProducts();
     showToast("✅ Alle Änderungen gespeichert");
     await delay();
   } catch (err) {

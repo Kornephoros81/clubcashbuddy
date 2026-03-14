@@ -19,7 +19,7 @@ const emit = defineEmits<{ (e: "close"): void; (e: "confirm"): void }>();
       class="fixed inset-0 flex items-center justify-center bg-black/40 z-50"
     >
       <div
-        class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 border border-gray-200"
+        class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 border border-slate-300"
       >
         <!-- Titel -->
         <h3 class="text-lg font-semibold text-primary">{{ title }}</h3>
@@ -33,17 +33,17 @@ const emit = defineEmits<{ (e: "close"): void; (e: "confirm"): void }>();
         <div class="flex justify-end gap-3 pt-3">
           <button
             @click="emit('close')"
-            class="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+            class="button-outline-strong px-4 py-2 text-gray-600 bg-gray-100 rounded-md border-slate-300 hover:bg-gray-200"
           >
             {{ cancelLabel || "Abbrechen" }}
           </button>
           <button
             @click="emit('confirm')"
             :class="[
-              'px-4 py-2 rounded-md font-medium transition',
+              'button-outline-strong px-4 py-2 rounded-md font-medium transition',
               danger
-                ? 'bg-red-600 hover:bg-red-700 text-white'
-                : 'bg-primary hover:bg-primary/90 text-white',
+                ? 'border-red-800 bg-red-600 hover:bg-red-700 text-white'
+                : 'border-blue-800 bg-primary hover:bg-primary/90 text-white',
             ]"
           >
             {{ confirmLabel || "Bestätigen" }}
