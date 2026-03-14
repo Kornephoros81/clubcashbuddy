@@ -221,28 +221,31 @@ watch(() => props.show, loadTransactions);
             <section
               v-for="group in grouped"
               :key="group.key"
-              class="rounded-[24px] border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.05)]"
+              class="rounded-[22px] border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.05)]"
             >
               <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="text-base font-semibold text-slate-900 leading-tight">
+                <div class="min-w-0 flex-1">
+                  <div class="text-[1.02rem] font-semibold text-slate-900 leading-tight">
                     {{ group.name }}
                   </div>
-                  <div class="mt-1 text-sm text-slate-500">
-                    {{ group.txs.length }} Buchung<span v-if="group.txs.length !== 1">en</span>
-                    offen
-                  </div>
                 </div>
-                <div class="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
-                  {{ (Math.abs(group.total) / 100).toFixed(2) }} €
+                <div
+                  class="shrink-0 rounded-full px-3 py-1 text-sm font-semibold"
+                  :class="
+                    selectedCountForGroup(group) > 0
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-slate-100 text-slate-600'
+                  "
+                >
+                  {{ (Math.abs(amountForSelection(group, selectedCountForGroup(group))) / 100).toFixed(2) }} €
                 </div>
               </div>
 
-              <div class="mt-3 flex items-center gap-2">
+              <div class="mt-2 flex items-center gap-2">
                 <button
                   @click="changeGroupSelection(group, -1)"
                   :disabled="selectedCountForGroup(group) === 0"
-                  class="button-outline-strong flex h-11 w-11 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
+                  class="button-outline-strong flex h-10 w-10 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
                 >
                   −
                 </button>
@@ -252,7 +255,7 @@ watch(() => props.show, loadTransactions);
                     v-for="count in group.txs.length + 1"
                     :key="`${group.key}-${count - 1}`"
                     @click="setGroupSelection(group, count - 1)"
-                    class="min-w-[4.2rem] rounded-2xl border px-3 py-2 text-sm font-semibold transition"
+                    class="min-w-[3.75rem] rounded-2xl border px-3 py-1.5 text-sm font-semibold transition"
                     :class="
                       selectedCountForGroup(group) === count - 1
                         ? 'border-blue-700 bg-primary text-white shadow-sm'
@@ -266,27 +269,16 @@ watch(() => props.show, loadTransactions);
                 <button
                   @click="changeGroupSelection(group, 1)"
                   :disabled="selectedCountForGroup(group) === group.txs.length"
-                  class="button-outline-strong flex h-11 w-11 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
+                  class="button-outline-strong flex h-10 w-10 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
                 >
                   +
                 </button>
               </div>
 
-              <div class="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                <div class="text-sm text-slate-600">
-                  Auswahl: <span class="font-semibold text-slate-900">{{ selectedCountForGroup(group) }}</span>
-                  / {{ group.txs.length }}
-                </div>
-                <div
-                  class="rounded-full px-3 py-1 text-sm font-semibold"
-                  :class="
-                    selectedCountForGroup(group) > 0
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-slate-200 text-slate-600'
-                  "
-                >
-                  {{ (Math.abs(amountForSelection(group, selectedCountForGroup(group))) / 100).toFixed(2) }} €
-                </div>
+              <div class="mt-2 text-sm text-slate-600">
+                Auswahl:
+                <span class="font-semibold text-slate-900">{{ selectedCountForGroup(group) }}</span>
+                / {{ group.txs.length }}
               </div>
             </section>
           </div>
