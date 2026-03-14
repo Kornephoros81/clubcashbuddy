@@ -118,7 +118,7 @@ const groupedProducts = computed(() => {
                 {{ p.name }}
               </span>
               <span
-                class="shrink-0 ml-auto rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 xl:px-1.75 text-[0.72rem] xl:text-[0.68rem] font-semibold tracking-tight text-blue-700"
+                class="shrink-0 ml-auto rounded-full bg-blue-600 px-2.5 py-0.5 xl:px-2 xl:py-[0.2rem] text-[0.76rem] xl:text-[0.72rem] font-semibold leading-none tracking-tight text-white tabular-nums shadow-sm"
               >
                 {{ displayPrice(p) }} €
               </span>
