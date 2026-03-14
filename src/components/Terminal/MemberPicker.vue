@@ -81,13 +81,7 @@ function splitMemberName(name: string) {
 <template>
   <div class="glass-panel flex flex-col h-full w-full overflow-hidden rounded-[28px]">
     <!-- Buchstaben -->
-    <div class="border-b border-slate-200/70 px-3 py-3">
-      <div class="mb-2 flex items-center justify-between gap-3">
-        <div class="section-chip">Mitglieder</div>
-        <div class="text-xs font-medium text-slate-500">
-          {{ filteredMembers.length }} sichtbar
-        </div>
-      </div>
+    <div class="border-b border-slate-200/70 px-3 py-2.5 xl:py-2">
       <div class="soft-scrollbar touch-scroll flex overflow-x-auto justify-center gap-1.5 xl:gap-1 pb-1">
         <button
           v-for="ch in alphabet"
