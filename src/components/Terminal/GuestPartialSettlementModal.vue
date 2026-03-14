@@ -197,7 +197,7 @@ watch(() => props.show, loadTransactions);
             Teilabrechnung
           </div>
           <h3 class="mt-1 text-xl font-semibold text-primary">
-            Gast: {{ memberName }}
+            {{ memberName }}
           </h3>
         </div>
 
