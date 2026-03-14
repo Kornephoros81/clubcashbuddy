@@ -15,23 +15,6 @@ export function useTerminalLogic() {
   return singleton!;
 }
 
-// --- echte Onlineprüfung (robust auch im WebView) ---
-async function isReallyOnline(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch("/api/ping", {
-      method: "HEAD",
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 function createLogic() {
   const auth = useDeviceAuthStore();
   const store = useCatalog();
@@ -106,7 +89,9 @@ function createLogic() {
 
   async function initData() {
     try {
-      if (!store.members.length) await refreshTerminalSnapshot();
+      if (!store.members.length || !store.products.length) {
+        await refreshTerminalSnapshot();
+      }
       if (!store.products.length) await store.loadProducts();
       await refreshQueueCount();
 
@@ -314,9 +299,7 @@ function createLogic() {
 
   async function loadBookings(memberId: string) {
     try {
-      // echte Onlineprüfung
-      const online = await isReallyOnline();
-      if (!online) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
         console.info("[loadBookings] Offline → zeige lokale Queue-Buchungen");
         confirmedBookings.value = [];
         await refreshQueuedBookingsForMember(memberId);
@@ -526,8 +509,7 @@ function createLogic() {
   async function fetchBookedToday(forceRefresh = false) {
     try {
       if (!auth.token) return;
-      const online = await isReallyOnline();
-      if (!online) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
         console.info("[fetchBookedToday] Offline → übersprungen");
         return;
       }
@@ -563,8 +545,7 @@ function createLogic() {
   async function refreshTerminalSnapshot() {
     try {
       if (!auth.token) return;
-      const online = await isReallyOnline();
-      if (!online) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
         await store.loadMembers();
         return;
       }
@@ -581,7 +562,11 @@ function createLogic() {
 
       const json = await res.json();
       const members = Array.isArray(json?.members) ? json.members : [];
+      const products = Array.isArray(json?.products) ? json.products : [];
       await store.applyMembers(members);
+      if (products.length) {
+        await store.applyProducts(products);
+      }
       bookedTodayIds.value = new Set<string>(
         members
           .filter((m: any) => m?.has_booked_today)

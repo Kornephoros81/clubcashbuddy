@@ -2,6 +2,10 @@
 import { ref, computed, watch } from "vue";
 import BaseModal from "@/components/BaseModal.vue";
 import { useModal } from "@/composables/useModal";
+import {
+  clearMemberBookingsCache,
+  fetchMemberBookingsCached,
+} from "@/utils/memberBookingsCache";
 
 const props = defineProps<{
   show: boolean;
@@ -81,24 +85,15 @@ async function loadTransactions() {
 
   try {
     const token = localStorage.getItem("device_token");
-    const res = await fetch("/api/get-member-bookings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        member_id: props.memberId,
-        start: "1970-01-01T00:00:00.000Z",
-        end: new Date().toISOString(),
-        exclude_settled: true, // ✅ jetzt NUR offene Transaktionen laden
-      }),
+    if (!token) throw new Error("Kein Geräte-Token gefunden");
+    const result = await fetchMemberBookingsCached({
+      token,
+      memberId: props.memberId,
+      start: "1970-01-01T00:00:00.000Z",
+      end: new Date().toISOString(),
+      excludeSettled: true,
     });
-
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.error || "Fehler beim Laden");
-
-    const flat: any[] = (result.data || []).flatMap((g: any) => g.items || []);
+    const flat: any[] = result.flatMap((g: any) => g.items || []);
     transactions.value = flat;
   } catch (e: any) {
     error.value = e.message;
@@ -111,6 +106,7 @@ async function loadTransactions() {
 async function confirmPartialSettlement() {
   try {
     const token = localStorage.getItem("device_token");
+    if (!token) throw new Error("Kein Geräte-Token gefunden");
     const ids = Array.from(selected.value);
     if (ids.length === 0) {
       error.value = "Keine Transaktionen ausgewählt";
@@ -131,6 +127,7 @@ async function confirmPartialSettlement() {
 
     const result = await res.json();
     if (!res.ok) throw new Error(result.error || "Fehler beim Abrechnen");
+    clearMemberBookingsCache(props.memberId);
 
     let guestEnded = false;
     const remainingOpen = Number(result.remaining_open_transactions ?? -1);

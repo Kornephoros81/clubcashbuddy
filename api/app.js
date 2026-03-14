@@ -16,6 +16,12 @@ function json(res, status, body) {
   res.send(JSON.stringify(body));
 }
 
+function setCacheHeaders(res, value) {
+  res.setHeader("Cache-Control", value);
+  res.setHeader("CDN-Cache-Control", value);
+  res.setHeader("Vercel-CDN-Cache-Control", value);
+}
+
 function getServiceClient() {
   const url = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -55,6 +61,24 @@ async function stampBookingDeviceTrace(supabase, txId, deviceId) {
   if (moveError) return moveError;
 
   return null;
+}
+
+async function loadMemberPinMap(supabase, memberIds) {
+  const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
+  if (!ids.length) return new Map();
+
+  const { data, error } = await supabase
+    .from("member_pins")
+    .select("member_id, pin_plain")
+    .in("member_id", ids);
+  if (error) throw error;
+
+  return new Map(
+    (data ?? []).map((row) => [
+      row.member_id,
+      String(row.pin_plain ?? "").trim().length > 0,
+    ]),
+  );
 }
 
 async function verifyDevice(req) {
@@ -633,6 +657,7 @@ async function handleRoute(route, req, res) {
 
   if (route === "catalog-products") {
     if (req.method !== "GET") return json(res, 405, { error: "Method not allowed" });
+    setCacheHeaders(res, "public, s-maxage=300, stale-while-revalidate=86400");
     const { data, error } = await supabase
       .from("products")
       .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url")
@@ -691,11 +716,13 @@ async function handleRoute(route, req, res) {
   }
 
   if (route === "ping") {
+    setCacheHeaders(res, "no-store, max-age=0");
     return json(res, 200, { ok: true });
   }
 
   if (route === "branding") {
     if (req.method !== "GET") return json(res, 405, { error: "Method not allowed" });
+    setCacheHeaders(res, "public, s-maxage=3600, stale-while-revalidate=86400");
     const { data, error } = await supabase.rpc("public_get_branding_settings");
     if (error) return json(res, 500, { error: error.message || "RPC failed" });
     const row = Array.isArray(data) ? data[0] : data;
@@ -745,6 +772,7 @@ async function handleRoute(route, req, res) {
     const { data, error } = await supabase.rpc("get_members_with_last_booking");
     if (error) return json(res, 500, { error: error.message || "RPC failed" });
     const rows = Array.isArray(data) ? data : [];
+    const pinMap = await loadMemberPinMap(supabase, rows.map((m) => m.id));
     const formatted = rows.map((m) => {
       const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
       return {
@@ -754,6 +782,7 @@ async function handleRoute(route, req, res) {
         is_guest: Boolean(m.is_guest),
         settled: Boolean(m.settled),
         last_booking_at: m.last_booking_at ?? null,
+        has_pin: Boolean(pinMap.get(m.id)),
       };
     });
     return json(res, 200, formatted);
@@ -762,8 +791,10 @@ async function handleRoute(route, req, res) {
   if (route === "terminal-snapshot") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
     let members = [];
+    let products = [];
     const { data, error } = await supabase.rpc("get_terminal_snapshot_berlin");
     if (!error && Array.isArray(data)) {
+      const pinMap = await loadMemberPinMap(supabase, data.map((m) => m.id));
       members = data.map((m) => {
         const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
         return {
@@ -774,6 +805,7 @@ async function handleRoute(route, req, res) {
           settled: Boolean(m.settled),
           last_booking_at: m.last_booking_at ?? null,
           has_booked_today: Boolean(m.has_booked_today),
+          has_pin: Boolean(pinMap.get(m.id)),
         };
       });
     } else {
@@ -787,6 +819,7 @@ async function handleRoute(route, req, res) {
         Array.isArray(bookedRes.data) ? bookedRes.data.map((r) => r.member_id) : [],
       );
       const rows = Array.isArray(membersRes.data) ? membersRes.data : [];
+      const pinMap = await loadMemberPinMap(supabase, rows.map((m) => m.id));
       members = rows.map((m) => {
         const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
         return {
@@ -797,10 +830,21 @@ async function handleRoute(route, req, res) {
           settled: Boolean(m.settled),
           last_booking_at: m.last_booking_at ?? null,
           has_booked_today: bookedSet.has(m.id),
+          has_pin: Boolean(pinMap.get(m.id)),
         };
       });
     }
-    return json(res, 200, { success: true, members });
+    const { data: productRows, error: productError } = await supabase
+      .from("products")
+      .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url")
+      .eq("active", true)
+      .order("name", { ascending: true });
+    if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
+    products = (productRows ?? []).map((p) => ({
+      ...p,
+      image_url: buildProductImageUrl(p.product_image_data_url),
+    }));
+    return json(res, 200, { success: true, members, products });
   }
 
   if (route === "get-member-bookings") {
