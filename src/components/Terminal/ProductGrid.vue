@@ -71,23 +71,23 @@ const groupedProducts = computed(() => {
             :class="[
               p.stock === 0
                 ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
-                : 'bg-white hover:bg-blue-50 border-slate-300 hover:border-blue-400 shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_16px_34px_rgba(30,58,138,0.14)]',
+                : 'bg-white hover:bg-slate-50 border-slate-300 hover:border-blue-400 shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_16px_34px_rgba(30,58,138,0.14)]',
             ]"
           >
-            <span
-              class="absolute inset-x-2 top-2 h-px"
-              :class="p.stock === 0 ? 'bg-slate-300' : 'bg-slate-200 group-hover:bg-blue-200'"
-            ></span>
-
             <!-- Fester Medienbereich -->
             <div
-              class="flex-1 min-h-0 flex items-center justify-center px-0.5 rounded-2xl bg-transparent"
+              class="mx-0.5 mt-0.5 flex-1 min-h-0 flex items-center justify-center px-1.5 rounded-[18px] border"
+              :class="
+                p.stock === 0
+                  ? 'bg-slate-50 border-slate-200'
+                  : 'bg-gradient-to-b from-slate-50 to-white border-slate-200 group-hover:border-blue-200'
+              "
             >
               <img
                 v-if="hasValidImage(p)"
                 :src="p.image_url"
                 :alt="p.name"
-                class="h-full max-h-[58px] xl:max-h-[50px] w-full object-contain"
+                class="h-full max-h-[54px] xl:max-h-[46px] w-full max-w-[88%] object-contain"
                 loading="lazy"
                 @error="onImageError(p.id)"
               />
@@ -118,7 +118,7 @@ const groupedProducts = computed(() => {
                 {{ p.name }}
               </span>
               <span
-                class="shrink-0 ml-auto rounded-full bg-blue-100 px-2 py-0.5 xl:px-1.5 text-[0.72rem] xl:text-[0.68rem] font-bold text-blue-800"
+                class="shrink-0 ml-auto rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 xl:px-1.5 text-[0.72rem] xl:text-[0.68rem] font-bold text-blue-800"
               >
                 {{ displayPrice(p) }} €
               </span>
