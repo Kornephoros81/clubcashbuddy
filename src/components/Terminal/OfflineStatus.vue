@@ -26,7 +26,7 @@ const message = computed(() => {
   <transition name="fade">
     <div
       v-if="visible"
-      class="fixed bottom-3 right-3 z-50 px-3 py-2 text-xs font-medium rounded-md shadow-md bg-gray-800 text-white opacity-90 select-none"
+      class="fixed bottom-3 right-3 z-50 px-3 py-2 text-xs font-medium rounded-2xl shadow-md bg-slate-950/88 text-slate-100 border border-white/10 backdrop-blur-md select-none"
     >
       {{ message }}
     </div>

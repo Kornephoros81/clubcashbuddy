@@ -51,11 +51,11 @@ const groupedProducts = computed(() => {
       >
         <!-- Kategorie: kompakt, nicht sticky, keine Überdeckung -->
         <div class="w-full flex items-center my-1.5 xl:my-1">
-          <div class="flex-1 border-t border-slate-200"></div>
+          <div class="flex-1 border-t border-white/10"></div>
           <div class="section-chip mx-3">
             {{ category }}
           </div>
-          <div class="flex-1 border-t border-slate-200"></div>
+          <div class="flex-1 border-t border-white/10"></div>
         </div>
 
         <!-- Grid für 1280×800: 6 Spalten auf groß, kleine Gaps, flache Buttons -->
@@ -70,13 +70,13 @@ const groupedProducts = computed(() => {
             class="group relative flex flex-col rounded-[24px] border h-[102px] xl:h-[94px] px-2 xl:px-1.5 pt-2 xl:pt-1.5 pb-5 xl:pb-4 transition active:scale-[0.985] overflow-hidden"
             :class="[
               p.stock === 0
-                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                : 'bg-white/96 hover:bg-blue-50 border-slate-200 hover:border-blue-300 shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_16px_34px_rgba(30,58,138,0.14)]',
+                ? 'bg-white/[0.03] text-slate-600 border-white/8 cursor-not-allowed'
+                : 'bg-white/[0.04] hover:bg-cyan-300/10 border-white/10 hover:border-cyan-300/20 shadow-[0_10px_24px_rgba(0,0,0,0.22)] hover:shadow-[0_18px_40px_rgba(8,145,178,0.16)]',
             ]"
           >
             <span
               class="absolute inset-x-2 top-2 h-px"
-              :class="p.stock === 0 ? 'bg-slate-200' : 'bg-slate-100 group-hover:bg-blue-100'"
+              :class="p.stock === 0 ? 'bg-white/8' : 'bg-white/8 group-hover:bg-cyan-300/20'"
             ></span>
 
             <!-- Fester Medienbereich -->
@@ -93,7 +93,7 @@ const groupedProducts = computed(() => {
               />
               <span
                 v-else
-                class="block font-semibold leading-tight text-slate-800 text-[clamp(0.84rem,0.9vw+0.3rem,1.08rem)] xl:text-[0.92rem] text-center"
+                class="block font-semibold leading-tight text-slate-100 text-[clamp(0.84rem,0.9vw+0.3rem,1.08rem)] xl:text-[0.92rem] text-center"
                 style="
                   display: -webkit-box;
                   -webkit-line-clamp: 2;
@@ -113,12 +113,12 @@ const groupedProducts = computed(() => {
             >
               <span
                 v-if="hasValidImage(p)"
-                class="min-w-0 text-[0.72rem] xl:text-[0.68rem] font-semibold text-slate-700 truncate text-left"
+                class="min-w-0 text-[0.72rem] xl:text-[0.68rem] font-semibold text-slate-200 truncate text-left"
               >
                 {{ p.name }}
               </span>
               <span
-                class="shrink-0 ml-auto rounded-full bg-blue-100 px-2 py-0.5 xl:px-1.5 text-[0.72rem] xl:text-[0.68rem] font-bold text-blue-800"
+                class="shrink-0 ml-auto rounded-full bg-cyan-300/14 px-2 py-0.5 xl:px-1.5 text-[0.72rem] xl:text-[0.68rem] font-bold text-cyan-100 ring-1 ring-cyan-300/16"
               >
                 {{ displayPrice(p) }} €
               </span>
@@ -128,7 +128,7 @@ const groupedProducts = computed(() => {
       </section>
     </div>
 
-    <p v-else class="text-center text-gray-500 italic mt-6">
+    <p v-else class="text-center text-slate-500 italic mt-6">
       Keine Produkte vorhanden.
     </p>
   </div>
