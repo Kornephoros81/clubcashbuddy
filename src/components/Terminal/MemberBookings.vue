@@ -97,31 +97,31 @@ watch([currentDate, viewMode], loadBookings);
       class="glass-panel-strong fixed right-0 top-0 h-full w-full max-w-[28rem] xl:max-w-[26rem] 2xl:max-w-[30rem] z-50 flex flex-col rounded-l-[30px] overflow-hidden"
     >
       <!-- Header -->
-      <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/[0.03]">
+      <div class="p-4 border-b border-slate-200/80 flex justify-between items-center bg-white/75">
         <div>
           <div class="section-chip mb-2">Historie</div>
-          <h3 class="display-brand text-xl font-semibold text-cyan-100">Buchungsübersicht</h3>
+          <h3 class="display-brand text-xl font-semibold text-primary">Buchungsübersicht</h3>
         </div>
         <button
           @click="onClose?.()"
-          class="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-slate-300 hover:text-white text-xl leading-none"
+          class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:text-slate-800 text-xl leading-none"
         >
           ×
         </button>
       </div>
 
       <!-- Steuerleiste -->
-      <div class="flex items-center justify-between gap-3 p-4 border-b border-white/10 bg-black/10">
-        <button @click="changePeriod(-1)" class="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-cyan-100 text-xl shadow-sm">‹</button>
+      <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-200/80 bg-slate-50/80">
+        <button @click="changePeriod(-1)" class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-primary text-xl shadow-sm">‹</button>
 
         <div class="text-center min-w-0">
-          <div class="font-medium text-lg flex flex-col items-center text-slate-100">
+          <div class="font-medium text-lg flex flex-col items-center">
             <span>{{ formatDateLabel() }}</span>
 
             <!-- Gesamtsumme oben -->
             <span
               v-if="!loading && bookings.length > 0"
-              :class="totalSum < 0 ? 'text-rose-200' : 'text-emerald-100'"
+              :class="totalSum < 0 ? 'text-red-600' : 'text-green-600'"
               class="mt-1 rounded-full px-3 py-1 text-sm font-semibold"
               :style="{
                 backgroundColor: totalSum < 0 ? 'var(--danger-soft)' : 'var(--success-soft)',
@@ -133,18 +133,18 @@ watch([currentDate, viewMode], loadBookings);
 
           <select
             v-model="viewMode"
-            class="mt-3 rounded-full border border-white/10 px-3 py-1.5 text-sm bg-white/[0.04] text-slate-100 font-medium"
+            class="mt-3 rounded-full border border-slate-200 px-3 py-1.5 text-sm bg-white text-slate-700 font-medium"
           >
             <option value="month">Monat</option>
             <option value="day">Tag</option>
           </select>
         </div>
 
-        <button @click="changePeriod(1)" class="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-cyan-100 text-xl shadow-sm">›</button>
+        <button @click="changePeriod(1)" class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-primary text-xl shadow-sm">›</button>
       </div>
 
       <!-- Inhalt -->
-      <div class="soft-scrollbar touch-scroll flex-1 overflow-y-auto overscroll-contain p-4 xl:p-3.5 bg-transparent">
+      <div class="soft-scrollbar touch-scroll flex-1 overflow-y-auto overscroll-contain p-4 xl:p-3.5 bg-white/35">
         <div v-if="loading" class="text-center text-slate-400 py-8">
           Lade Buchungen …
         </div>
@@ -154,10 +154,10 @@ watch([currentDate, viewMode], loadBookings);
           <div
             v-for="g in bookings"
             :key="g.local_day"
-            class="mb-4 xl:mb-3 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 xl:p-3.5 shadow-[0_10px_28px_rgba(0,0,0,0.22)]"
+            class="mb-4 xl:mb-3 rounded-[24px] border border-slate-200/80 bg-white/92 p-4 xl:p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
           >
             <div class="flex justify-between items-center mb-2">
-              <h4 class="text-sm font-semibold text-slate-300">
+              <h4 class="text-sm font-semibold text-slate-600">
                 {{
                   new Date(g.local_day).toLocaleDateString("de-DE", {
                     weekday: "short",
@@ -168,7 +168,7 @@ watch([currentDate, viewMode], loadBookings);
               </h4>
               <span
                 class="rounded-full px-3 py-1 text-sm font-semibold"
-                :class="g.total < 0 ? 'text-rose-200' : 'text-emerald-100'"
+                :class="g.total < 0 ? 'text-red-500' : 'text-green-600'"
                 :style="{
                   backgroundColor: g.total < 0 ? 'var(--danger-soft)' : 'var(--success-soft)',
                 }"
@@ -177,17 +177,17 @@ watch([currentDate, viewMode], loadBookings);
               </span>
             </div>
 
-            <ul class="divide-y divide-white/6">
+            <ul class="divide-y divide-slate-100">
               <li
                 v-for="b in g.items"
                 :key="b.id"
                 class="py-2 xl:py-1.5 flex justify-between items-center"
               >
                 <div>
-                  <p class="font-medium text-slate-100">
+                  <p class="font-medium text-slate-800">
                     {{ b.product_name || b.note || "Freier Betrag" }}
                   </p>
-                  <p class="text-xs text-slate-500">
+                  <p class="text-xs text-slate-400">
                     {{
                       new Date(b.created_at).toLocaleTimeString("de-DE", {
                         hour: "2-digit",
@@ -198,7 +198,7 @@ watch([currentDate, viewMode], loadBookings);
                 </div>
                 <span
                   class="rounded-full px-2.5 py-1 xl:px-2 xl:py-0.5 text-xs xl:text-[0.68rem] font-semibold"
-                  :class="b.amount < 0 ? 'text-rose-200' : 'text-emerald-100'"
+                  :class="b.amount < 0 ? 'text-red-500' : 'text-green-600'"
                   :style="{
                     backgroundColor: b.amount < 0 ? 'var(--danger-soft)' : 'var(--success-soft)',
                   }"
@@ -212,8 +212,8 @@ watch([currentDate, viewMode], loadBookings);
           <!-- Monats-Gesamtsumme -->
           <div
             v-if="bookings.length > 0"
-            class="text-right text-base font-semibold mt-6 border-t border-white/10 pt-3"
-            :class="totalSum < 0 ? 'text-rose-200' : 'text-emerald-100'"
+            class="text-right text-base font-semibold mt-6 border-t border-slate-200 pt-3"
+            :class="totalSum < 0 ? 'text-red-600' : 'text-green-600'"
           >
             Gesamt: {{ (totalSum / 100).toFixed(2) }} €
           </div>
@@ -221,17 +221,17 @@ watch([currentDate, viewMode], loadBookings);
 
         <!-- Tagesansicht (flach) -->
         <template v-else>
-          <ul class="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] divide-y divide-white/6 shadow-[0_10px_28px_rgba(0,0,0,0.22)]">
+          <ul class="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white/92 divide-y divide-slate-100 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
             <li
               v-for="b in bookings"
               :key="b.id"
               class="px-4 xl:px-3.5 py-3 xl:py-2.5 flex justify-between items-center gap-3"
             >
               <div>
-                <p class="font-medium text-slate-100">
+                <p class="font-medium text-slate-800">
                   {{ b.products?.name || b.product_name || b.note || "Freier Betrag" }}
                 </p>
-                <p class="text-xs text-slate-500">
+                <p class="text-xs text-slate-400">
                   {{
                     new Date(b.created_at).toLocaleTimeString("de-DE", {
                       hour: "2-digit",
@@ -242,7 +242,7 @@ watch([currentDate, viewMode], loadBookings);
               </div>
               <span
                 class="rounded-full px-2.5 xl:px-2 py-1 xl:py-0.5 text-xs xl:text-[0.68rem] font-semibold whitespace-nowrap"
-                :class="b.amount < 0 ? 'text-rose-200' : 'text-emerald-100'"
+                :class="b.amount < 0 ? 'text-red-500' : 'text-green-600'"
                 :style="{
                   backgroundColor: b.amount < 0 ? 'var(--danger-soft)' : 'var(--success-soft)',
                 }"
@@ -254,8 +254,8 @@ watch([currentDate, viewMode], loadBookings);
 
           <div
             v-if="bookings.length > 0"
-            class="text-right text-base font-semibold mt-4 border-t border-white/10 pt-3"
-            :class="totalSum < 0 ? 'text-rose-200' : 'text-emerald-100'"
+            class="text-right text-base font-semibold mt-4 border-t border-slate-200 pt-3"
+            :class="totalSum < 0 ? 'text-red-600' : 'text-green-600'"
           >
             Gesamt: {{ (totalSum / 100).toFixed(2) }} €
           </div>

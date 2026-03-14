@@ -12,7 +12,7 @@ defineEmits(["undo"]);
   <div
     class="glass-panel rounded-[24px] flex flex-col overflow-hidden"
   >
-    <ul class="divide-y divide-white/6">
+    <ul class="divide-y divide-gray-100">
       <li
         v-for="(b, i) in bookings"
         :key="i"
@@ -29,20 +29,20 @@ defineEmits(["undo"]);
             "
           >
             {{ b.product_name || b.note || "Buchung" }}
-            <span v-if="b.count > 1" class="text-slate-500 text-xs">
+            <span v-if="b.count > 1" class="text-gray-500 text-xs">
               ×{{ b.count }}</span
             >
           </div>
           <div
             v-if="b.syncStatus === 'pending'"
-            class="mt-1 inline-flex rounded-full bg-amber-400/18 px-2 py-0.5 text-[0.68rem] xl:text-[0.62rem] text-amber-100 font-semibold"
+            class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[0.68rem] xl:text-[0.62rem] text-amber-700 font-semibold"
             title="Noch nicht synchronisiert"
           >
             Ausstehend
           </div>
           <div
             v-else-if="b.syncStatus === 'failed'"
-            class="mt-1 inline-flex rounded-full bg-rose-400/18 px-2 py-0.5 text-[0.68rem] xl:text-[0.62rem] text-rose-100 font-semibold"
+            class="mt-1 inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[0.68rem] xl:text-[0.62rem] text-red-700 font-semibold"
             title="Synchronisation fehlgeschlagen"
           >
             Fehler
@@ -51,7 +51,7 @@ defineEmits(["undo"]);
 
         <span
           class="justify-self-end whitespace-nowrap text-right rounded-full px-2.5 xl:px-2 py-1 xl:py-0.5 text-[0.76rem] xl:text-[0.7rem] font-bold"
-          :class="b.amount < 0 ? 'text-rose-200' : 'text-emerald-100'"
+          :class="b.amount < 0 ? 'text-red-600' : 'text-green-700'"
           :style="{
             backgroundColor: b.amount < 0 ? 'var(--danger-soft)' : 'var(--success-soft)',
           }"
@@ -63,7 +63,7 @@ defineEmits(["undo"]);
           v-if="b.amount < 0"
           @click="$emit('undo', b)"
           :disabled="loading || b.syncStatus"
-          class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-white/[0.04] text-slate-400 border border-white/10 hover:text-rose-200 hover:border-rose-300/20 transition-colors text-base xl:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-white text-slate-400 border border-slate-200 hover:text-red-600 hover:border-red-200 transition-colors text-base xl:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           :title="
             b.syncStatus
               ? 'Ausstehende Buchungen können nicht storniert werden'
@@ -72,14 +72,14 @@ defineEmits(["undo"]);
         >
           🗑️
         </button>
-        <span v-else class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-white/[0.03] text-slate-500 border border-transparent text-base xl:text-sm">🔒</span>
+        <span v-else class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-slate-50 text-slate-300 border border-transparent text-base xl:text-sm">🔒</span>
       </li>
     </ul>
 
     <!-- interne Summe nur falls gewünscht -->
     <div
       v-if="showTotal && bookings.length"
-      class="mt-2 flex justify-between border-t border-white/10 pt-3 text-base font-semibold text-slate-100 px-3 pb-3"
+      class="mt-2 flex justify-between border-t border-slate-200 pt-3 text-base font-semibold text-slate-700 px-3 pb-3"
     >
       <span>Summe heute</span>
       <span>{{ (totalToday / 100).toFixed(2) }} €</span>

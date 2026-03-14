@@ -3,32 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --app-bg: #07111f;
-  --surface: rgba(10, 19, 34, 0.78);
-  --surface-strong: rgba(9, 17, 31, 0.92);
-  --surface-soft: rgba(18, 29, 49, 0.78);
-  --line-soft: rgba(125, 154, 196, 0.16);
-  --line-strong: rgba(125, 154, 196, 0.26);
-  --text-main: #eef4ff;
-  --text-soft: #8da1c3;
-  --brand: #7dd3fc;
-  --brand-strong: #38bdf8;
-  --brand-soft: rgba(125, 211, 252, 0.16);
-  --success-soft: rgba(16, 185, 129, 0.18);
-  --success-strong: #6ee7b7;
-  --warning-soft: rgba(245, 158, 11, 0.18);
-  --danger-soft: rgba(248, 113, 113, 0.18);
-  --shadow-soft: 0 28px 70px rgba(0, 0, 0, 0.36);
-  --shadow-card: 0 18px 44px rgba(0, 0, 0, 0.28);
+  --app-bg: #f3f6fb;
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-strong: rgba(255, 255, 255, 0.96);
+  --surface-soft: rgba(248, 250, 252, 0.84);
+  --line-soft: rgba(148, 163, 184, 0.2);
+  --line-strong: rgba(148, 163, 184, 0.32);
+  --text-main: #122033;
+  --text-soft: #5f6f86;
+  --brand: #1e3a8a;
+  --brand-strong: #172b63;
+  --brand-soft: #dbe7ff;
+  --success-soft: #dff4ea;
+  --success-strong: #0f766e;
+  --warning-soft: #fff1bf;
+  --danger-soft: #fde2e2;
+  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
 html {
   min-height: 100%;
   background:
-    radial-gradient(circle at 12% 10%, rgba(34, 211, 238, 0.16), transparent 26%),
-    radial-gradient(circle at 88% 14%, rgba(99, 102, 241, 0.18), transparent 24%),
-    radial-gradient(circle at 50% 100%, rgba(14, 165, 233, 0.1), transparent 28%),
-    linear-gradient(180deg, #030712 0%, #07111f 48%, #091727 100%);
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(250, 204, 21, 0.12), transparent 22%),
+    linear-gradient(180deg, #f7f9fc 0%, #eef3f9 100%);
 }
 
 body {
@@ -60,23 +59,22 @@ button {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(135deg, rgba(125, 211, 252, 0.1), rgba(255, 255, 255, 0) 30%),
-    radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.1), transparent 32%),
-    radial-gradient(circle at 80% 0%, rgba(99, 102, 241, 0.12), transparent 26%);
-  opacity: 1;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 42%),
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.55), transparent 32%);
+  opacity: 0.85;
   z-index: -1;
 }
 
 .glass-panel {
   background: var(--surface);
-  backdrop-filter: blur(22px);
+  backdrop-filter: blur(18px);
   box-shadow: var(--shadow-card);
   border: 1px solid var(--line-soft);
 }
 
 .glass-panel-strong {
   background: var(--surface-strong);
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(18px);
   box-shadow: var(--shadow-soft);
   border: 1px solid var(--line-strong);
 }
@@ -87,13 +85,13 @@ button {
   gap: 0.45rem;
   border-radius: 999px;
   padding: 0.32rem 0.72rem;
-  background: rgba(12, 22, 38, 0.84);
-  border: 1px solid rgba(125, 154, 196, 0.18);
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(148, 163, 184, 0.22);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #9bb0d1;
+  color: var(--text-soft);
 }
 
 .display-brand {
@@ -107,7 +105,7 @@ button {
 
 .soft-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(125, 154, 196, 0.3) transparent;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
 }
 
 .soft-scrollbar::-webkit-scrollbar {
@@ -116,7 +114,7 @@ button {
 }
 
 .soft-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(125, 154, 196, 0.28);
+  background: rgba(100, 116, 139, 0.34);
   border-radius: 999px;
 }
 

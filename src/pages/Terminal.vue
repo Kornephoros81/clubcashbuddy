@@ -313,7 +313,7 @@ watch(showPinModal, async (isOpen) => {
 <template>
   <DeviceAuthDialog v-if="!auth.authenticated" />
 
-  <div v-else class="app-shell min-h-screen flex flex-col text-slate-100">
+  <div v-else class="app-shell min-h-screen flex flex-col text-gray-800">
     <OfflineStatus />
 
     <!-- HEADER -->
@@ -325,16 +325,16 @@ watch(showPinModal, async (isOpen) => {
           <div class="flex items-center gap-3 min-w-0">
             <button
               @click="reloadPage"
-              class="flex items-center gap-3 rounded-2xl bg-white/[0.04] px-3 py-1.5 shadow-sm ring-1 ring-white/10 transition hover:bg-white/[0.07]"
+              class="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-1.5 shadow-sm transition hover:bg-white"
             >
               <img
                 :src="logoUrl"
                 :alt="`${appTitle} Logo`"
-                class="h-9 w-9 object-contain rounded-xl bg-white/[0.06] p-1"
+                class="h-9 w-9 object-contain rounded-xl bg-slate-50 p-1"
                 @error="onLogoError"
               />
               <h1
-                class="display-brand truncate text-xl md:text-[1.65rem] font-semibold text-cyan-100 text-left"
+                class="display-brand truncate text-xl md:text-[1.65rem] font-semibold text-primary text-left"
               >
                 {{ appTitle }}
               </h1>
@@ -344,20 +344,20 @@ watch(showPinModal, async (isOpen) => {
           <div class="flex flex-wrap items-center justify-end gap-2">
           <RouterLink
             to="/admin/dashboard"
-            class="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-slate-100 shadow-sm transition hover:border-cyan-300/30 hover:bg-white/[0.08]"
+            class="rounded-2xl border border-slate-200 bg-white/85 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
           >
             Admin
           </RouterLink>
           <button
             @click="showAddGuestModal = true"
-            class="rounded-2xl border border-emerald-400/30 bg-emerald-500/18 px-4 py-2.5 text-sm font-semibold text-emerald-100 shadow-sm transition hover:bg-emerald-500/26"
+            class="rounded-2xl border border-emerald-600 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
             Gast anlegen
           </button>
           <RouterLink
             v-if="auth.authenticated"
             to="/stock-refill"
-            class="rounded-2xl border border-cyan-300/30 bg-cyan-400/16 px-4 py-2.5 text-sm font-semibold text-cyan-50 shadow-sm transition hover:bg-cyan-400/24"
+            class="rounded-2xl border border-blue-700 bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800"
           >
             Nachfüllen
           </RouterLink>
@@ -367,31 +367,31 @@ watch(showPinModal, async (isOpen) => {
         <!-- Statuszeile -->
         <div
           v-if="selectedMember"
-          class="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[22px] border border-cyan-300/15 bg-gradient-to-r from-cyan-400/10 via-slate-950/10 to-indigo-400/10 px-2.5 py-2 text-slate-100"
+          class="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[22px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-2.5 py-2 text-blue-950"
         >
           <button
             @click="onBackToMembers"
-            class="flex items-center gap-2 rounded-2xl bg-cyan-300 px-3.5 py-2 text-sm font-semibold text-slate-950 shadow hover:bg-cyan-200 active:scale-[0.98] transition-transform"
+            class="flex items-center gap-2 rounded-2xl bg-primary px-3.5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-800 active:scale-[0.98] transition-transform"
           >
             ← Zurück
           </button>
           <div class="min-w-0 text-center">
-            <div class="text-[0.62rem] font-bold uppercase tracking-[0.18em] text-cyan-300/80">
+            <div class="text-[0.62rem] font-bold uppercase tracking-[0.18em] text-blue-500">
               Aktives Mitglied
             </div>
             <span
-              class="block text-base md:text-[1.15rem] font-semibold leading-tight truncate text-white"
+              class="block text-base md:text-[1.15rem] font-semibold leading-tight truncate"
             >
               {{ selectedMember.name }}
             </span>
           </div>
           <div
-            class="justify-self-end rounded-2xl bg-white/[0.05] px-2.5 py-1.5 text-right shadow-sm ring-1 ring-white/10"
+            class="justify-self-end rounded-2xl bg-white/85 px-2.5 py-1.5 text-right shadow-sm"
           >
-            <div class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400">
+            <div class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-500">
               Heute
             </div>
-            <div class="text-sm md:text-[0.95rem] font-semibold text-cyan-100">
+            <div class="text-sm md:text-[0.95rem] font-semibold text-slate-900">
               {{ (totalToday / 100).toFixed(2) }} €
             </div>
           </div>
@@ -403,7 +403,7 @@ watch(showPinModal, async (isOpen) => {
     <transition name="fade">
       <div
         v-if="toast"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-cyan-300 text-slate-950 font-semibold py-2 px-6 rounded-full shadow-lg z-50"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-accent text-gray-900 font-semibold py-2 px-6 rounded-full shadow-lg z-50"
       >
         {{ toast }}
       </div>
@@ -455,7 +455,7 @@ watch(showPinModal, async (isOpen) => {
 
             <section>
               <div class="px-1 pb-2">
-                <div class="section-chip !text-amber-200 !border-amber-400/20 !bg-amber-500/12">
+                <div class="section-chip !text-amber-700 !border-amber-200 !bg-amber-50/90">
                   Neu
                 </div>
               </div>
@@ -470,44 +470,44 @@ watch(showPinModal, async (isOpen) => {
           </div>
 
           <div
-            class="shrink-0 flex justify-between items-center px-4 py-3 text-base font-semibold text-slate-100 bg-gradient-to-r from-cyan-400/8 to-white/[0.02] border-t border-white/10"
+            class="shrink-0 flex justify-between items-center px-4 py-3 text-base font-semibold text-slate-800 bg-gradient-to-r from-blue-50 to-white border-t border-slate-200"
           >
             <span>Summe heute</span>
-            <span class="rounded-full bg-cyan-300/14 px-3 py-1 shadow-sm text-cyan-100 ring-1 ring-cyan-300/20">{{ (totalToday / 100).toFixed(2) }} €</span>
+            <span class="rounded-full bg-white px-3 py-1 shadow-sm">{{ (totalToday / 100).toFixed(2) }} €</span>
           </div>
 
           <div
-            class="shrink-0 grid grid-cols-2 gap-2 border-t border-white/10 bg-black/10 p-3"
+            class="shrink-0 grid grid-cols-2 gap-2 border-t border-slate-200 bg-white/75 p-3"
           >
             <button
               @click="showBookings = true"
-              class="h-12 xl:h-11 rounded-2xl bg-white/[0.05] text-slate-100 font-semibold text-sm border border-white/10 hover:bg-white/[0.09] transition"
+              class="h-12 xl:h-11 rounded-2xl bg-slate-100 text-slate-800 font-semibold text-sm border border-slate-200 hover:bg-slate-200 transition"
             >
               Übersicht
             </button>
             <button
               @click="showFreeAmount = true"
-              class="h-12 xl:h-11 rounded-2xl bg-cyan-300 text-slate-950 font-semibold text-sm border border-cyan-200 hover:bg-cyan-200 transition"
+              class="h-12 xl:h-11 rounded-2xl bg-primary text-white font-semibold text-sm border border-blue-700 hover:bg-blue-800 transition"
             >
               Freier Betrag
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showPartialModal = true"
-              class="h-12 xl:h-11 rounded-2xl bg-amber-400/18 text-amber-100 font-semibold text-sm border border-amber-300/20 hover:bg-amber-400/24 transition"
+              class="h-12 xl:h-11 rounded-2xl bg-amber-500 text-white font-semibold text-sm border border-amber-600 hover:bg-amber-600 transition"
             >
               Teilabrechnung
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showSettleModal = true"
-              class="h-12 xl:h-11 rounded-2xl bg-rose-400/18 text-rose-100 font-semibold text-sm border border-rose-300/20 hover:bg-rose-400/24 transition"
+              class="h-12 xl:h-11 rounded-2xl bg-red-600 text-white font-semibold text-sm border border-red-700 hover:bg-red-700 transition"
             >
               Abrechnung
             </button>
             <div
               v-else
-              class="h-12 rounded-2xl bg-white/[0.03] border border-transparent col-span-2"
+              class="h-12 rounded-2xl bg-slate-50 border border-transparent col-span-2"
             ></div>
           </div>
         </aside>
@@ -518,7 +518,7 @@ watch(showPinModal, async (isOpen) => {
     <footer
       class="sticky bottom-0 z-20 px-3 pb-3"
     >
-      <div class="glass-panel rounded-[24px] h-3 border-transparent shadow-none bg-white/[0.03]"></div>
+      <div class="glass-panel rounded-[24px] h-3 border-transparent shadow-none bg-white/35"></div>
     </footer>
   </div>
 
@@ -526,7 +526,7 @@ watch(showPinModal, async (isOpen) => {
   <transition name="fade">
     <div v-if="showBookings && selectedMember" class="fixed inset-0 z-50 flex">
       <div
-        class="flex-1 bg-black/60 backdrop-blur-sm"
+        class="flex-1 bg-slate-950/45 backdrop-blur-sm"
         @click="showBookings = false"
       ></div>
       <MemberBookings
@@ -597,16 +597,16 @@ watch(showPinModal, async (isOpen) => {
     @confirm="addGuest"
   >
     <div class="space-y-3">
-      <label class="block text-sm font-medium text-slate-300">Vorname</label>
+      <label class="block text-sm font-medium text-gray-600">Vorname</label>
       <input
         v-model="guestFirstname"
-        class="w-full border border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-cyan-300"
+        class="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
         placeholder="Vorname"
       />
-      <label class="block text-sm font-medium text-slate-300">Nachname</label>
+      <label class="block text-sm font-medium text-gray-600">Nachname</label>
       <input
         v-model="guestLastname"
-        class="w-full border border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-cyan-300"
+        class="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
         placeholder="Nachname"
       />
     </div>
@@ -615,14 +615,14 @@ watch(showPinModal, async (isOpen) => {
   <transition name="fade">
     <div
       v-if="showPinModal"
-      class="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+      class="fixed inset-0 flex items-center justify-center bg-black/40 z-50"
     >
       <div
         class="glass-panel-strong rounded-[28px] w-full max-w-sm p-6 space-y-4"
       >
         <div>
           <div class="section-chip mb-2">Sicherheit</div>
-          <h3 class="display-brand text-xl font-semibold text-cyan-100">PIN</h3>
+          <h3 class="display-brand text-xl font-semibold text-primary">PIN</h3>
         </div>
         <input
           ref="pinInputRef"
@@ -632,15 +632,15 @@ watch(showPinModal, async (isOpen) => {
           pattern="[0-9]*"
           maxlength="4"
           autocomplete="off"
-          class="w-full border border-white/10 bg-white/[0.04] text-white rounded-2xl p-3 text-lg tracking-[0.45em] text-center font-semibold focus:ring-1 focus:ring-cyan-300"
+          class="w-full border border-slate-200 rounded-2xl p-3 text-lg tracking-[0.45em] text-center font-semibold focus:ring-1 focus:ring-primary"
           placeholder="0000"
           @input="onPinInput"
         />
-        <p v-if="pinError" class="text-sm text-rose-300">{{ pinError }}</p>
+        <p v-if="pinError" class="text-sm text-red-600">{{ pinError }}</p>
         <div class="flex justify-end">
           <button
             @click="closePinModal"
-            class="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-slate-200 font-medium hover:bg-white/[0.08]"
+            class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-slate-600 font-medium hover:bg-slate-50"
           >
             Abbrechen
           </button>

@@ -81,7 +81,7 @@ function splitMemberName(name: string) {
 <template>
   <div class="glass-panel flex flex-col h-full w-full overflow-hidden rounded-[28px]">
     <!-- Buchstaben -->
-    <div class="border-b border-white/10 px-3 py-2.5 xl:py-2 bg-black/10">
+    <div class="border-b border-slate-200/70 px-3 py-2.5 xl:py-2">
       <div class="soft-scrollbar touch-scroll flex overflow-x-auto justify-center gap-1.5 xl:gap-1 pb-1">
         <button
           v-for="ch in alphabet"
@@ -93,8 +93,8 @@ function splitMemberName(name: string) {
             selectedLetter === ch
               ? 'bg-slate-900 text-white border-slate-900 shadow-md'
               : availableLetters.includes(ch)
-              ? 'bg-white/[0.05] text-slate-200 border-white/10 hover:bg-cyan-300/12 hover:text-cyan-100 hover:border-cyan-300/20'
-              : 'bg-white/[0.03] text-slate-600 border-white/5 cursor-not-allowed',
+              ? 'bg-white/90 text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200'
+              : 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed',
           ]"
         >
           {{ ch }}
@@ -109,7 +109,7 @@ function splitMemberName(name: string) {
       <template v-for="(m, i) in filteredMembers" :key="m.id">
         <div
           v-if="i > 0 && isInactive(m) && !isInactive(filteredMembers[i - 1])"
-          class="col-span-full text-center my-2 border-t border-dashed border-white/10 text-slate-500 text-sm py-2"
+          class="col-span-full text-center my-2 border-t border-dashed border-slate-300 text-slate-500 text-sm py-2"
         >
           Länger als 30 Tage nicht gebucht ↓
         </div>
@@ -119,17 +119,17 @@ function splitMemberName(name: string) {
           class="group relative h-[5.4rem] xl:h-[4.75rem] rounded-[22px] border transition flex flex-col items-center justify-center text-center px-3 xl:px-2.5 py-3 xl:py-2.5 overflow-hidden"
           :class="[
             m.is_guest
-              ? 'bg-gradient-to-br from-amber-400/18 to-orange-400/12 text-amber-50 border-amber-300/16 hover:border-amber-300/24 hover:shadow-md'
+              ? 'bg-gradient-to-br from-amber-50 to-orange-100 text-slate-800 border-amber-200 hover:border-amber-300 hover:shadow-md'
               : m.id === selected
-              ? 'bg-gradient-to-br from-cyan-300/24 to-sky-400/16 text-white border-cyan-300/30 scale-[1.02] shadow-lg'
+              ? 'bg-gradient-to-br from-primary to-blue-700 text-white border-blue-800 scale-[1.02] shadow-lg'
               : bookedTodayIds.has(m.id)
-              ? 'bg-gradient-to-br from-emerald-400/18 to-teal-400/12 text-emerald-50 border-emerald-300/16 hover:border-emerald-300/24 hover:shadow-md'
-              : 'bg-white/[0.04] text-slate-100 border-white/10 hover:border-cyan-300/18 hover:bg-white/[0.06] hover:shadow-md',
+              ? 'bg-gradient-to-br from-emerald-50 to-teal-100 text-slate-800 border-emerald-200 hover:border-emerald-300 hover:shadow-md'
+              : 'bg-white/92 text-slate-800 border-slate-200 hover:border-blue-200 hover:bg-slate-50 hover:shadow-md',
           ]"
         >
           <span
             class="absolute inset-x-3 top-2 h-px opacity-70"
-            :class="m.id === selected ? 'bg-cyan-200/40' : 'bg-white/10'"
+            :class="m.id === selected ? 'bg-white/40' : 'bg-slate-200'"
           ></span>
           <span class="px-1 whitespace-normal break-words text-center">
             <span
@@ -140,7 +140,7 @@ function splitMemberName(name: string) {
             <span
               v-if="splitMemberName(m.name).firstName"
               class="block text-[clamp(0.72rem,1vw+0.18rem,0.98rem)] xl:text-[0.8rem] leading-tight"
-              :class="m.id === selected ? 'text-cyan-50' : 'text-slate-400'"
+              :class="m.id === selected ? 'text-blue-100' : 'text-slate-500'"
             >
               {{ splitMemberName(m.name).firstName }}
             </span>
@@ -150,7 +150,7 @@ function splitMemberName(name: string) {
 
       <p
         v-if="!filteredMembers.length"
-        class="col-span-full text-center text-slate-500 py-3"
+        class="col-span-full text-center text-gray-500 py-3"
       >
         Kein Mitglied gefunden
       </p>
