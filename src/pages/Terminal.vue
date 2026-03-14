@@ -313,68 +313,93 @@ watch(showPinModal, async (isOpen) => {
 <template>
   <DeviceAuthDialog v-if="!auth.authenticated" />
 
-  <div v-else class="min-h-screen flex flex-col bg-gray-50 text-gray-800">
+  <div v-else class="app-shell min-h-screen flex flex-col text-gray-800">
     <OfflineStatus />
 
     <!-- HEADER -->
     <header
-      class="flex flex-col bg-white shadow-sm sticky top-0 z-40 border-b border-gray-200"
+      class="sticky top-0 z-40 px-3 pt-3"
     >
-      <!-- Topbar -->
-      <div class="flex items-center justify-between px-4 py-2">
-        <h1
-          @click="reloadPage"
-          class="text-lg md:text-xl font-semibold text-primary flex items-center gap-2 cursor-pointer select-none hover:text-blue-700 transition-colors"
-        >
-          <img
-            :src="logoUrl"
-            :alt="`${appTitle} Logo`"
-            class="h-8 w-8 object-contain"
-            @error="onLogoError"
-          />
-          <span>{{ appTitle }}</span>
-        </h1>
+      <div class="glass-panel-strong rounded-[28px] px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <button
+              @click="reloadPage"
+              class="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-2 shadow-sm transition hover:bg-white"
+            >
+              <img
+                :src="logoUrl"
+                :alt="`${appTitle} Logo`"
+                class="h-10 w-10 object-contain rounded-xl bg-slate-50 p-1"
+                @error="onLogoError"
+              />
+              <div class="min-w-0 text-left">
+                <div class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-slate-500">
+                  Terminal
+                </div>
+                <h1
+                  class="display-brand truncate text-xl md:text-2xl font-semibold text-primary"
+                >
+                  {{ appTitle }}
+                </h1>
+              </div>
+            </button>
+          </div>
 
-        <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center justify-end gap-2">
           <RouterLink
             to="/admin/dashboard"
-            class="bg-gray-200 text-gray-800 text-sm px-3 py-2 rounded-md hover:bg-gray-300 transition"
+            class="rounded-2xl border border-slate-200 bg-white/85 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
           >
-            🔧 Admin
+            Admin
           </RouterLink>
           <button
             @click="showAddGuestModal = true"
-            class="bg-green-600 text-white text-sm px-3 py-2 rounded-md hover:bg-green-700 transition"
+            class="rounded-2xl border border-emerald-600 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
-            ➕ Gast anlegen
+            Gast anlegen
           </button>
           <RouterLink
             v-if="auth.authenticated"
             to="/stock-refill"
-            class="bg-blue-600 text-white text-sm px-3 py-2 rounded-md hover:bg-blue-700 transition"
+            class="rounded-2xl border border-blue-700 bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800"
           >
-            📦 Nachfüllen
+            Nachfüllen
           </RouterLink>
+          </div>
         </div>
-      </div>
 
-      <!-- Statuszeile -->
-      <div
-        v-if="selectedMember"
-        class="flex items-center justify-between bg-blue-50 border-t border-blue-200 px-4 py-3 text-blue-900"
-      >
-        <button
-          @click="onBackToMembers"
-          class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md font-medium shadow hover:bg-blue-700 active:scale-[0.97] transition-transform"
+        <!-- Statuszeile -->
+        <div
+          v-if="selectedMember"
+          class="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[24px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-3 py-3 text-blue-950"
         >
-          ← Zurück
-        </button>
-        <div class="flex-1 text-center">
-          <span
-            class="block text-lg md:text-xl font-semibold leading-tight truncate"
+          <button
+            @click="onBackToMembers"
+            class="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-800 active:scale-[0.98] transition-transform"
           >
-            {{ selectedMember.name }}
-          </span>
+            ← Zurück
+          </button>
+          <div class="min-w-0 text-center">
+            <div class="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-blue-500">
+              Aktives Mitglied
+            </div>
+            <span
+              class="block text-lg md:text-[1.35rem] font-semibold leading-tight truncate"
+            >
+              {{ selectedMember.name }}
+            </span>
+          </div>
+          <div
+            class="justify-self-end rounded-2xl bg-white/85 px-3 py-2 text-right shadow-sm"
+          >
+            <div class="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+              Heute
+            </div>
+            <div class="text-base font-semibold text-slate-900">
+              {{ (totalToday / 100).toFixed(2) }} €
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -391,10 +416,10 @@ watch(showPinModal, async (isOpen) => {
 
     <!-- MAIN -->
     <main
-      class="flex-1 max-w-7xl mx-auto w-full px-3 md:px-6 py-3 overflow-hidden"
+      class="flex-1 max-w-[1500px] mx-auto w-full px-3 pb-3 overflow-hidden"
     >
       <!-- Member-Auswahl -->
-      <div v-if="!selectedMember" class="flex flex-col h-[calc(100vh-8rem)]">
+      <div v-if="!selectedMember" class="flex flex-col h-[calc(100vh-7.75rem)]">
         <!-- MemberPicker direkt hier, nicht im Footer -->
         <MemberPicker @select="handleMemberSelect" class="flex-1" />
       </div>
@@ -402,29 +427,48 @@ watch(showPinModal, async (isOpen) => {
       <!-- Buchungsansicht -->
       <div
         v-else
-        class="flex flex-col lg:flex-row gap-4 h-[calc(100vh-9rem)] overflow-hidden"
+        class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_22rem] gap-3 h-[calc(100vh-10.3rem)] overflow-hidden"
       >
         <!-- Produktbereich -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        <div class="glass-panel rounded-[30px] flex flex-col overflow-hidden">
+          <div class="flex items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-3">
+            <div class="min-w-0">
+              <div class="section-chip mb-2">Produkte</div>
+              <h2 class="text-lg font-semibold text-slate-900 truncate">
+                Schnell buchen
+              </h2>
+            </div>
+            <div class="hidden md:flex items-center rounded-2xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-500">
+              Tippen zum Buchen
+            </div>
+          </div>
           <ProductGrid
             :products="store.products"
             :loading="loading"
             :isGuest="selectedMember?.is_guest"
             @add="addProduct"
-            class="flex-1 overflow-hidden"
+            class="flex-1 overflow-hidden px-3 py-3"
           />
         </div>
 
         <!-- Sidebar -->
         <aside
-          class="relative w-full lg:w-[26%] flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm min-h-0"
+          class="glass-panel relative w-full flex flex-col rounded-[30px] min-h-0 overflow-hidden"
         >
-          <div class="flex-1 min-h-0 overflow-y-auto space-y-3 p-2">
+          <div class="border-b border-slate-200/80 px-4 py-3">
+            <div class="section-chip mb-2">Buchungen</div>
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-lg font-semibold text-slate-900">Aktueller Stand</h2>
+              <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
+                Live
+              </span>
+            </div>
+          </div>
+
+          <div class="soft-scrollbar touch-scroll flex-1 min-h-0 overflow-y-auto space-y-3 p-3">
             <section>
-              <div
-                class="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500"
-              >
-                Heute gebucht
+              <div class="px-1 pb-2">
+                <div class="section-chip">Heute gebucht</div>
               </div>
               <BookingList
                 :bookings="confirmedBookings"
@@ -436,10 +480,10 @@ watch(showPinModal, async (isOpen) => {
             </section>
 
             <section>
-              <div
-                class="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-amber-700"
-              >
-                Neu
+              <div class="px-1 pb-2">
+                <div class="section-chip !text-amber-700 !border-amber-200 !bg-amber-50/90">
+                  Neu
+                </div>
               </div>
               <BookingList
                 :bookings="queuedBookings"
@@ -452,44 +496,44 @@ watch(showPinModal, async (isOpen) => {
           </div>
 
           <div
-            class="shrink-0 flex justify-between items-center px-3 py-2 text-base font-semibold text-gray-700 bg-blue-50 border-t border-blue-200"
+            class="shrink-0 flex justify-between items-center px-4 py-3 text-base font-semibold text-slate-800 bg-gradient-to-r from-blue-50 to-white border-t border-slate-200"
           >
             <span>Summe heute</span>
-            <span>{{ (totalToday / 100).toFixed(2) }} €</span>
+            <span class="rounded-full bg-white px-3 py-1 shadow-sm">{{ (totalToday / 100).toFixed(2) }} €</span>
           </div>
 
           <div
-            class="shrink-0 grid grid-cols-2 border-t border-gray-300 bg-white"
+            class="shrink-0 grid grid-cols-2 gap-2 border-t border-slate-200 bg-white/75 p-3"
           >
             <button
               @click="showBookings = true"
-              class="h-12 bg-gray-200 text-gray-800 font-medium text-sm border border-gray-300 hover:bg-gray-300 transition"
+              class="h-12 rounded-2xl bg-slate-100 text-slate-800 font-semibold text-sm border border-slate-200 hover:bg-slate-200 transition"
             >
-              📅 Übersicht
+              Übersicht
             </button>
             <button
               @click="showFreeAmount = true"
-              class="h-12 bg-blue-600 text-white font-medium text-sm border border-blue-700 hover:bg-blue-700 transition"
+              class="h-12 rounded-2xl bg-primary text-white font-semibold text-sm border border-blue-700 hover:bg-blue-800 transition"
             >
-              💶 Freier Betrag
+              Freier Betrag
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showPartialModal = true"
-              class="h-12 bg-yellow-500 text-white font-medium text-sm border border-yellow-600 hover:bg-yellow-600 transition"
+              class="h-12 rounded-2xl bg-amber-500 text-white font-semibold text-sm border border-amber-600 hover:bg-amber-600 transition"
             >
-              💰 Teilabrechnung
+              Teilabrechnung
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showSettleModal = true"
-              class="h-12 bg-red-600 text-white font-medium text-sm border border-red-700 hover:bg-red-700 transition"
+              class="h-12 rounded-2xl bg-red-600 text-white font-semibold text-sm border border-red-700 hover:bg-red-700 transition"
             >
-              🧾 Abrechnung
+              Abrechnung
             </button>
             <div
               v-else
-              class="h-12 bg-gray-50 border border-transparent col-span-2"
+              class="h-12 rounded-2xl bg-slate-50 border border-transparent col-span-2"
             ></div>
           </div>
         </aside>
@@ -498,15 +542,17 @@ watch(showPinModal, async (isOpen) => {
 
     <!-- FOOTER -->
     <footer
-      class="bg-white border-t border-gray-200 shadow-inner py-2 px-4 sticky bottom-0 z-20"
-    ></footer>
+      class="sticky bottom-0 z-20 px-3 pb-3"
+    >
+      <div class="glass-panel rounded-[24px] h-3 border-transparent shadow-none bg-white/35"></div>
+    </footer>
   </div>
 
   <!-- Overlays/Modals (fehlten zuvor) -->
   <transition name="fade">
     <div v-if="showBookings && selectedMember" class="fixed inset-0 z-50 flex">
       <div
-        class="flex-1 bg-black/50 backdrop-blur-sm"
+        class="flex-1 bg-slate-950/45 backdrop-blur-sm"
         @click="showBookings = false"
       ></div>
       <MemberBookings
@@ -580,13 +626,13 @@ watch(showPinModal, async (isOpen) => {
       <label class="block text-sm font-medium text-gray-600">Vorname</label>
       <input
         v-model="guestFirstname"
-        class="w-full border rounded-md p-2 text-sm focus:ring-1 focus:ring-primary"
+        class="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
         placeholder="Vorname"
       />
       <label class="block text-sm font-medium text-gray-600">Nachname</label>
       <input
         v-model="guestLastname"
-        class="w-full border rounded-md p-2 text-sm focus:ring-1 focus:ring-primary"
+        class="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
         placeholder="Nachname"
       />
     </div>
@@ -598,9 +644,12 @@ watch(showPinModal, async (isOpen) => {
       class="fixed inset-0 flex items-center justify-center bg-black/40 z-50"
     >
       <div
-        class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 border border-gray-200"
+        class="glass-panel-strong rounded-[28px] w-full max-w-sm p-6 space-y-4"
       >
-        <h3 class="text-lg font-semibold text-primary">PIN</h3>
+        <div>
+          <div class="section-chip mb-2">Sicherheit</div>
+          <h3 class="display-brand text-xl font-semibold text-primary">PIN</h3>
+        </div>
         <input
           ref="pinInputRef"
           v-model="pinInput"
@@ -609,7 +658,7 @@ watch(showPinModal, async (isOpen) => {
           pattern="[0-9]*"
           maxlength="4"
           autocomplete="off"
-          class="w-full border rounded-md p-2 text-sm focus:ring-1 focus:ring-primary"
+          class="w-full border border-slate-200 rounded-2xl p-3 text-lg tracking-[0.45em] text-center font-semibold focus:ring-1 focus:ring-primary"
           placeholder="0000"
           @input="onPinInput"
         />
@@ -617,7 +666,7 @@ watch(showPinModal, async (isOpen) => {
         <div class="flex justify-end">
           <button
             @click="closePinModal"
-            class="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+            class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-slate-600 font-medium hover:bg-slate-50"
           >
             Abbrechen
           </button>

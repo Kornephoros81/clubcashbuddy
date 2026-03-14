@@ -79,22 +79,28 @@ function splitMemberName(name: string) {
 </script>
 
 <template>
-  <div class="flex flex-col h-full w-full bg-gray-50 overflow-hidden">
+  <div class="glass-panel flex flex-col h-full w-full overflow-hidden rounded-[28px]">
     <!-- Buchstaben -->
-    <div class="bg-gray-50 border-b border-gray-200 px-2 py-2">
-      <div class="flex overflow-x-auto justify-center gap-1.5">
+    <div class="border-b border-slate-200/70 px-3 py-3">
+      <div class="mb-2 flex items-center justify-between gap-3">
+        <div class="section-chip">Mitglieder</div>
+        <div class="text-xs font-medium text-slate-500">
+          {{ filteredMembers.length }} sichtbar
+        </div>
+      </div>
+      <div class="soft-scrollbar touch-scroll flex overflow-x-auto justify-center gap-1.5 pb-1">
         <button
           v-for="ch in alphabet"
           :key="ch"
           @click="availableLetters.includes(ch) && toggleLetter(ch)"
           :disabled="!availableLetters.includes(ch)"
-          class="rounded-lg min-w-[2rem] h-9 flex items-center justify-center font-semibold border text-base transition px-2"
+          class="rounded-2xl min-w-[2.3rem] h-10 flex items-center justify-center font-semibold border text-[0.95rem] transition px-2 shadow-sm"
           :class="[
             selectedLetter === ch
-              ? 'bg-blue-600 text-white border-blue-600'
+              ? 'bg-slate-900 text-white border-slate-900 shadow-md'
               : availableLetters.includes(ch)
-              ? 'bg-white text-gray-700 border-gray-300 hover:bg-blue-50 hover:text-blue-700'
-              : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed',
+              ? 'bg-white/90 text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200'
+              : 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed',
           ]"
         >
           {{ ch }}
@@ -104,38 +110,43 @@ function splitMemberName(name: string) {
 
     <!-- Mitglieder -->
     <div
-      class="flex-1 min-h-0 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 p-2 content-start"
+      class="soft-scrollbar touch-scroll flex-1 min-h-0 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 p-3 content-start"
     >
       <template v-for="(m, i) in filteredMembers" :key="m.id">
         <div
           v-if="i > 0 && isInactive(m) && !isInactive(filteredMembers[i - 1])"
-          class="col-span-full text-center my-2 border-t-2 border-dashed border-gray-400 text-gray-500 text-sm py-1"
+          class="col-span-full text-center my-2 border-t border-dashed border-slate-300 text-slate-500 text-sm py-2"
         >
           Länger als 30 Tage nicht gebucht ↓
         </div>
 
         <button
           @click="selectMember(m.id)"
-          class="base-tile h-20 rounded-xl border-[1.5px] shadow-sm transition flex flex-col items-center justify-center text-center px-3 py-3"
+          class="group relative h-[5.4rem] rounded-[22px] border transition flex flex-col items-center justify-center text-center px-3 py-3 overflow-hidden"
           :class="[
             m.is_guest
-              ? 'bg-amber-100 text-gray-800 border-amber-300 hover:bg-amber-200'
+              ? 'bg-gradient-to-br from-amber-50 to-orange-100 text-slate-800 border-amber-200 hover:border-amber-300 hover:shadow-md'
               : m.id === selected
-              ? 'bg-primary text-white border-primary scale-[1.04]'
+              ? 'bg-gradient-to-br from-primary to-blue-700 text-white border-blue-800 scale-[1.02] shadow-lg'
               : bookedTodayIds.has(m.id)
-              ? 'bg-emerald-100 text-gray-800 border-emerald-300 hover:bg-emerald-200'
-              : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-100',
+              ? 'bg-gradient-to-br from-emerald-50 to-teal-100 text-slate-800 border-emerald-200 hover:border-emerald-300 hover:shadow-md'
+              : 'bg-white/92 text-slate-800 border-slate-200 hover:border-blue-200 hover:bg-slate-50 hover:shadow-md',
           ]"
         >
+          <span
+            class="absolute inset-x-3 top-2 h-px opacity-70"
+            :class="m.id === selected ? 'bg-white/40' : 'bg-slate-200'"
+          ></span>
           <span class="px-1 whitespace-normal break-words text-center">
             <span
-              class="block text-[clamp(0.9rem,1vw+0.4rem,1.2rem)] font-semibold leading-tight"
+              class="block text-[clamp(0.92rem,1vw+0.42rem,1.18rem)] font-semibold leading-tight"
             >
               {{ splitMemberName(m.name).lastName }}
             </span>
             <span
               v-if="splitMemberName(m.name).firstName"
-              class="block text-[clamp(0.7rem,1vw+0.2rem,1rem)] text-gray-500 leading-tight"
+              class="block text-[clamp(0.72rem,1vw+0.18rem,0.98rem)] leading-tight"
+              :class="m.id === selected ? 'text-blue-100' : 'text-slate-500'"
             >
               {{ splitMemberName(m.name).firstName }}
             </span>
@@ -153,13 +164,3 @@ function splitMemberName(name: string) {
   </div>
 </template>
 
-<style scoped>
-::-webkit-scrollbar {
-  height: 4px;
-  width: 6px;
-}
-::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.25);
-  border-radius: 3px;
-}
-</style>

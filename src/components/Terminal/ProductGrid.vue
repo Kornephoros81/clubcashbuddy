@@ -42,7 +42,7 @@ const groupedProducts = computed(() => {
 
 <template>
   <!-- rechter Innenabstand gegen Scrollbar-Kleben -->
-  <div class="flex flex-col h-full overflow-y-auto pr-2">
+  <div class="soft-scrollbar touch-scroll flex flex-col h-full overflow-y-auto pr-2">
     <div v-if="groupedProducts.length" class="space-y-4">
       <section
         v-for="[category, items] in groupedProducts"
@@ -50,35 +50,38 @@ const groupedProducts = computed(() => {
         class="mb-1"
       >
         <!-- Kategorie: kompakt, nicht sticky, keine Überdeckung -->
-        <div class="w-full flex items-center my-1">
-          <div class="flex-1 border-t border-gray-200"></div>
-          <div
-            class="mx-3 text-[0.7rem] uppercase tracking-wide text-gray-500 font-semibold"
-          >
+        <div class="w-full flex items-center my-1.5">
+          <div class="flex-1 border-t border-slate-200"></div>
+          <div class="section-chip mx-3">
             {{ category }}
           </div>
-          <div class="flex-1 border-t border-gray-200"></div>
+          <div class="flex-1 border-t border-slate-200"></div>
         </div>
 
         <!-- Grid für 1280×800: 6 Spalten auf groß, kleine Gaps, flache Buttons -->
         <div
-          class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5 pr-[4px]"
+          class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pr-[4px]"
         >
           <button
             v-for="p in items"
             :key="p.id"
             @click="emit('add', p)"
             :disabled="loading || p.stock === 0"
-            class="relative flex flex-col rounded-lg border h-[96px] px-1.5 pt-1 pb-5 shadow-sm transition active:scale-[0.98]"
+            class="group relative flex flex-col rounded-[24px] border h-[102px] px-2 pt-2 pb-5 transition active:scale-[0.985] overflow-hidden"
             :class="[
               p.stock === 0
-                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                : 'bg-white hover:bg-blue-50 border-gray-200 hover:border-blue-300',
+                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                : 'bg-white/96 hover:bg-blue-50 border-slate-200 hover:border-blue-300 shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_16px_34px_rgba(30,58,138,0.14)]',
             ]"
           >
+            <span
+              class="absolute inset-x-2 top-2 h-px"
+              :class="p.stock === 0 ? 'bg-slate-200' : 'bg-slate-100 group-hover:bg-blue-100'"
+            ></span>
+
             <!-- Fester Medienbereich -->
             <div
-              class="flex-1 min-h-0 flex items-center justify-center px-0.5 rounded bg-white"
+              class="flex-1 min-h-0 flex items-center justify-center px-0.5 rounded-2xl bg-transparent"
             >
               <img
                 v-if="hasValidImage(p)"
@@ -90,7 +93,7 @@ const groupedProducts = computed(() => {
               />
               <span
                 v-else
-                class="block font-semibold leading-tight text-gray-800 text-[clamp(0.84rem,0.9vw+0.3rem,1.08rem)] text-center"
+                class="block font-semibold leading-tight text-slate-800 text-[clamp(0.84rem,0.9vw+0.3rem,1.08rem)] text-center"
                 style="
                   display: -webkit-box;
                   -webkit-line-clamp: 2;
@@ -106,16 +109,16 @@ const groupedProducts = computed(() => {
 
             <!-- Footer-Zeile: links Name (bei Bild), rechts Preis -->
             <div
-              class="absolute left-1.5 right-1.5 bottom-1 flex items-center justify-between gap-2"
+              class="absolute left-2 right-2 bottom-1.5 flex items-center justify-between gap-2"
             >
               <span
                 v-if="hasValidImage(p)"
-                class="min-w-0 text-[0.72rem] font-semibold text-gray-700 truncate text-left"
+                class="min-w-0 text-[0.72rem] font-semibold text-slate-700 truncate text-left"
               >
                 {{ p.name }}
               </span>
               <span
-                class="shrink-0 ml-auto text-[0.72rem] font-semibold text-blue-700"
+                class="shrink-0 ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[0.72rem] font-bold text-blue-800"
               >
                 {{ displayPrice(p) }} €
               </span>
@@ -130,13 +133,3 @@ const groupedProducts = computed(() => {
     </p>
   </div>
 </template>
-
-<style scoped>
-::-webkit-scrollbar {
-  width: 5px;
-}
-::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
-}
-</style>
