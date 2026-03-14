@@ -405,7 +405,7 @@ watch(showPinModal, async (isOpen) => {
 
     <!-- MAIN -->
     <main
-      class="flex-1 max-w-[1500px] mx-auto w-full px-3 pt-1 pb-3 overflow-hidden"
+      class="flex-1 max-w-[1500px] mx-auto w-full px-3 pt-1 pb-2 overflow-hidden"
     >
       <!-- Member-Auswahl -->
       <div v-if="!selectedMember" class="flex flex-col h-[calc(100vh-7.75rem)] xl:h-[calc(100vh-7.35rem)]">
@@ -471,7 +471,7 @@ watch(showPinModal, async (isOpen) => {
           </div>
 
           <div
-            class="shrink-0 grid grid-cols-2 gap-2 border-t border-slate-200 bg-white/75 p-3"
+            class="shrink-0 grid grid-cols-2 gap-2 border-t border-slate-200 bg-white/75 px-3 pt-2.5 pb-2.5"
           >
             <button
               @click="showBookings = true"
@@ -507,13 +507,6 @@ watch(showPinModal, async (isOpen) => {
         </aside>
       </div>
     </main>
-
-    <!-- FOOTER -->
-    <footer
-      class="sticky bottom-0 z-20 px-3 pb-3"
-    >
-      <div class="glass-panel rounded-[24px] h-3 border-transparent shadow-none bg-white/35"></div>
-    </footer>
   </div>
 
   <!-- Overlays/Modals (fehlten zuvor) -->
