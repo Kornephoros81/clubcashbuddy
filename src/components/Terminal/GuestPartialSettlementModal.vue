@@ -229,27 +229,24 @@ watch(() => props.show, loadTransactions);
                     {{ group.name }}
                   </div>
                 </div>
-                <div
-                  class="shrink-0 rounded-full px-3 py-1 text-sm font-semibold"
-                  :class="
-                    selectedCountForGroup(group) > 0
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-slate-100 text-slate-600'
-                  "
-                >
-                  {{ (Math.abs(amountForSelection(group, selectedCountForGroup(group))) / 100).toFixed(2) }} €
+                <div class="shrink-0 flex items-center gap-2">
+                  <div class="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                    {{ selectedCountForGroup(group) }} / {{ group.txs.length }}
+                  </div>
+                  <div
+                    class="rounded-full px-3 py-1 text-sm font-semibold"
+                    :class="
+                      selectedCountForGroup(group) > 0
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-slate-100 text-slate-600'
+                    "
+                  >
+                    {{ (Math.abs(amountForSelection(group, selectedCountForGroup(group))) / 100).toFixed(2) }} €
+                  </div>
                 </div>
               </div>
 
               <div class="mt-2 flex items-center gap-2">
-                <button
-                  @click="changeGroupSelection(group, -1)"
-                  :disabled="selectedCountForGroup(group) === 0"
-                  class="button-outline-strong flex h-10 w-10 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
-                >
-                  −
-                </button>
-
                 <div class="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1">
                   <button
                     v-for="count in group.txs.length + 1"
@@ -260,25 +257,28 @@ watch(() => props.show, loadTransactions);
                       selectedCountForGroup(group) === count - 1
                         ? 'border-blue-700 bg-primary text-white shadow-sm'
                         : 'border-slate-300 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'
-                    "
+                      "
                   >
                     {{ count - 1 }}
                   </button>
                 </div>
 
-                <button
-                  @click="changeGroupSelection(group, 1)"
-                  :disabled="selectedCountForGroup(group) === group.txs.length"
-                  class="button-outline-strong flex h-10 w-10 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
-                >
-                  +
-                </button>
-              </div>
-
-              <div class="mt-2 text-sm text-slate-600">
-                Auswahl:
-                <span class="font-semibold text-slate-900">{{ selectedCountForGroup(group) }}</span>
-                / {{ group.txs.length }}
+                <div class="shrink-0 flex items-center gap-2">
+                  <button
+                    @click="changeGroupSelection(group, -1)"
+                    :disabled="selectedCountForGroup(group) === 0"
+                    class="button-outline-strong flex h-10 w-10 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <button
+                    @click="changeGroupSelection(group, 1)"
+                    :disabled="selectedCountForGroup(group) === group.txs.length"
+                    class="button-outline-strong flex h-10 w-10 items-center justify-center rounded-2xl border-slate-300 bg-white text-lg font-semibold text-slate-700 disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </section>
           </div>
