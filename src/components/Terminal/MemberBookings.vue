@@ -94,7 +94,7 @@ watch([currentDate, viewMode], loadBookings);
 <template>
   <transition name="slide">
     <aside
-      class="glass-panel-strong fixed right-0 top-0 h-full w-full max-w-[30rem] z-50 flex flex-col rounded-l-[30px] overflow-hidden"
+      class="glass-panel-strong fixed right-0 top-0 h-full w-full max-w-[28rem] xl:max-w-[26rem] 2xl:max-w-[30rem] z-50 flex flex-col rounded-l-[30px] overflow-hidden"
     >
       <!-- Header -->
       <div class="p-4 border-b border-slate-200/80 flex justify-between items-center bg-white/75">
@@ -144,7 +144,7 @@ watch([currentDate, viewMode], loadBookings);
       </div>
 
       <!-- Inhalt -->
-      <div class="soft-scrollbar touch-scroll flex-1 overflow-y-auto p-4 bg-white/35">
+      <div class="soft-scrollbar touch-scroll flex-1 overflow-y-auto overscroll-contain p-4 xl:p-3.5 bg-white/35">
         <div v-if="loading" class="text-center text-slate-400 py-8">
           Lade Buchungen …
         </div>
@@ -154,7 +154,7 @@ watch([currentDate, viewMode], loadBookings);
           <div
             v-for="g in bookings"
             :key="g.local_day"
-            class="mb-4 rounded-[24px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
+            class="mb-4 xl:mb-3 rounded-[24px] border border-slate-200/80 bg-white/92 p-4 xl:p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
           >
             <div class="flex justify-between items-center mb-2">
               <h4 class="text-sm font-semibold text-slate-600">
@@ -181,7 +181,7 @@ watch([currentDate, viewMode], loadBookings);
               <li
                 v-for="b in g.items"
                 :key="b.id"
-                class="py-2 flex justify-between items-center"
+                class="py-2 xl:py-1.5 flex justify-between items-center"
               >
                 <div>
                   <p class="font-medium text-slate-800">
@@ -197,7 +197,7 @@ watch([currentDate, viewMode], loadBookings);
                   </p>
                 </div>
                 <span
-                  class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                  class="rounded-full px-2.5 py-1 xl:px-2 xl:py-0.5 text-xs xl:text-[0.68rem] font-semibold"
                   :class="b.amount < 0 ? 'text-red-500' : 'text-green-600'"
                   :style="{
                     backgroundColor: b.amount < 0 ? 'var(--danger-soft)' : 'var(--success-soft)',
@@ -225,7 +225,7 @@ watch([currentDate, viewMode], loadBookings);
             <li
               v-for="b in bookings"
               :key="b.id"
-              class="px-4 py-3 flex justify-between items-center gap-3"
+              class="px-4 xl:px-3.5 py-3 xl:py-2.5 flex justify-between items-center gap-3"
             >
               <div>
                 <p class="font-medium text-slate-800">
@@ -241,7 +241,7 @@ watch([currentDate, viewMode], loadBookings);
                 </p>
               </div>
               <span
-                class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap"
+                class="rounded-full px-2.5 xl:px-2 py-1 xl:py-0.5 text-xs xl:text-[0.68rem] font-semibold whitespace-nowrap"
                 :class="b.amount < 0 ? 'text-red-500' : 'text-green-600'"
                 :style="{
                   backgroundColor: b.amount < 0 ? 'var(--danger-soft)' : 'var(--success-soft)',

@@ -325,24 +325,19 @@ watch(showPinModal, async (isOpen) => {
           <div class="flex items-center gap-3 min-w-0">
             <button
               @click="reloadPage"
-              class="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-2 shadow-sm transition hover:bg-white"
+              class="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-1.5 shadow-sm transition hover:bg-white"
             >
               <img
                 :src="logoUrl"
                 :alt="`${appTitle} Logo`"
-                class="h-10 w-10 object-contain rounded-xl bg-slate-50 p-1"
+                class="h-9 w-9 object-contain rounded-xl bg-slate-50 p-1"
                 @error="onLogoError"
               />
-              <div class="min-w-0 text-left">
-                <div class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-slate-500">
-                  Terminal
-                </div>
-                <h1
-                  class="display-brand truncate text-xl md:text-2xl font-semibold text-primary"
-                >
-                  {{ appTitle }}
-                </h1>
-              </div>
+              <h1
+                class="display-brand truncate text-xl md:text-[1.65rem] font-semibold text-primary text-left"
+              >
+                {{ appTitle }}
+              </h1>
             </button>
           </div>
 
@@ -372,31 +367,31 @@ watch(showPinModal, async (isOpen) => {
         <!-- Statuszeile -->
         <div
           v-if="selectedMember"
-          class="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[24px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-3 py-3 text-blue-950"
+          class="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[22px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-2.5 py-2 text-blue-950"
         >
           <button
             @click="onBackToMembers"
-            class="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-800 active:scale-[0.98] transition-transform"
+            class="flex items-center gap-2 rounded-2xl bg-primary px-3.5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-800 active:scale-[0.98] transition-transform"
           >
             ← Zurück
           </button>
           <div class="min-w-0 text-center">
-            <div class="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-blue-500">
+            <div class="text-[0.62rem] font-bold uppercase tracking-[0.18em] text-blue-500">
               Aktives Mitglied
             </div>
             <span
-              class="block text-lg md:text-[1.35rem] font-semibold leading-tight truncate"
+              class="block text-base md:text-[1.15rem] font-semibold leading-tight truncate"
             >
               {{ selectedMember.name }}
             </span>
           </div>
           <div
-            class="justify-self-end rounded-2xl bg-white/85 px-3 py-2 text-right shadow-sm"
+            class="justify-self-end rounded-2xl bg-white/85 px-2.5 py-1.5 text-right shadow-sm"
           >
-            <div class="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+            <div class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-500">
               Heute
             </div>
-            <div class="text-base font-semibold text-slate-900">
+            <div class="text-sm md:text-[0.95rem] font-semibold text-slate-900">
               {{ (totalToday / 100).toFixed(2) }} €
             </div>
           </div>
@@ -419,7 +414,7 @@ watch(showPinModal, async (isOpen) => {
       class="flex-1 max-w-[1500px] mx-auto w-full px-3 pb-3 overflow-hidden"
     >
       <!-- Member-Auswahl -->
-      <div v-if="!selectedMember" class="flex flex-col h-[calc(100vh-7.75rem)]">
+      <div v-if="!selectedMember" class="flex flex-col h-[calc(100vh-7.75rem)] xl:h-[calc(100vh-7.35rem)]">
         <!-- MemberPicker direkt hier, nicht im Footer -->
         <MemberPicker @select="handleMemberSelect" class="flex-1" />
       </div>
@@ -427,21 +422,10 @@ watch(showPinModal, async (isOpen) => {
       <!-- Buchungsansicht -->
       <div
         v-else
-        class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_22rem] gap-3 h-[calc(100vh-10.3rem)] overflow-hidden"
+        class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20.5rem] 2xl:grid-cols-[minmax(0,1fr)_22rem] gap-3 xl:gap-2.5 h-[calc(100vh-9.3rem)] xl:h-[calc(100vh-8.95rem)] overflow-hidden"
       >
         <!-- Produktbereich -->
         <div class="glass-panel rounded-[30px] flex flex-col overflow-hidden">
-          <div class="flex items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-3">
-            <div class="min-w-0">
-              <div class="section-chip mb-2">Produkte</div>
-              <h2 class="text-lg font-semibold text-slate-900 truncate">
-                Schnell buchen
-              </h2>
-            </div>
-            <div class="hidden md:flex items-center rounded-2xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-500">
-              Tippen zum Buchen
-            </div>
-          </div>
           <ProductGrid
             :products="store.products"
             :loading="loading"
@@ -455,16 +439,6 @@ watch(showPinModal, async (isOpen) => {
         <aside
           class="glass-panel relative w-full flex flex-col rounded-[30px] min-h-0 overflow-hidden"
         >
-          <div class="border-b border-slate-200/80 px-4 py-3">
-            <div class="section-chip mb-2">Buchungen</div>
-            <div class="flex items-center justify-between gap-3">
-              <h2 class="text-lg font-semibold text-slate-900">Aktueller Stand</h2>
-              <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
-                Live
-              </span>
-            </div>
-          </div>
-
           <div class="soft-scrollbar touch-scroll flex-1 min-h-0 overflow-y-auto space-y-3 p-3">
             <section>
               <div class="px-1 pb-2">
@@ -507,27 +481,27 @@ watch(showPinModal, async (isOpen) => {
           >
             <button
               @click="showBookings = true"
-              class="h-12 rounded-2xl bg-slate-100 text-slate-800 font-semibold text-sm border border-slate-200 hover:bg-slate-200 transition"
+              class="h-12 xl:h-11 rounded-2xl bg-slate-100 text-slate-800 font-semibold text-sm border border-slate-200 hover:bg-slate-200 transition"
             >
               Übersicht
             </button>
             <button
               @click="showFreeAmount = true"
-              class="h-12 rounded-2xl bg-primary text-white font-semibold text-sm border border-blue-700 hover:bg-blue-800 transition"
+              class="h-12 xl:h-11 rounded-2xl bg-primary text-white font-semibold text-sm border border-blue-700 hover:bg-blue-800 transition"
             >
               Freier Betrag
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showPartialModal = true"
-              class="h-12 rounded-2xl bg-amber-500 text-white font-semibold text-sm border border-amber-600 hover:bg-amber-600 transition"
+              class="h-12 xl:h-11 rounded-2xl bg-amber-500 text-white font-semibold text-sm border border-amber-600 hover:bg-amber-600 transition"
             >
               Teilabrechnung
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
               @click="showSettleModal = true"
-              class="h-12 rounded-2xl bg-red-600 text-white font-semibold text-sm border border-red-700 hover:bg-red-700 transition"
+              class="h-12 xl:h-11 rounded-2xl bg-red-600 text-white font-semibold text-sm border border-red-700 hover:bg-red-700 transition"
             >
               Abrechnung
             </button>

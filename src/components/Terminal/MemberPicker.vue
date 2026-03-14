@@ -88,13 +88,13 @@ function splitMemberName(name: string) {
           {{ filteredMembers.length }} sichtbar
         </div>
       </div>
-      <div class="soft-scrollbar touch-scroll flex overflow-x-auto justify-center gap-1.5 pb-1">
+      <div class="soft-scrollbar touch-scroll flex overflow-x-auto justify-center gap-1.5 xl:gap-1 pb-1">
         <button
           v-for="ch in alphabet"
           :key="ch"
           @click="availableLetters.includes(ch) && toggleLetter(ch)"
           :disabled="!availableLetters.includes(ch)"
-          class="rounded-2xl min-w-[2.3rem] h-10 flex items-center justify-center font-semibold border text-[0.95rem] transition px-2 shadow-sm"
+          class="rounded-2xl min-w-[2.3rem] xl:min-w-[2.1rem] h-10 xl:h-9 flex items-center justify-center font-semibold border text-[0.95rem] xl:text-[0.88rem] transition px-2 xl:px-1.5 shadow-sm"
           :class="[
             selectedLetter === ch
               ? 'bg-slate-900 text-white border-slate-900 shadow-md'
@@ -110,7 +110,7 @@ function splitMemberName(name: string) {
 
     <!-- Mitglieder -->
     <div
-      class="soft-scrollbar touch-scroll flex-1 min-h-0 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 p-3 content-start"
+      class="soft-scrollbar touch-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2.5 xl:gap-2 p-3 xl:p-2.5 content-start"
     >
       <template v-for="(m, i) in filteredMembers" :key="m.id">
         <div
@@ -122,7 +122,7 @@ function splitMemberName(name: string) {
 
         <button
           @click="selectMember(m.id)"
-          class="group relative h-[5.4rem] rounded-[22px] border transition flex flex-col items-center justify-center text-center px-3 py-3 overflow-hidden"
+          class="group relative h-[5.4rem] xl:h-[4.75rem] rounded-[22px] border transition flex flex-col items-center justify-center text-center px-3 xl:px-2.5 py-3 xl:py-2.5 overflow-hidden"
           :class="[
             m.is_guest
               ? 'bg-gradient-to-br from-amber-50 to-orange-100 text-slate-800 border-amber-200 hover:border-amber-300 hover:shadow-md'
@@ -139,13 +139,13 @@ function splitMemberName(name: string) {
           ></span>
           <span class="px-1 whitespace-normal break-words text-center">
             <span
-              class="block text-[clamp(0.92rem,1vw+0.42rem,1.18rem)] font-semibold leading-tight"
+              class="block text-[clamp(0.92rem,1vw+0.42rem,1.18rem)] xl:text-[1rem] font-semibold leading-tight"
             >
               {{ splitMemberName(m.name).lastName }}
             </span>
             <span
               v-if="splitMemberName(m.name).firstName"
-              class="block text-[clamp(0.72rem,1vw+0.18rem,0.98rem)] leading-tight"
+              class="block text-[clamp(0.72rem,1vw+0.18rem,0.98rem)] xl:text-[0.8rem] leading-tight"
               :class="m.id === selected ? 'text-blue-100' : 'text-slate-500'"
             >
               {{ splitMemberName(m.name).firstName }}

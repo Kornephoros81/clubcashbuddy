@@ -16,7 +16,7 @@ defineEmits(["undo"]);
       <li
         v-for="(b, i) in bookings"
         :key="i"
-        class="px-3 py-2.5 text-sm grid grid-cols-[1fr_auto_auto] items-center gap-2"
+        class="px-3 py-2.5 xl:py-2 text-sm xl:text-[0.82rem] grid grid-cols-[1fr_auto_auto] items-center gap-2"
       >
         <div class="min-w-0">
           <div
@@ -35,14 +35,14 @@ defineEmits(["undo"]);
           </div>
           <div
             v-if="b.syncStatus === 'pending'"
-            class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[0.68rem] text-amber-700 font-semibold"
+            class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[0.68rem] xl:text-[0.62rem] text-amber-700 font-semibold"
             title="Noch nicht synchronisiert"
           >
             Ausstehend
           </div>
           <div
             v-else-if="b.syncStatus === 'failed'"
-            class="mt-1 inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[0.68rem] text-red-700 font-semibold"
+            class="mt-1 inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[0.68rem] xl:text-[0.62rem] text-red-700 font-semibold"
             title="Synchronisation fehlgeschlagen"
           >
             Fehler
@@ -50,7 +50,7 @@ defineEmits(["undo"]);
         </div>
 
         <span
-          class="justify-self-end whitespace-nowrap text-right rounded-full px-2.5 py-1 text-[0.76rem] font-bold"
+          class="justify-self-end whitespace-nowrap text-right rounded-full px-2.5 xl:px-2 py-1 xl:py-0.5 text-[0.76rem] xl:text-[0.7rem] font-bold"
           :class="b.amount < 0 ? 'text-red-600' : 'text-green-700'"
           :style="{
             backgroundColor: b.amount < 0 ? 'var(--danger-soft)' : 'var(--success-soft)',
@@ -63,7 +63,7 @@ defineEmits(["undo"]);
           v-if="b.amount < 0"
           @click="$emit('undo', b)"
           :disabled="loading || b.syncStatus"
-          class="justify-self-end flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-400 border border-slate-200 hover:text-red-600 hover:border-red-200 transition-colors text-base disabled:opacity-50 disabled:cursor-not-allowed"
+          class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-white text-slate-400 border border-slate-200 hover:text-red-600 hover:border-red-200 transition-colors text-base xl:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           :title="
             b.syncStatus
               ? 'Ausstehende Buchungen können nicht storniert werden'
@@ -72,7 +72,7 @@ defineEmits(["undo"]);
         >
           🗑️
         </button>
-        <span v-else class="justify-self-end flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-300 border border-transparent text-base">🔒</span>
+        <span v-else class="justify-self-end flex h-9 w-9 xl:h-8 xl:w-8 items-center justify-center rounded-full bg-slate-50 text-slate-300 border border-transparent text-base xl:text-sm">🔒</span>
       </li>
     </ul>
 

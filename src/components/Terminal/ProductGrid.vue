@@ -42,15 +42,15 @@ const groupedProducts = computed(() => {
 
 <template>
   <!-- rechter Innenabstand gegen Scrollbar-Kleben -->
-  <div class="soft-scrollbar touch-scroll flex flex-col h-full overflow-y-auto pr-2">
-    <div v-if="groupedProducts.length" class="space-y-4">
+  <div class="soft-scrollbar touch-scroll flex flex-col h-full overflow-y-auto overscroll-contain pr-2 xl:pr-1">
+    <div v-if="groupedProducts.length" class="space-y-4 xl:space-y-3">
       <section
         v-for="[category, items] in groupedProducts"
         :key="category"
         class="mb-1"
       >
         <!-- Kategorie: kompakt, nicht sticky, keine Überdeckung -->
-        <div class="w-full flex items-center my-1.5">
+        <div class="w-full flex items-center my-1.5 xl:my-1">
           <div class="flex-1 border-t border-slate-200"></div>
           <div class="section-chip mx-3">
             {{ category }}
@@ -60,14 +60,14 @@ const groupedProducts = computed(() => {
 
         <!-- Grid für 1280×800: 6 Spalten auf groß, kleine Gaps, flache Buttons -->
         <div
-          class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pr-[4px]"
+          class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 xl:gap-1.5 pr-[4px]"
         >
           <button
             v-for="p in items"
             :key="p.id"
             @click="emit('add', p)"
             :disabled="loading || p.stock === 0"
-            class="group relative flex flex-col rounded-[24px] border h-[102px] px-2 pt-2 pb-5 transition active:scale-[0.985] overflow-hidden"
+            class="group relative flex flex-col rounded-[24px] border h-[102px] xl:h-[94px] px-2 xl:px-1.5 pt-2 xl:pt-1.5 pb-5 xl:pb-4 transition active:scale-[0.985] overflow-hidden"
             :class="[
               p.stock === 0
                 ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
@@ -87,13 +87,13 @@ const groupedProducts = computed(() => {
                 v-if="hasValidImage(p)"
                 :src="p.image_url"
                 :alt="p.name"
-                class="h-full max-h-[58px] w-full object-contain"
+                class="h-full max-h-[58px] xl:max-h-[50px] w-full object-contain"
                 loading="lazy"
                 @error="onImageError(p.id)"
               />
               <span
                 v-else
-                class="block font-semibold leading-tight text-slate-800 text-[clamp(0.84rem,0.9vw+0.3rem,1.08rem)] text-center"
+                class="block font-semibold leading-tight text-slate-800 text-[clamp(0.84rem,0.9vw+0.3rem,1.08rem)] xl:text-[0.92rem] text-center"
                 style="
                   display: -webkit-box;
                   -webkit-line-clamp: 2;
@@ -113,12 +113,12 @@ const groupedProducts = computed(() => {
             >
               <span
                 v-if="hasValidImage(p)"
-                class="min-w-0 text-[0.72rem] font-semibold text-slate-700 truncate text-left"
+                class="min-w-0 text-[0.72rem] xl:text-[0.68rem] font-semibold text-slate-700 truncate text-left"
               >
                 {{ p.name }}
               </span>
               <span
-                class="shrink-0 ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[0.72rem] font-bold text-blue-800"
+                class="shrink-0 ml-auto rounded-full bg-blue-100 px-2 py-0.5 xl:px-1.5 text-[0.72rem] xl:text-[0.68rem] font-bold text-blue-800"
               >
                 {{ displayPrice(p) }} €
               </span>
