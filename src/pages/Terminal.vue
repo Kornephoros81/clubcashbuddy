@@ -367,32 +367,26 @@ watch(showPinModal, async (isOpen) => {
         <!-- Statuszeile -->
         <div
           v-if="selectedMember"
-          class="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[22px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-2.5 py-2 text-blue-950"
+          class="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[20px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-2.5 py-1.5 text-blue-950"
         >
           <button
             @click="onBackToMembers"
-            class="button-outline-strong flex items-center gap-2 rounded-2xl border-blue-800 bg-primary px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-800 active:scale-[0.98] transition-transform"
+            class="button-outline-strong flex items-center gap-2 rounded-2xl border-blue-800 bg-primary px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-blue-800 active:scale-[0.98] transition-transform"
           >
             ← Zurück
           </button>
-          <div class="min-w-0 text-center">
-            <div class="text-[0.62rem] font-bold uppercase tracking-[0.18em] text-blue-500">
-              Aktives Mitglied
-            </div>
+          <div class="min-w-0 text-center px-2">
             <span
-              class="block text-base md:text-[1.15rem] font-semibold leading-tight truncate"
+              class="block text-[1.1rem] md:text-[1.3rem] font-semibold leading-tight truncate text-slate-900"
             >
               {{ selectedMember.name }}
             </span>
           </div>
           <div
-            class="justify-self-end rounded-2xl bg-white/85 px-2.5 py-1.5 text-right shadow-sm"
+            class="justify-self-end rounded-2xl bg-white/90 px-3 py-1.5 text-right shadow-sm"
           >
-            <div class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-500">
-              Heute
-            </div>
-            <div class="text-sm md:text-[0.95rem] font-semibold text-slate-900">
-              {{ (totalToday / 100).toFixed(2) }} €
+            <div class="text-sm md:text-[0.95rem] font-semibold text-slate-900 whitespace-nowrap">
+              Heute {{ (totalToday / 100).toFixed(2) }} €
             </div>
           </div>
         </div>
@@ -422,7 +416,7 @@ watch(showPinModal, async (isOpen) => {
       <!-- Buchungsansicht -->
       <div
         v-else
-        class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20.5rem] 2xl:grid-cols-[minmax(0,1fr)_22rem] gap-3 xl:gap-2.5 h-[calc(100vh-9.3rem)] xl:h-[calc(100vh-8.95rem)] overflow-hidden"
+        class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_18.75rem] 2xl:grid-cols-[minmax(0,1fr)_20rem] gap-3 xl:gap-2.5 h-[calc(100vh-9.3rem)] xl:h-[calc(100vh-8.95rem)] overflow-hidden"
       >
         <!-- Produktbereich -->
         <div class="glass-panel rounded-[30px] flex flex-col overflow-hidden">

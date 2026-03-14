@@ -43,16 +43,16 @@ const groupedProducts = computed(() => {
 <template>
   <!-- rechter Innenabstand gegen Scrollbar-Kleben -->
   <div class="soft-scrollbar touch-scroll flex flex-col h-full overflow-y-auto overscroll-contain pr-2 xl:pr-1">
-    <div v-if="groupedProducts.length" class="space-y-4 xl:space-y-3">
+    <div v-if="groupedProducts.length" class="space-y-2.5 xl:space-y-2">
       <section
         v-for="[category, items] in groupedProducts"
         :key="category"
-        class="mb-1"
+        class="mb-0.5"
       >
         <!-- Kategorie: kompakt, nicht sticky, keine Überdeckung -->
-        <div class="w-full flex items-center my-1.5 xl:my-1">
+        <div class="w-full flex items-center mb-1.5 mt-0.5 xl:mb-1 xl:mt-0">
           <div class="flex-1 border-t border-slate-300"></div>
-          <div class="section-chip mx-3">
+          <div class="section-chip mx-2.5 py-[0.24rem] xl:py-[0.18rem] text-[0.68rem] xl:text-[0.64rem]">
             {{ category }}
           </div>
           <div class="flex-1 border-t border-slate-300"></div>
