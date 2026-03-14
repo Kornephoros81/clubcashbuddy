@@ -318,14 +318,14 @@ watch(showPinModal, async (isOpen) => {
 
     <!-- HEADER -->
     <header
-      class="sticky top-0 z-40 px-3 pt-3"
+      class="sticky top-0 z-40 px-3 pt-2.5 pb-1.5"
     >
-      <div class="glass-panel-strong rounded-[28px] px-4 py-3">
+      <div class="glass-panel-strong rounded-[28px] px-4 py-2.5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-3 min-w-0">
             <button
               @click="reloadPage"
-              class="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-1.5 shadow-sm transition hover:bg-white"
+              class="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-1.25 shadow-sm transition hover:bg-white"
             >
               <img
                 :src="logoUrl"
@@ -411,7 +411,7 @@ watch(showPinModal, async (isOpen) => {
 
     <!-- MAIN -->
     <main
-      class="flex-1 max-w-[1500px] mx-auto w-full px-3 pb-3 overflow-hidden"
+      class="flex-1 max-w-[1500px] mx-auto w-full px-3 pt-1 pb-3 overflow-hidden"
     >
       <!-- Member-Auswahl -->
       <div v-if="!selectedMember" class="flex flex-col h-[calc(100vh-7.75rem)] xl:h-[calc(100vh-7.35rem)]">
