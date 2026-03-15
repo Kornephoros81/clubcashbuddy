@@ -112,14 +112,14 @@ const groupedProducts = computed(() => {
             >
               <span
                 v-if="hasValidImage(p)"
-                class="min-w-0 text-[0.72rem] xl:text-[0.68rem] font-semibold leading-none text-slate-700 truncate text-left"
+                class="min-w-0 flex-1 text-[0.72rem] xl:text-[0.68rem] font-semibold leading-none text-slate-700 truncate text-left"
               >
                 {{ p.name }}
               </span>
               <span
-                class="shrink-0 ml-auto rounded-full bg-blue-600 px-2.5 py-0.5 xl:px-2 xl:py-[0.2rem] text-[0.76rem] xl:text-[0.72rem] font-normal leading-none tracking-tight text-white tabular-nums shadow-sm"
+                class="shrink-0 ml-auto rounded-full bg-blue-600 px-2 py-0.5 xl:px-1.5 xl:py-[0.2rem] text-[0.74rem] xl:text-[0.7rem] font-normal leading-none tracking-tight text-white tabular-nums shadow-sm"
               >
-                {{ displayPrice(p) }} €
+                {{ displayPrice(p) }}
               </span>
             </div>
           </button>
