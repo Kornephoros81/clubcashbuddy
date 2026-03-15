@@ -67,7 +67,7 @@ const groupedProducts = computed(() => {
             :key="p.id"
             @click="emit('add', p)"
             :disabled="loading || p.stock === 0"
-            class="group relative flex flex-col rounded-[24px] border h-[102px] xl:h-[94px] px-2 xl:px-1.5 pt-2 xl:pt-1.5 pb-5 xl:pb-4 transition active:scale-[0.985] overflow-hidden"
+            class="group grid h-[102px] xl:h-[94px] grid-rows-[minmax(0,1fr)_auto] rounded-[24px] border p-2 xl:px-1.5 xl:py-1.5 transition active:scale-[0.985] overflow-hidden"
             :class="[
               p.stock === 0
                 ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
@@ -76,7 +76,7 @@ const groupedProducts = computed(() => {
           >
             <!-- Fester Medienbereich -->
             <div
-              class="mx-0.5 mt-0.5 flex-1 min-h-0 flex items-center justify-center px-1.5 rounded-[18px] border"
+              class="mx-0.5 mt-0.5 min-h-0 flex items-center justify-center overflow-hidden px-1.5 rounded-[18px] border"
               :class="
                 p.stock === 0
                   ? 'bg-slate-50 border-slate-200'
@@ -87,7 +87,7 @@ const groupedProducts = computed(() => {
                 v-if="hasValidImage(p)"
                 :src="p.image_url"
                 :alt="p.name"
-                class="block h-full w-auto max-w-full object-contain"
+                class="block h-full max-h-full w-auto max-w-full object-contain"
                 loading="lazy"
                 @error="onImageError(p.id)"
               />
@@ -107,13 +107,12 @@ const groupedProducts = computed(() => {
               </span>
             </div>
 
-            <!-- Footer-Zeile: links Name (bei Bild), rechts Preis -->
             <div
-              class="absolute left-2 right-2 bottom-1.5 flex items-center justify-between gap-2"
+              class="mt-1 flex min-w-0 items-center justify-between gap-2 px-0.5"
             >
               <span
                 v-if="hasValidImage(p)"
-                class="min-w-0 text-[0.72rem] xl:text-[0.68rem] font-semibold text-slate-700 truncate text-left"
+                class="min-w-0 text-[0.72rem] xl:text-[0.68rem] font-semibold leading-none text-slate-700 truncate text-left"
               >
                 {{ p.name }}
               </span>
