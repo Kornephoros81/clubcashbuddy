@@ -87,7 +87,7 @@ const groupedProducts = computed(() => {
                 v-if="hasValidImage(p)"
                 :src="p.image_url"
                 :alt="p.name"
-                class="h-full max-h-[54px] xl:max-h-[46px] w-full max-w-[88%] object-contain"
+                class="block h-full w-auto max-w-full object-contain"
                 loading="lazy"
                 @error="onImageError(p.id)"
               />
