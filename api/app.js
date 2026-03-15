@@ -657,7 +657,7 @@ async function handleRoute(route, req, res) {
 
   if (route === "catalog-products") {
     if (req.method !== "GET") return json(res, 405, { error: "Method not allowed" });
-    setCacheHeaders(res, "public, s-maxage=300, stale-while-revalidate=86400");
+    setCacheHeaders(res, "no-store, max-age=0");
     const { data, error } = await supabase
       .from("products")
       .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url")

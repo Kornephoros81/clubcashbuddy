@@ -159,6 +159,13 @@ export async function getCachedProducts() {
   return await db.getAll(STORE_PRODUCTS);
 }
 
+export async function clearCachedProducts() {
+  const db = await getDB();
+  const tx = db.transaction(STORE_PRODUCTS, "readwrite");
+  await tx.store.clear();
+  await tx.done;
+}
+
 export async function getQueuedBookingsForMember(memberId: string) {
   const all = await getQueueEntries();
   return all.filter((e: QueueEntry) => e.payload?.member_id === memberId);
