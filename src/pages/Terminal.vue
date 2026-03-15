@@ -416,7 +416,7 @@ watch(showPinModal, async (isOpen) => {
       <!-- Buchungsansicht -->
       <div
         v-else
-        class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_18.75rem] 2xl:grid-cols-[minmax(0,1fr)_20rem] gap-3 xl:gap-2.5 h-[calc(100vh-9.3rem)] xl:h-[calc(100vh-8.95rem)] overflow-hidden"
+        class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_16.5rem] lg:grid-cols-[minmax(0,1fr)_17.75rem] xl:grid-cols-[minmax(0,1fr)_18.75rem] 2xl:grid-cols-[minmax(0,1fr)_20rem] gap-3 md:gap-2.5 h-[calc(100vh-9.3rem)] md:h-[calc(100vh-8.95rem)] overflow-hidden"
       >
         <!-- Produktbereich -->
         <div class="glass-panel rounded-[30px] flex flex-col overflow-hidden">
