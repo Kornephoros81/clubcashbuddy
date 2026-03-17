@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const BRANDING_IMAGES_BUCKET = "branding-assets";
 const BRANDING_IMAGE_OBJECT = "app-logo";
+const PRODUCT_IMAGES_BUCKET = "product-images";
 const PRODUCT_IMAGE_MAX_BYTES = 600 * 1024;
 const PRODUCT_IMAGE_ALLOWED_MIME = new Set([
   "image/png",
@@ -109,8 +110,21 @@ function normalizePin(v) {
   return String(v || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 4);
 }
 
-function buildProductImageUrl(dataUrl) {
-  const raw = String(dataUrl ?? "").trim();
+function getProductImageObjectPath(productId) {
+  return `products/${String(productId ?? "").trim()}`;
+}
+
+function buildProductImageUrl(supabase, row) {
+  const path = String(row?.product_image_path ?? "").trim();
+  if (path) {
+    const { data } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
+    const base = data?.publicUrl ?? null;
+    if (!base) return null;
+    const version = row?.product_image_version ?? null;
+    return version ? `${base}?v=${encodeURIComponent(String(version))}` : base;
+  }
+
+  const raw = String(row?.product_image_data_url ?? "").trim();
   return raw || null;
 }
 
@@ -160,6 +174,87 @@ async function ensureBrandingImageBucket(supabase) {
   if (error && !String(error.message || "").toLowerCase().includes("already exists")) {
     throw error;
   }
+}
+
+async function ensureProductImageBucket(supabase) {
+  const { data } = await supabase.storage.getBucket(PRODUCT_IMAGES_BUCKET);
+  if (data) return;
+  const { error } = await supabase.storage.createBucket(PRODUCT_IMAGES_BUCKET, {
+    public: true,
+    fileSizeLimit: PRODUCT_IMAGE_MAX_BYTES,
+  });
+  if (error && !String(error.message || "").toLowerCase().includes("already exists")) {
+    throw error;
+  }
+}
+
+async function persistProductImageAsset(supabase, productId, imageDataUrl) {
+  const { bytes, mime } = parseImageDataUrl(imageDataUrl);
+  await ensureProductImageBucket(supabase);
+
+  const objectPath = getProductImageObjectPath(productId);
+  const version = Date.now();
+  const { error: uploadError } = await supabase.storage
+    .from(PRODUCT_IMAGES_BUCKET)
+    .upload(objectPath, bytes, {
+      contentType: mime,
+      upsert: true,
+      cacheControl: "31536000",
+    });
+  if (uploadError) {
+    throw new Error(uploadError.message || "Upload failed");
+  }
+
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({
+      product_image_path: objectPath,
+      product_image_version: version,
+      product_image_data_url: null,
+    })
+    .eq("id", productId);
+  if (updateError) {
+    throw new Error(updateError.message || "Save failed");
+  }
+
+  return {
+    product_image_path: objectPath,
+    product_image_version: version,
+    product_image_data_url: null,
+    image_url: buildProductImageUrl(supabase, {
+      product_image_path: objectPath,
+      product_image_version: version,
+    }),
+  };
+}
+
+async function migrateLegacyProductImage(supabase, row) {
+  if (!row?.id) return row;
+  const hasStoragePath = String(row.product_image_path ?? "").trim().length > 0;
+  const legacyDataUrl = String(row.product_image_data_url ?? "").trim();
+  if (hasStoragePath || !legacyDataUrl) {
+    return row;
+  }
+
+  try {
+    const migrated = await persistProductImageAsset(supabase, row.id, legacyDataUrl);
+    return {
+      ...row,
+      ...migrated,
+    };
+  } catch (error) {
+    console.error("[migrateLegacyProductImage]", row.id, error);
+    return row;
+  }
+}
+
+async function migrateLegacyProductImages(supabase, rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const migrated = [];
+  for (const row of list) {
+    migrated.push(await migrateLegacyProductImage(supabase, row));
+  }
+  return migrated;
 }
 
 const ADMIN_RPC_ACTIONS = {
@@ -444,15 +539,17 @@ async function handleRoute(route, req, res) {
       const ids = baseRows.map((p) => p.id).filter(Boolean);
       let imageById = new Map();
       if (ids.length) {
-        const { data: imageRows } = await supabase
+        const { data: imageRows, error: imageError } = await supabase
           .from("products")
-          .select("id,product_image_data_url")
+          .select("id,product_image_data_url,product_image_path,product_image_version")
           .in("id", ids);
-        imageById = new Map((imageRows ?? []).map((r) => [r.id, r.product_image_data_url]));
+        if (imageError) return json(res, 500, { error: imageError.message || "Image query failed" });
+        const hydratedRows = await migrateLegacyProductImages(supabase, imageRows ?? []);
+        imageById = new Map(hydratedRows.map((r) => [r.id, r]));
       }
       const rows = baseRows.map((p) => ({
         ...p,
-        image_url: buildProductImageUrl(imageById.get(p.id)),
+        image_url: buildProductImageUrl(supabase, imageById.get(p.id)),
       }));
       return json(res, 200, rows);
     }
@@ -549,25 +646,27 @@ async function handleRoute(route, req, res) {
     if (!productId) return json(res, 400, { error: "product_id is required" });
 
     if (req.method === "DELETE") {
+      const objectPath = getProductImageObjectPath(productId);
+      await ensureProductImageBucket(supabase).catch(() => {});
+      await supabase.storage.from(PRODUCT_IMAGES_BUCKET).remove([objectPath]).catch(() => {});
       const { error } = await supabase
         .from("products")
-        .update({ product_image_data_url: null })
+        .update({
+          product_image_data_url: null,
+          product_image_path: null,
+          product_image_version: null,
+        })
         .eq("id", productId);
       if (error) return json(res, 500, { error: error.message || "Delete failed" });
       return json(res, 200, { success: true });
     }
 
     try {
-      parseImageDataUrl(body.image_data_url);
       const imageDataUrl = String(body.image_data_url ?? "").trim();
-      const { error } = await supabase
-        .from("products")
-        .update({ product_image_data_url: imageDataUrl })
-        .eq("id", productId);
-      if (error) return json(res, 500, { error: error.message || "Save failed" });
+      const saved = await persistProductImageAsset(supabase, productId, imageDataUrl);
       return json(res, 200, {
         success: true,
-        image_url: imageDataUrl,
+        image_url: saved.image_url,
       });
     } catch (err) {
       return json(res, 400, { error: err?.message || "Invalid image payload" });
@@ -660,13 +759,20 @@ async function handleRoute(route, req, res) {
     setCacheHeaders(res, "no-store, max-age=0");
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url")
+      .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")
       .eq("active", true)
       .order("name", { ascending: true });
     if (error) return json(res, 500, { error: error.message || "Query failed" });
-    const rows = (data ?? []).map((p) => ({
-      ...p,
-      image_url: buildProductImageUrl(p.product_image_data_url),
+    const hydratedRows = await migrateLegacyProductImages(supabase, data ?? []);
+    const rows = hydratedRows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      guest_price: p.guest_price,
+      category: p.category,
+      active: p.active,
+      inventoried: p.inventoried,
+      image_url: buildProductImageUrl(supabase, p),
     }));
     return json(res, 200, rows);
   }
@@ -836,13 +942,20 @@ async function handleRoute(route, req, res) {
     }
     const { data: productRows, error: productError } = await supabase
       .from("products")
-      .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url")
+      .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")
       .eq("active", true)
       .order("name", { ascending: true });
     if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
-    products = (productRows ?? []).map((p) => ({
-      ...p,
-      image_url: buildProductImageUrl(p.product_image_data_url),
+    const hydratedProductRows = await migrateLegacyProductImages(supabase, productRows ?? []);
+    products = hydratedProductRows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      guest_price: p.guest_price,
+      category: p.category,
+      active: p.active,
+      inventoried: p.inventoried,
+      image_url: buildProductImageUrl(supabase, p),
     }));
     return json(res, 200, { success: true, members, products });
   }

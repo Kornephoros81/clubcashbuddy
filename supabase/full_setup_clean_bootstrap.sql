@@ -8607,6 +8607,16 @@ alter table public.products
 notify pgrst, 'reload schema';
 -- <<< END 20260225130000_store_product_images_in_db.sql
 
+-- >>> BEGIN 20260317090000_store_product_images_in_storage.sql
+-- Store product images in Supabase Storage and keep only path/version metadata in DB.
+
+alter table public.products
+  add column if not exists product_image_path text null,
+  add column if not exists product_image_version bigint null;
+
+notify pgrst, 'reload schema';
+-- <<< END 20260317090000_store_product_images_in_storage.sql
+
 -- Initial admin for fresh installations.
 insert into public.app_users (username, password_hash, role, active)
 values (
