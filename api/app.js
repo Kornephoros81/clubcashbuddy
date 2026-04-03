@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { buildRevenueReportPayload } from "./_lib/reporting.js";
 
 const BRANDING_IMAGES_BUCKET = "branding-assets";
 const BRANDING_IMAGE_OBJECT = "app-logo";
@@ -80,6 +81,35 @@ async function loadMemberPinMap(supabase, memberIds) {
       String(row.pin_plain ?? "").trim().length > 0,
     ]),
   );
+}
+
+async function readRevenueRowsPaginated(supabase, token, start, end, options = {}) {
+  const pageSize = Math.max(1, Math.min(5000, Number(options.pageSize ?? 1000)));
+  const maxPages = Math.max(1, Math.min(500, Number(options.maxPages ?? 200)));
+  const rows = [];
+  let offset = 0;
+  let truncated = false;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const { data, error } = await supabase.rpc("api_admin_get_revenue_report_period", {
+      p_token: token,
+      p_start: start,
+      p_end: end,
+      p_limit: pageSize,
+      p_offset: offset,
+    });
+    if (error) throw error;
+
+    const batch = Array.isArray(data) ? data : [];
+    rows.push(...batch);
+    if (batch.length < pageSize) {
+      return { rows, truncated: false };
+    }
+    offset += pageSize;
+  }
+
+  truncated = true;
+  return { rows, truncated };
 }
 
 async function verifyDevice(req) {
@@ -594,6 +624,33 @@ async function handleRoute(route, req, res) {
     return json(res, 405, { error: "Method not allowed" });
   }
 
+  if (route === "admin-products-batch") {
+    if (req.method !== "PATCH") return json(res, 405, { error: "Method not allowed" });
+    const token = extractBearerToken(req);
+    if (!token) return json(res, 401, { error: "Unauthorized" });
+    const items = Array.isArray(body.items) ? body.items : [];
+    if (!items.length) return json(res, 400, { error: "items are required" });
+
+    const updatedItems = [];
+    for (const item of items) {
+      if (!item?.id) continue;
+      const { data, error } = await supabase.rpc("api_admin_update_product", {
+        p_token: token,
+        p_id: item.id,
+        p_name: item.name ?? null,
+        p_price: item.price ?? null,
+        p_guest_price: item.guest_price ?? null,
+        p_category: item.category ?? null,
+        p_active: item.active ?? null,
+        p_inventoried: item.inventoried ?? null,
+      });
+      if (error) return json(res, 403, { error: error.message || "Forbidden" });
+      updatedItems.push(data);
+    }
+
+    return json(res, 200, { items: updatedItems });
+  }
+
   if (route === "admin-product-categories") {
     const token = extractBearerToken(req);
     if (!token) return json(res, 401, { error: "Unauthorized" });
@@ -649,7 +706,7 @@ async function handleRoute(route, req, res) {
       const objectPath = getProductImageObjectPath(productId);
       await ensureProductImageBucket(supabase).catch(() => {});
       await supabase.storage.from(PRODUCT_IMAGES_BUCKET).remove([objectPath]).catch(() => {});
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("products")
         .update({
           product_image_data_url: null,
@@ -657,8 +714,27 @@ async function handleRoute(route, req, res) {
           product_image_version: null,
         })
         .eq("id", productId);
+      const { data: productRow, error: productError } = await supabase
+        .from("products")
+        .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")
+        .eq("id", productId)
+        .maybeSingle();
       if (error) return json(res, 500, { error: error.message || "Delete failed" });
-      return json(res, 200, { success: true });
+      if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
+      return json(res, 200, {
+        ...(productRow
+          ? {
+            id: productRow.id,
+            name: productRow.name,
+            price: productRow.price,
+            guest_price: productRow.guest_price,
+            category: productRow.category,
+            active: productRow.active,
+            inventoried: productRow.inventoried,
+            image_url: buildProductImageUrl(supabase, productRow),
+          }
+          : {}),
+      });
     }
 
     try {
@@ -743,6 +819,35 @@ async function handleRoute(route, req, res) {
     return json(res, 200, { success: true });
   }
 
+  if (route === "admin-report-summary") {
+    if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+    const token = extractBearerToken(req);
+    if (!token) return json(res, 401, { error: "Unauthorized" });
+
+    const start = body?.start;
+    const end = body?.end;
+    if (!start || !end) return json(res, 400, { error: "start and end are required" });
+
+    try {
+      const { rows, truncated } = await readRevenueRowsPaginated(supabase, token, start, end, {
+        pageSize: body?.page_size ?? 1000,
+        maxPages: body?.max_pages ?? 200,
+      });
+      const payload = buildRevenueReportPayload(rows, {
+        start,
+        end,
+        filters: body?.filters ?? {},
+        heatAggregationMode: body?.heat_aggregation_mode ?? "trimmed_mean",
+        recentEventsLimit: body?.recent_events_limit ?? 100,
+      });
+      return json(res, 200, { ...payload, truncated });
+    } catch (error) {
+      return json(res, 500, {
+        error: error instanceof Error ? error.message : "Report summary failed",
+      });
+    }
+  }
+
   if (route === "admin-rpc") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
     const token = extractBearerToken(req);
@@ -756,7 +861,7 @@ async function handleRoute(route, req, res) {
 
   if (route === "catalog-products") {
     if (req.method !== "GET") return json(res, 405, { error: "Method not allowed" });
-    setCacheHeaders(res, "no-store, max-age=0");
+    setCacheHeaders(res, "public, s-maxage=300, stale-while-revalidate=3600");
     const { data, error } = await supabase
       .from("products")
       .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")

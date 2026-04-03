@@ -58,10 +58,6 @@ onUnmounted(() => {
   }
 });
 
-function delay(ms = 800) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function normalizePin(input: string) {
   return (input || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 4);
 }
@@ -123,7 +119,6 @@ async function savePin(member: any) {
       delete storedPins.value[member.id];
       pinDrafts.value[member.id] = "";
       showToast(`✅ PIN für ${member.firstname} ${member.lastname} entfernt`);
-      await delay();
       return;
     }
 
@@ -135,7 +130,6 @@ async function savePin(member: any) {
     storedPins.value[member.id] = pin;
     pinDrafts.value[member.id] = pin;
     showToast(`✅ PIN für ${member.firstname} ${member.lastname} gespeichert`);
-    await delay();
   } catch (err) {
     console.error("[savePin]", err);
     showToast("⚠️ Fehler beim Speichern der PIN");
@@ -154,7 +148,6 @@ async function confirmAddMember() {
     await store.addMember(newFirstname.value, newLastname.value);
     await loadMemberPins();
     showToast("✅ Mitglied erfolgreich angelegt");
-    await delay();
     newFirstname.value = "";
     newLastname.value = "";
     showNewMemberModal.value = false;
@@ -168,9 +161,7 @@ async function confirmAddMember() {
 async function save(m: any) {
   try {
     await store.updateMember(m);
-    await loadMemberPins();
     showToast(`💾 Änderungen für ${m.firstname} ${m.lastname} gespeichert`);
-    await delay();
   } catch (err) {
     console.error("[save]", err);
     showToast("⚠️ Fehler beim Speichern");
@@ -188,9 +179,7 @@ async function deleteMember(m: any) {
 
   try {
     await store.deleteMember(m.id, false);
-    await loadMemberPins();
     showToast(`🗑️ ${m.firstname} ${m.lastname} gelöscht`);
-    await delay();
   } catch (err) {
     const message = String((err as any)?.message ?? err ?? "");
     if (message.includes("p_force=true")) {
@@ -203,9 +192,7 @@ async function deleteMember(m: any) {
 
       try {
         await store.deleteMember(m.id, true);
-        await loadMemberPins();
         showToast(`🗑️ ${m.firstname} ${m.lastname} endgültig gelöscht`);
-        await delay();
         return;
       } catch (forceErr) {
         console.error("[deleteMember.force]", forceErr);
@@ -261,7 +248,6 @@ async function confirmCredit() {
       } gebucht`
     );
     closeCreditModal();
-    await delay();
     await store.loadMembers();
   } catch (err) {
     console.error("[credit]", err);

@@ -92,7 +92,6 @@ function createLogic() {
       if (!store.members.length || !store.products.length) {
         await refreshTerminalSnapshot();
       }
-      if (!store.products.length) await store.loadProducts();
       await refreshQueueCount();
 
       if (auth.token && !hasInitialSync.value) {
@@ -109,12 +108,7 @@ function createLogic() {
   async function onOnline() {
     if (!auth.token) return;
     try {
-      await syncQueue(auth.token);
-      await refreshTerminalSnapshot();
-      if (selectedMember.value?.id) {
-        await loadBookings(selectedMember.value.id);
-      }
-      await refreshQueueCount();
+      await refreshAfterRemoteChanges(true);
       showToast("🔄 Online-Sync abgeschlossen");
     } catch {
       showToast("⚠️ Sync fehlgeschlagen");
@@ -123,11 +117,7 @@ function createLogic() {
 
   async function onQueueSynced() {
     try {
-      await refreshTerminalSnapshot();
-      if (selectedMember.value?.id) {
-        await loadBookings(selectedMember.value.id);
-      }
-      await refreshQueueCount();
+      await refreshAfterRemoteChanges();
     } catch (e) {
       console.warn("[queue-synced] refresh failed:", e);
     }
@@ -141,10 +131,7 @@ function createLogic() {
       try {
         const processed = await syncQueue(auth.token);
         if (processed > 0) {
-          await refreshTerminalSnapshot();
-          if (selectedMember.value?.id) {
-            await loadBookings(selectedMember.value.id);
-          }
+          await refreshAfterRemoteChanges();
         }
       } catch {
         // Fehlerbehandlung passiert im Sync selbst
@@ -287,6 +274,17 @@ function createLogic() {
 
   function updateTxStoreItems() {
     txStore.items = [...confirmedBookings.value, ...queuedBookings.value];
+  }
+
+  async function refreshAfterRemoteChanges(forceSync = false) {
+    if (forceSync && auth.token) {
+      await syncQueue(auth.token);
+    }
+    await refreshTerminalSnapshot();
+    if (selectedMember.value?.id) {
+      await loadBookings(selectedMember.value.id);
+    }
+    await refreshQueueCount();
   }
 
   async function refreshQueuedBookingsForMember(memberId: string) {

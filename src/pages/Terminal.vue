@@ -162,9 +162,15 @@ async function onBackToMembers() {
   await refreshTerminalSnapshot();
 }
 
-function reloadPage() {
-  if (typeof window !== "undefined" && window.location) {
-    window.location.reload();
+async function reloadPage() {
+  loading.value = true;
+  try {
+    await refreshTerminalSnapshot();
+    if (selectedMember.value?.id) {
+      await loadBookings(selectedMember.value.id);
+    }
+  } finally {
+    loading.value = false;
   }
 }
 

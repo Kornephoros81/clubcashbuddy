@@ -31,10 +31,6 @@ onMounted(async () => {
   }
 });
 
-async function delay(ms = 800) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 function setUploading(productId: string, uploading: boolean) {
   uploadingImageById.value = {
     ...uploadingImageById.value,
@@ -88,7 +84,6 @@ async function onProductImageSelected(product: any, event: Event) {
   try {
     const dataUrl = await fileToDataUrl(file);
     await store.uploadProductImage(product.id, dataUrl);
-    await store.initProducts();
     brokenPreviewById.value = {
       ...brokenPreviewById.value,
       [String(product.id)]: false,
@@ -114,7 +109,6 @@ async function removeProductImage(product: any) {
   setUploading(product.id, true);
   try {
     await store.deleteProductImage(product.id);
-    await store.initProducts();
     brokenPreviewById.value = {
       ...brokenPreviewById.value,
       [String(product.id)]: false,
@@ -196,18 +190,9 @@ async function saveAll() {
       return;
     }
     showToast("💾 Änderungen werden gespeichert …");
-    const snapshot = [...store.products];
-    for (const p of snapshot) {
-      await store.updateProduct({
-        ...p,
-        priceEuro: p.priceEuro,
-        guestPriceEuro: p.guestPriceEuro,
-      });
-    }
+    await store.updateProductsBatch([...store.products]);
     await store.initCategories();
-    await store.initProducts();
     showToast("✅ Alle Änderungen gespeichert");
-    await delay();
   } catch (err) {
     console.error("[saveAll]", err);
     showToast("⚠️ Fehler beim Speichern der Artikel");
@@ -232,7 +217,6 @@ async function confirmAddProduct() {
     });
 
     showToast("✅ Neuer Artikel angelegt");
-    await delay();
     newProductName.value = "";
     newProductCategory.value = activeCategoryOptions.value[0]?.name ?? "Sonstiges";
     newProductPrice.value = null;
@@ -257,7 +241,6 @@ async function deleteProduct(p: any) {
   try {
     await store.deleteProduct(p.id, false);
     showToast(`🗑️ ${p.name} gelöscht`);
-    await delay();
   } catch (err) {
     const message = String((err as any)?.message ?? err ?? "");
     if (message.includes("p_force=true")) {
@@ -271,7 +254,6 @@ async function deleteProduct(p: any) {
       try {
         await store.deleteProduct(p.id, true);
         showToast(`🗑️ ${p.name} endgültig gelöscht`);
-        await delay();
         return;
       } catch (forceErr) {
         console.error("[deleteProduct.force]", forceErr);
