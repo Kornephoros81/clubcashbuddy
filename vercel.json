@@ -78,7 +78,7 @@
 
   "rewrites": [
     {
-      "source": "/api/(admin-login|admin-logout|admin-members|admin-products|admin-product-categories|admin-product-image|admin-branding-logo|admin-storage|admin-rpc|branding|catalog-products|device-login|device-pair|member-pin-status|member-pin-verify|get-members|terminal-snapshot|get-member-bookings|get-today-transactions|get-booked-today-members|book-transaction|book-transactions-batch|cancel-transaction|get-stock-info|adjust-stock-batch|device-add-guest|device-settle-guest|device-settle-guest-partial|ping)",
+      "source": "/api/(admin-login|admin-logout|admin-members|admin-products|admin-products-batch|admin-product-categories|admin-product-image|admin-branding-logo|admin-storage|admin-report-summary|admin-rpc|branding|catalog-products|device-login|device-pair|member-pin-status|member-pin-verify|get-members|terminal-snapshot|get-member-bookings|get-today-transactions|get-booked-today-members|book-transaction|book-transactions-batch|cancel-transaction|get-stock-info|adjust-stock-batch|device-add-guest|device-settle-guest|device-settle-guest-partial|ping)",
       "destination": "/api/app?route=$1"
     },
     {

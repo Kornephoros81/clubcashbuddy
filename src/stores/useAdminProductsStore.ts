@@ -5,7 +5,7 @@ import { invalidateProductsCache } from "@/utils/productCatalogCache";
 
 async function apiRequest(path: string, method = "GET", body?: unknown) {
   const auth = useAppAuthStore();
-  auth.initFromStorage();
+  auth.ensureHydrated();
   const token = auth.adminToken;
   if (!token) throw new Error("Unauthorized");
 
@@ -32,16 +32,33 @@ export const useAdminProductsStore = defineStore("adminProducts", {
   }),
 
   actions: {
+    normalizeProduct(p: any) {
+      return {
+        ...p,
+        priceEuro: Number(p.price ?? 0) / 100,
+        guestPriceEuro: Number(p.guest_price ?? 0) / 100,
+      };
+    },
+
+    upsertProductInState(product: any) {
+      const next = product?.id ? this.normalizeProduct(product) : null;
+      if (!next?.id) return;
+      const index = this.products.findIndex((entry) => entry.id === next.id);
+      if (index >= 0) {
+        this.products.splice(index, 1, next);
+      } else {
+        this.products.unshift(next);
+      }
+    },
+
     async initProducts() {
       this.loading = true;
-      const data = await apiRequest("/api/admin-products");
-
-      this.products = (data ?? []).map((p: any) => ({
-        ...p,
-        priceEuro: p.price / 100,
-        guestPriceEuro: p.guest_price / 100,
-      }));
-      this.loading = false;
+      try {
+        const data = await apiRequest("/api/admin-products");
+        this.products = (data ?? []).map((p: any) => this.normalizeProduct(p));
+      } finally {
+        this.loading = false;
+      }
     },
 
     async initCategories() {
@@ -77,7 +94,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
     },
 
     async addProduct(p: any) {
-      await apiRequest("/api/admin-products", "POST", {
+      const created = await apiRequest("/api/admin-products", "POST", {
         name: p.name,
         category: p.category,
         price: Math.round(p.priceEuro * 100),
@@ -86,7 +103,8 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         inventoried: p.inventoried,
       });
       await invalidateProductsCache();
-      await this.initProducts();
+      this.upsertProductInState(created);
+      return created;
     },
 
     async updateProduct(p: any) {
@@ -100,7 +118,31 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         inventoried: p.inventoried,
       });
       await invalidateProductsCache();
+      this.upsertProductInState(data);
       return data;
+    },
+
+    async updateProductsBatch(products: any[]) {
+      const payload = Array.isArray(products)
+        ? products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: Math.round(Number(p.priceEuro ?? 0) * 100),
+            guest_price: Math.round(Number(p.guestPriceEuro ?? 0) * 100),
+            category: p.category,
+            active: p.active,
+            inventoried: p.inventoried,
+          }))
+        : [];
+      const data = await apiRequest("/api/admin-products-batch", "PATCH", {
+        items: payload,
+      });
+      await invalidateProductsCache();
+      const items = Array.isArray((data as any)?.items) ? (data as any).items : [];
+      for (const item of items) {
+        this.upsertProductInState(item);
+      }
+      return items;
     },
 
     async deleteProduct(id: string, force = false) {
@@ -109,7 +151,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         force,
       });
       await invalidateProductsCache();
-      await this.initProducts();
+      this.products = this.products.filter((product) => product.id !== id);
     },
 
     async uploadProductImage(productId: string, imageDataUrl: string) {
@@ -118,14 +160,17 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         image_data_url: imageDataUrl,
       });
       await invalidateProductsCache();
+      this.upsertProductInState(data);
       return data;
     },
 
     async deleteProductImage(productId: string) {
-      await apiRequest("/api/admin-product-image", "DELETE", {
+      const data = await apiRequest("/api/admin-product-image", "DELETE", {
         product_id: productId,
       });
       await invalidateProductsCache();
+      this.upsertProductInState(data);
+      return data;
     },
 
     // === Erweiterung für Lagerverwaltung ===

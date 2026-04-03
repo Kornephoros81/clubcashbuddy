@@ -2,7 +2,7 @@
 import { openDB } from "idb";
 
 const DB_NAME = "vereinskasse";
-const VERSION = 2;
+const VERSION = 3;
 
 const STORE_QUEUE = "queue";
 const STORE_MEMBERS = "members";
@@ -10,12 +10,18 @@ const STORE_PRODUCTS = "products";
 
 export async function getDB() {
   return openDB(DB_NAME, VERSION, {
-    upgrade(db, oldVersion) {
+    upgrade(db, oldVersion, _newVersion, transaction) {
       if (!db.objectStoreNames.contains(STORE_QUEUE)) {
-        db.createObjectStore(STORE_QUEUE, {
+        const queueStore = db.createObjectStore(STORE_QUEUE, {
           keyPath: "id",
           autoIncrement: true,
         });
+        queueStore.createIndex("by-member-id", "payload.member_id");
+      } else if (oldVersion < VERSION) {
+        const queueStore = transaction.objectStore(STORE_QUEUE);
+        if (!queueStore.indexNames.contains("by-member-id")) {
+          queueStore.createIndex("by-member-id", "payload.member_id");
+        }
       }
       if (!db.objectStoreNames.contains(STORE_MEMBERS)) {
         db.createObjectStore(STORE_MEMBERS, { keyPath: "id" });
@@ -131,9 +137,19 @@ export async function cacheMembers(members: any[]) {
   const db = await getDB();
   const tx = db.transaction(STORE_MEMBERS, "readwrite");
   const store = tx.store;
-  await store.clear();
-  for (const m of members) {
-    await store.put({ ...m, cachedAt: Date.now() });
+  const incoming = Array.isArray(members) ? members : [];
+  const cachedAt = Date.now();
+  const nextIds = new Set(incoming.map((m) => m.id));
+  const existingKeys = await store.getAllKeys();
+
+  for (const key of existingKeys) {
+    if (!nextIds.has(key)) {
+      await store.delete(key);
+    }
+  }
+
+  for (const m of incoming) {
+    await store.put({ ...m, cachedAt });
   }
   await tx.done;
 }
@@ -147,9 +163,19 @@ export async function cacheProducts(products: any[]) {
   const db = await getDB();
   const tx = db.transaction(STORE_PRODUCTS, "readwrite");
   const store = tx.store;
-  await store.clear();
-  for (const p of products) {
-    await store.put({ ...p, cachedAt: Date.now() });
+  const incoming = Array.isArray(products) ? products : [];
+  const cachedAt = Date.now();
+  const nextIds = new Set(incoming.map((p) => p.id));
+  const existingKeys = await store.getAllKeys();
+
+  for (const key of existingKeys) {
+    if (!nextIds.has(key)) {
+      await store.delete(key);
+    }
+  }
+
+  for (const p of incoming) {
+    await store.put({ ...p, cachedAt });
   }
   await tx.done;
 }
@@ -167,6 +193,10 @@ export async function clearCachedProducts() {
 }
 
 export async function getQueuedBookingsForMember(memberId: string) {
-  const all = await getQueueEntries();
-  return all.filter((e: QueueEntry) => e.payload?.member_id === memberId);
+  const db = await getDB();
+  const entries = await db.getAllFromIndex(STORE_QUEUE, "by-member-id", memberId);
+  return entries.map((e: QueueEntry) => ({
+    ...e,
+    status: e.status === "sending" ? "pending" : (e.status ?? "pending"),
+  }));
 }
