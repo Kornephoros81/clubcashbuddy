@@ -1,26 +1,25 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAppAuthStore } from "@/stores/useAppAuthStore";
-import Terminal from "@/pages/Terminal.vue";
-import AdminPortal from "@/pages/AdminPortal.vue";
-import Dashboard from "@/pages/Dashboard.vue";
-import Login from "@/components/AdminLogin.vue";
-import AdminProducts from "@/components/AdminProducts.vue";
-import AdminProductCategories from "@/components/AdminProductCategories.vue";
-import AdminMembers from "@/components/AdminMembers.vue";
-import StockRefillView from "@/components/Terminal/StockRefillView.vue";
-import AdminInventoryReport from "@/components/AdminInventoryReport.vue";
-import AdminBookingsReport from "@/components/AdminBookingsReport.vue";
-import AdminSettlementView from "@/components/AdminSettlementView.vue";
-import AdminStorageView from "@/components/AdminStorageView.vue"; 
-import AdminStockAdjustmentsReport from "@/components/AdminStockAdjustmentsReport.vue";
-import AdminFridgeRefillsReport from "@/components/AdminFridgeRefillsReport.vue";
-import AdminCancellationsReport from "@/components/AdminCancellationsReport.vue";
-import AdminRevenueReport from "@/components/AdminRevenueReport.vue";
-import AdminSettlementsReport from "@/components/AdminSettlementsReport.vue";
-import AdminBrandingSettings from "@/components/AdminBrandingSettings.vue";
-import AdminUsers from "@/components/AdminUsers.vue";
-import AdminDevicePairing from "@/components/AdminDevicePairing.vue";
-
+const Terminal = () => import("@/pages/Terminal.vue");
+const AdminPortal = () => import("@/pages/AdminPortal.vue");
+const Dashboard = () => import("@/pages/DashboardOptimized.vue");
+const Login = () => import("@/components/AdminLogin.vue");
+const AdminProducts = () => import("@/components/AdminProducts.vue");
+const AdminProductCategories = () => import("@/components/AdminProductCategories.vue");
+const AdminMembers = () => import("@/components/AdminMembers.vue");
+const StockRefillView = () => import("@/components/Terminal/StockRefillView.vue");
+const AdminInventoryReport = () => import("@/components/AdminInventoryReport.vue");
+const AdminBookingsReport = () => import("@/components/AdminBookingsReport.vue");
+const AdminSettlementView = () => import("@/components/AdminSettlementView.vue");
+const AdminStorageView = () => import("@/components/AdminStorageView.vue");
+const AdminStockAdjustmentsReport = () => import("@/components/AdminStockAdjustmentsReport.vue");
+const AdminFridgeRefillsReport = () => import("@/components/AdminFridgeRefillsReport.vue");
+const AdminCancellationsReport = () => import("@/components/AdminCancellationsReport.vue");
+const AdminRevenueReport = () => import("@/components/AdminRevenueReportOptimized.vue");
+const AdminSettlementsReport = () => import("@/components/AdminSettlementsReport.vue");
+const AdminBrandingSettings = () => import("@/components/AdminBrandingSettings.vue");
+const AdminUsers = () => import("@/components/AdminUsers.vue");
+const AdminDevicePairing = () => import("@/components/AdminDevicePairing.vue");
 
 const routes = [
   { path: "/", component: Terminal },
@@ -62,9 +61,16 @@ const router = createRouter({
 let adminExitTimer: number | null = null;
 let inactivityTimer: number | null = null;
 let logoutTriggered = false;
+let activityListenersAttached = false;
 
 const ADMIN_EXIT_TIMEOUT = 5 * 60 * 1000;
 const ADMIN_INACTIVITY_TIMEOUT = 5 * 60 * 1000;
+const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
+  "click",
+  "keydown",
+  "touchstart",
+  "mousemove",
+];
 
 function clearAdminTimers() {
   if (adminExitTimer) clearTimeout(adminExitTimer);
@@ -83,7 +89,7 @@ async function safeLogout(reason: string) {
   } catch (e) {
     console.error("[Admin Logout Error]", e);
   } finally {
-    window.location.href = "/";
+    await router.replace("/");
   }
 }
 
@@ -95,9 +101,25 @@ function resetInactivityTimer() {
   );
 }
 
+function attachActivityListeners() {
+  if (activityListenersAttached) return;
+  for (const eventName of ACTIVITY_EVENTS) {
+    window.addEventListener(eventName, resetInactivityTimer, { passive: true });
+  }
+  activityListenersAttached = true;
+}
+
+function detachActivityListeners() {
+  if (!activityListenersAttached) return;
+  for (const eventName of ACTIVITY_EVENTS) {
+    window.removeEventListener(eventName, resetInactivityTimer);
+  }
+  activityListenersAttached = false;
+}
+
 router.beforeEach(async (to, from) => {
   const authStore = useAppAuthStore();
-  authStore.initFromStorage();
+  authStore.ensureHydrated();
   const role = authStore.isAdminAuthenticated ? "admin" : null;
 
   if (to.meta.requiresAuth && !authStore.isAdminAuthenticated) return "/login";
@@ -119,30 +141,29 @@ router.beforeEach(async (to, from) => {
 
     if (enteringAdmin) {
       clearAdminTimers();
+      attachActivityListeners();
       console.log("[Admin Timeout] im Adminbereich → Timer gestoppt");
     }
   } else {
     clearAdminTimers();
+    detachActivityListeners();
   }
 
   return true;
 });
 
-window.addEventListener("click", resetInactivityTimer);
-window.addEventListener("keydown", resetInactivityTimer);
-window.addEventListener("touchstart", resetInactivityTimer);
-window.addEventListener("mousemove", resetInactivityTimer);
-
 router.afterEach(async (to) => {
   const authStore = useAppAuthStore();
-  authStore.initFromStorage();
+  authStore.ensureHydrated();
   const role = authStore.isAdminAuthenticated ? "admin" : null;
 
   if (role === "admin" && to.path.startsWith("/admin")) {
     logoutTriggered = false;
+    attachActivityListeners();
     resetInactivityTimer();
   } else {
     if (inactivityTimer) clearTimeout(inactivityTimer);
+    detachActivityListeners();
   }
 });
 

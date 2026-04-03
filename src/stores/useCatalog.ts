@@ -82,7 +82,7 @@ export const useCatalog = defineStore("catalog", {
     async loadProducts() {
       try {
         const res = await fetch("/api/catalog-products", {
-          cache: "no-store",
+          cache: "force-cache",
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();

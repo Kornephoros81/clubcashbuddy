@@ -3,7 +3,7 @@ import { useAppAuthStore } from "@/stores/useAppAuthStore";
 
 async function apiRequest(path: string, method = "GET", body?: unknown) {
   const auth = useAppAuthStore();
-  auth.initFromStorage();
+  auth.ensureHydrated();
   const token = auth.adminToken;
   if (!token) throw new Error("Unauthorized");
 
@@ -31,6 +31,17 @@ export const useAdminMembersStore = defineStore("adminMembers", {
   }),
 
   actions: {
+    upsertMemberInState(member: any) {
+      const next = member ? { ...member } : null;
+      if (!next?.id) return;
+      const index = this.members.findIndex((entry) => entry.id === next.id);
+      if (index >= 0) {
+        this.members.splice(index, 1, next);
+      } else {
+        this.members.unshift(next);
+      }
+    },
+
     // 🧱 Einmalige Initialisierung
     async initMembers() {
       if (this.initialized) return;
@@ -53,22 +64,24 @@ export const useAdminMembersStore = defineStore("adminMembers", {
     },
 
     async addMember(firstname: string, lastname: string) {
-      await apiRequest("/api/admin-members", "POST", {
+      const created = await apiRequest("/api/admin-members", "POST", {
         firstname,
         lastname,
       });
-      await this.loadMembers();
+      this.upsertMemberInState(created);
+      return created;
     },
 
     async updateMember(member: any) {
-      await apiRequest("/api/admin-members", "PATCH", {
+      const updated = await apiRequest("/api/admin-members", "PATCH", {
         id: member.id,
         firstname: member.firstname ?? null,
         lastname: member.lastname ?? null,
         balance: member.balance ?? null,
         active: member.active ?? null,
       });
-      await this.loadMembers();
+      this.upsertMemberInState(updated);
+      return updated;
     },
 
     async deleteMember(id: string, force = false) {
@@ -76,7 +89,7 @@ export const useAdminMembersStore = defineStore("adminMembers", {
         id,
         force,
       });
-      await this.loadMembers();
+      this.members = this.members.filter((member) => member.id !== id);
     },
   },
 });

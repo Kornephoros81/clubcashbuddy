@@ -34,6 +34,7 @@ export const useAppAuthStore = defineStore("appAuth", {
   state: () => ({
     adminToken: readAdminSessionValue(ADMIN_TOKEN_KEY) as string | null,
     adminUser: readAdminSessionValue(ADMIN_USER_KEY) as string | null,
+    hydrated: false,
   }),
 
   getters: {
@@ -44,6 +45,12 @@ export const useAppAuthStore = defineStore("appAuth", {
     initFromStorage() {
       this.adminToken = readAdminSessionValue(ADMIN_TOKEN_KEY);
       this.adminUser = readAdminSessionValue(ADMIN_USER_KEY);
+      this.hydrated = true;
+    },
+
+    ensureHydrated() {
+      if (this.hydrated) return;
+      this.initFromStorage();
     },
 
     async loginAdmin(username: string, password: string) {
