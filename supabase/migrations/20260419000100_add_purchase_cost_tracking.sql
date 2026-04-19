@@ -427,6 +427,7 @@ begin
 end;
 $function$;
 
+drop function if exists public.admin_get_revenue_report_period(timestamp with time zone, timestamp with time zone, integer, integer);
 create or replace function public.admin_get_revenue_report_period(
   p_start timestamp with time zone,
   p_end timestamp with time zone,
@@ -555,6 +556,7 @@ begin
 end;
 $function$;
 
+drop function if exists public.api_admin_get_revenue_report_period(text, timestamp with time zone, timestamp with time zone, integer, integer);
 create or replace function public.api_admin_get_revenue_report_period(
   p_token text,
   p_start timestamp with time zone,
@@ -590,6 +592,7 @@ begin
 end;
 $function$;
 
+drop function if exists public.admin_list_products();
 create or replace function public.admin_list_products()
 returns table(
   id uuid,
@@ -634,6 +637,7 @@ begin
 end;
 $function$;
 
+drop function if exists public.api_admin_list_products(text);
 create or replace function public.api_admin_list_products(p_token text)
 returns table(
   id uuid,
