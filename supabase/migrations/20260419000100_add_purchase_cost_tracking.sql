@@ -978,6 +978,13 @@ begin
 end;
 $function$;
 
+revoke all on function public.apply_product_cost_baseline(uuid) from public;
+revoke all on function public.admin_create_product(text, integer, integer, text, boolean, boolean, integer) from public;
+revoke all on function public.admin_update_product(uuid, text, integer, integer, text, boolean, boolean, integer) from public;
+revoke all on function public.api_admin_create_product(text, text, integer, integer, text, boolean, boolean, integer) from public;
+revoke all on function public.api_admin_update_product(text, uuid, text, integer, integer, text, boolean, boolean, integer) from public;
+revoke all on function public.api_admin_add_storage(text, uuid, integer, integer) from public;
+
 select public.apply_product_cost_baseline(null);
 
 notify pgrst, 'reload schema';
