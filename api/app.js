@@ -592,6 +592,7 @@ async function handleRoute(route, req, res) {
         p_category: body.category ?? "Sonstiges",
         p_active: body.active ?? true,
         p_inventoried: body.inventoried ?? true,
+        p_last_purchase_price_cents: body.last_purchase_price_cents ?? 0,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 201, data);
@@ -607,6 +608,7 @@ async function handleRoute(route, req, res) {
         p_category: body.category ?? null,
         p_active: body.active ?? null,
         p_inventoried: body.inventoried ?? null,
+        p_last_purchase_price_cents: body.last_purchase_price_cents ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 200, data);
@@ -643,6 +645,7 @@ async function handleRoute(route, req, res) {
         p_category: item.category ?? null,
         p_active: item.active ?? null,
         p_inventoried: item.inventoried ?? null,
+        p_last_purchase_price_cents: item.last_purchase_price_cents ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       updatedItems.push(data);
@@ -813,6 +816,7 @@ async function handleRoute(route, req, res) {
         p_token: token,
         p_product_id: item.product_id,
         p_amount: amount,
+        p_purchase_price_cents: item.purchase_price_cents ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
     }

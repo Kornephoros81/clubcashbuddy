@@ -10,6 +10,12 @@ type HeatAggregationMode = "trimmed_mean" | "mean" | "max";
 type MetricBundle = {
   revenueCents: number;
   canceledCents: number;
+  goodsCostCents: number;
+  canceledGoodsCostCents: number;
+  netRevenueCents: number;
+  netGoodsCostCents: number;
+  grossProfitCents: number;
+  grossMarginPercent: number;
   bookingCount: number;
   cancellationCount: number;
   avgTicketCents: number;
@@ -43,6 +49,12 @@ const heatAggregationOptions: Array<{ value: HeatAggregationMode; label: string 
 const metrics = ref<MetricBundle>({
   revenueCents: 0,
   canceledCents: 0,
+  goodsCostCents: 0,
+  canceledGoodsCostCents: 0,
+  netRevenueCents: 0,
+  netGoodsCostCents: 0,
+  grossProfitCents: 0,
+  grossMarginPercent: 0,
   bookingCount: 0,
   cancellationCount: 0,
   avgTicketCents: 0,
@@ -55,13 +67,16 @@ const metrics = ref<MetricBundle>({
 });
 const dailySummary = ref<Array<{ day: string; revenue: number; canceled: number }>>([]);
 const categorySummary = ref<Array<{ category: string; revenue: number; canceled: number }>>([]);
-const topProducts = ref<Array<{ product_key?: string; product_name?: string; product?: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number }>>([]);
+const topProducts = ref<Array<{ product_key?: string; product_name?: string; product?: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number; gross_profit?: number }>>([]);
 const heatGrid = ref<Array<{ day: number; label: string; cells: Array<{ day: number; hour: number; count: number }> }>>([]);
 const peakHour = ref<{ stunde: number; anzahl_tx: number } | null>(null);
 const peakWeekday = ref<{ day: number; count: number } | null>(null);
 
 const revenueCents = computed(() => metrics.value.revenueCents);
 const canceledCents = computed(() => metrics.value.canceledCents);
+const goodsCostCents = computed(() => metrics.value.goodsCostCents);
+const grossProfitCents = computed(() => metrics.value.grossProfitCents);
+const grossMarginPercent = computed(() => metrics.value.grossMarginPercent);
 const bookingCount = computed(() => metrics.value.bookingCount);
 const cancellationCount = computed(() => metrics.value.cancellationCount);
 const avgTicketCents = computed(() => metrics.value.avgTicketCents);
@@ -387,6 +402,8 @@ onBeforeUnmount(destroyCharts);
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <button class="relative bg-white rounded-xl border border-primary/25 p-4 pr-14 text-left transition active:scale-[0.99]" @click="goToRevenue()"><span class="absolute right-3 top-3 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Details</span><div class="text-xs uppercase text-gray-500">Umsatz</div><div class="text-2xl font-semibold text-primary">{{ euro(revenueCents) }}</div></button>
         <button class="relative bg-white rounded-xl border border-primary/25 p-4 pr-14 text-left transition active:scale-[0.99]" @click="goToCancellations()"><span class="absolute right-3 top-3 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Details</span><div class="text-xs uppercase text-gray-500">Stornosumme</div><div class="text-2xl font-semibold text-red-700">{{ euro(canceledCents) }}</div></button>
+        <button class="relative bg-white rounded-xl border border-primary/25 p-4 pr-14 text-left transition active:scale-[0.99]" @click="goToRevenue()"><span class="absolute right-3 top-3 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Details</span><div class="text-xs uppercase text-gray-500">Wareneinsatz</div><div class="text-2xl font-semibold text-amber-700">{{ euro(goodsCostCents) }}</div></button>
+        <button class="relative bg-white rounded-xl border border-primary/25 p-4 pr-14 text-left transition active:scale-[0.99]" @click="goToRevenue()"><span class="absolute right-3 top-3 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Details</span><div class="text-xs uppercase text-gray-500">Rohgewinn</div><div class="text-2xl font-semibold" :class="grossProfitCents >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ euro(grossProfitCents) }}</div><div class="text-xs text-gray-500">Marge {{ grossMarginPercent.toFixed(1) }}%</div></button>
         <button class="relative bg-white rounded-xl border border-primary/25 p-4 pr-14 text-left transition active:scale-[0.99]" @click="goToCancellations()"><span class="absolute right-3 top-3 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Details</span><div class="text-xs uppercase text-gray-500">Stornos</div><div class="text-2xl font-semibold text-primary">{{ cancellationCount }}</div></button>
         <button class="relative bg-white rounded-xl border border-primary/25 p-4 pr-14 text-left transition active:scale-[0.99]" @click="goToRevenue()"><span class="absolute right-3 top-3 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Details</span><div class="text-xs uppercase text-gray-500">Ø Bon</div><div class="text-2xl font-semibold text-primary">{{ euro(avgTicketCents) }}</div></button>
         <button class="relative bg-white rounded-xl border border-primary/25 p-4 pr-14 text-left transition active:scale-[0.99]" @click="goToBookings()"><span class="absolute right-3 top-3 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Details</span><div class="text-xs uppercase text-gray-500">Buchungen</div><div class="text-2xl font-semibold text-primary">{{ bookingCount }}</div></button>
@@ -414,7 +431,7 @@ onBeforeUnmount(destroyCharts);
             <div v-for="(row, idx) in topProducts" :key="row.product_key ?? row.product_name ?? row.product ?? idx" class="rounded-xl border border-gray-200 p-3 bg-gradient-to-r from-white to-gray-50/80">
               <div class="flex items-center justify-between gap-3 mb-2"><div class="flex items-center gap-2 min-w-0"><span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">{{ idx + 1 }}</span><span class="font-medium text-gray-800 truncate">{{ row.product_name || row.product }}</span></div><div class="text-sm font-semibold whitespace-nowrap" :class="row.net_quantity >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ row.net_quantity }} netto</div></div>
               <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full transition-all duration-500" :style="productBarStyle(row.net_quantity)"></div></div>
-              <div class="mt-2 flex items-center justify-between text-xs text-gray-500"><span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos · {{ euro(row.revenue - row.canceled) }}</span><span>{{ productSharePercent(row.net_quantity).toFixed(1) }}% Anteil</span></div>
+              <div class="mt-2 flex items-center justify-between text-xs text-gray-500"><span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos · {{ euro(row.gross_profit ?? (row.revenue - row.canceled)) }} Rohgewinn</span><span>{{ productSharePercent(row.net_quantity).toFixed(1) }}% Anteil</span></div>
             </div>
             <div v-if="topProducts.length === 0" class="text-sm text-gray-400 italic py-8 text-center">Keine Produktdaten im Zeitraum</div>
           </div>

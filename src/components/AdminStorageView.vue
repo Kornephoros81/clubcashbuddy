@@ -66,10 +66,13 @@ async function saveAll() {
         >
           <tr>
             <th class="px-4 py-3 text-left">Produkt</th>
+            <th class="px-4 py-3 text-right">Letzter EK</th>
             <th class="px-4 py-3 text-right">Lager</th>
             <th class="px-4 py-3 text-right">Kühlschrank</th>
             <th class="px-4 py-3 text-right">Gesamt</th>
             <th class="px-4 py-3 text-right">Einlagerung</th>
+            <th class="px-4 py-3 text-right">EK neu</th>
+            <th class="px-4 py-3 text-right">Bestandswert</th>
             <th class="px-4 py-3 text-left">Letzte Änderung</th>
           </tr>
         </thead>
@@ -81,6 +84,10 @@ async function saveAll() {
             class="border-t hover:bg-primary/5 transition-colors"
           >
             <td class="px-4 py-2">{{ p.name }}</td>
+
+            <td class="px-4 py-2 text-right">
+              {{ Number(p.lastPurchasePriceEuro ?? 0).toFixed(2) }} €
+            </td>
 
             <td class="px-4 py-2 text-right">{{ p.warehouse_stock ?? 0 }}</td>
             <td class="px-4 py-2 text-right">{{ p.fridge_stock ?? 0 }}</td>
@@ -94,6 +101,21 @@ async function saveAll() {
                 type="number"
                 class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
               />
+            </td>
+
+            <td class="px-4 py-2 text-right">
+              <input
+                v-model.number="p.purchasePriceEuro"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                :disabled="!(Number(p.delta ?? 0) > 0)"
+              />
+            </td>
+
+            <td class="px-4 py-2 text-right">
+              {{ Number(p.inventoryValueEuro ?? 0).toFixed(2) }} €
             </td>
 
             <td class="px-4 py-2">

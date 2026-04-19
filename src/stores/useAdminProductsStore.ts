@@ -37,6 +37,8 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         ...p,
         priceEuro: Number(p.price ?? 0) / 100,
         guestPriceEuro: Number(p.guest_price ?? 0) / 100,
+        lastPurchasePriceEuro: Number(p.last_purchase_price_cents ?? 0) / 100,
+        inventoryValueEuro: Number(p.inventory_value_cents ?? 0) / 100,
       };
     },
 
@@ -99,6 +101,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         category: p.category,
         price: Math.round(p.priceEuro * 100),
         guest_price: Math.round(p.guestPriceEuro * 100),
+        last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
         active: p.active,
         inventoried: p.inventoried,
       });
@@ -113,6 +116,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         name: p.name,
         price: Math.round(p.priceEuro * 100),
         guest_price: Math.round(p.guestPriceEuro * 100),
+        last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
         category: p.category,
         active: p.active,
         inventoried: p.inventoried,
@@ -129,6 +133,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
             name: p.name,
             price: Math.round(Number(p.priceEuro ?? 0) * 100),
             guest_price: Math.round(Number(p.guestPriceEuro ?? 0) * 100),
+            last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
             category: p.category,
             active: p.active,
             inventoried: p.inventoried,
@@ -188,10 +193,18 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         ...p,
         priceEuro: p.price / 100,
         guestPriceEuro: p.guest_price / 100,
+        lastPurchasePriceEuro: Number(p.last_purchase_price_cents ?? 0) / 100,
+        inventoryValueEuro: Number(p.inventory_value_cents ?? 0) / 100,
         warehouse_stock: p.warehouse_stock ?? 0,
         fridge_stock: p.fridge_stock ?? 0,
         total_stock: Number(p.warehouse_stock ?? 0) + Number(p.fridge_stock ?? 0),
         last_restocked_at: p.last_restocked_at,
+        last_purchase_price_cents: Number(p.last_purchase_price_cents ?? 0),
+        inventory_value_cents: Number(p.inventory_value_cents ?? 0),
+        purchasePriceEuro:
+          Number(p.last_purchase_price_cents ?? 0) > 0
+            ? Number(p.last_purchase_price_cents ?? 0) / 100
+            : null,
         delta: 0,
       }));
       this.loading = false;
@@ -199,8 +212,27 @@ export const useAdminProductsStore = defineStore("adminProducts", {
 
     async updateStorageChanges() {
       const changed = this.products.filter((p) => p.delta && p.delta !== 0);
+      const invalidPurchasePrice = changed.find((p) =>
+        Number(p.delta ?? 0) > 0
+          && (
+            p.purchasePriceEuro === null
+            || p.purchasePriceEuro === undefined
+            || p.purchasePriceEuro === ""
+            || !Number.isFinite(Number(p.purchasePriceEuro))
+          ),
+      );
+      if (invalidPurchasePrice) {
+        throw new Error(`Einkaufspreis fehlt für ${invalidPurchasePrice.name}`);
+      }
       await apiRequest("/api/admin-storage", "POST", {
-        items: changed.map((p) => ({ product_id: p.id, amount: p.delta })),
+        items: changed.map((p) => ({
+          product_id: p.id,
+          amount: p.delta,
+          purchase_price_cents:
+            Number(p.delta ?? 0) > 0
+              ? Math.round(Number(p.purchasePriceEuro ?? p.lastPurchasePriceEuro ?? 0) * 100)
+              : null,
+        })),
       });
       await this.loadProductsWithStorage();
     },
