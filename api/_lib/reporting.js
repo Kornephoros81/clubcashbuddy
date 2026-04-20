@@ -21,6 +21,8 @@ function normalizeRevenueRow(row) {
     product_category: row?.product_category ?? "Unbekannt",
     amount: Number(row?.amount ?? 0),
     amount_abs: Number(row?.amount_abs ?? Math.abs(Number(row?.amount ?? 0))),
+    product_cost_snapshot_cents: Number(row?.product_cost_snapshot_cents ?? 0),
+    cost_amount_abs: Number(row?.cost_amount_abs ?? row?.product_cost_snapshot_cents ?? 0),
     is_free_amount: Boolean(row?.is_free_amount),
     note: row?.note ?? null,
   };
@@ -204,6 +206,11 @@ export function buildRevenueReportPayload(rawRows, options = {}) {
 
   const revenueCents = revenueBookingRows.reduce((sum, row) => sum + Number(row.amount_abs ?? 0), 0);
   const canceledCents = revenueCancellationRows.reduce((sum, row) => sum + Number(row.amount_abs ?? 0), 0);
+  const goodsCostCents = revenueBookingRows.reduce((sum, row) => sum + Number(row.cost_amount_abs ?? 0), 0);
+  const canceledGoodsCostCents = revenueCancellationRows.reduce((sum, row) => sum + Number(row.cost_amount_abs ?? 0), 0);
+  const netRevenueCents = revenueCents - canceledCents;
+  const netGoodsCostCents = goodsCostCents - canceledGoodsCostCents;
+  const grossProfitCents = netRevenueCents - netGoodsCostCents;
   const bookingCount = revenueBookingRows.length;
   const cancellationCount = revenueCancellationRows.length;
   const avgTicketCents = bookingCount > 0 ? Math.round(revenueCents / bookingCount) : 0;
@@ -216,6 +223,7 @@ export function buildRevenueReportPayload(rawRows, options = {}) {
   const revenuePerMemberCents = activeMembers > 0 ? Math.round(revenueCents / activeMembers) : 0;
   const stornoRateAmount = revenueCents > 0 ? (canceledCents / revenueCents) * 100 : 0;
   const stornoRateCount = bookingCount > 0 ? (cancellationCount / bookingCount) * 100 : 0;
+  const grossMarginPercent = netRevenueCents > 0 ? (grossProfitCents / netRevenueCents) * 100 : 0;
 
   const freeAmountRows = revenueBookingRows.filter((row) => row.transaction_type === "sale_free_amount");
   const freeAmountCents = freeAmountRows.reduce((sum, row) => sum + Number(row.amount_abs ?? 0), 0);
@@ -272,10 +280,15 @@ export function buildRevenueReportPayload(rawRows, options = {}) {
       net_quantity: 0,
       revenue: 0,
       canceled: 0,
+      goods_cost: 0,
+      canceled_goods_cost: 0,
+      gross_profit: 0,
     };
     current.bookings += 1;
     current.net_quantity += 1;
     current.revenue += Number(row.amount_abs ?? 0);
+    current.goods_cost += Number(row.cost_amount_abs ?? 0);
+    current.gross_profit = (current.revenue - current.canceled) - (current.goods_cost - current.canceled_goods_cost);
     productMap.set(key, current);
   }
   for (const row of revenueCancellationRows) {
@@ -289,10 +302,15 @@ export function buildRevenueReportPayload(rawRows, options = {}) {
       net_quantity: 0,
       revenue: 0,
       canceled: 0,
+      goods_cost: 0,
+      canceled_goods_cost: 0,
+      gross_profit: 0,
     };
     current.cancellations += 1;
     current.net_quantity -= 1;
     current.canceled += Number(row.amount_abs ?? 0);
+    current.canceled_goods_cost += Number(row.cost_amount_abs ?? 0);
+    current.gross_profit = (current.revenue - current.canceled) - (current.goods_cost - current.canceled_goods_cost);
     productMap.set(key, current);
   }
   const productSummary = [...productMap.values()].sort((a, b) =>
@@ -318,6 +336,12 @@ export function buildRevenueReportPayload(rawRows, options = {}) {
     metrics: {
       revenueCents,
       canceledCents,
+      goodsCostCents,
+      canceledGoodsCostCents,
+      netRevenueCents,
+      netGoodsCostCents,
+      grossProfitCents,
+      grossMarginPercent,
       bookingCount,
       cancellationCount,
       avgTicketCents,

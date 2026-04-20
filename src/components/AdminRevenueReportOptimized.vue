@@ -12,6 +12,12 @@ type HeatAggregationMode = "trimmed_mean" | "mean" | "max";
 type MetricBundle = {
   revenueCents: number;
   canceledCents: number;
+  goodsCostCents: number;
+  canceledGoodsCostCents: number;
+  netRevenueCents: number;
+  netGoodsCostCents: number;
+  grossProfitCents: number;
+  grossMarginPercent: number;
   bookingCount: number;
   cancellationCount: number;
   avgTicketCents: number;
@@ -49,6 +55,12 @@ const heatAggregationOptions: Array<{ value: HeatAggregationMode; label: string 
 const metrics = ref<MetricBundle>({
   revenueCents: 0,
   canceledCents: 0,
+  goodsCostCents: 0,
+  canceledGoodsCostCents: 0,
+  netRevenueCents: 0,
+  netGoodsCostCents: 0,
+  grossProfitCents: 0,
+  grossMarginPercent: 0,
   bookingCount: 0,
   cancellationCount: 0,
   avgTicketCents: 0,
@@ -63,13 +75,18 @@ const memberOptions = ref<Array<{ id: string; name: string }>>([]);
 const categoryOptions = ref<string[]>([]);
 const dailySummary = ref<Array<{ day: string; revenue: number; canceled: number }>>([]);
 const categorySummary = ref<Array<{ category: string; revenue: number; canceled: number }>>([]);
-const productSummary = ref<Array<{ product_key: string; product_name: string; product_category: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number }>>([]);
-const topProducts = ref<Array<{ product_key: string; product_name: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number }>>([]);
+const productSummary = ref<Array<{ product_key: string; product_name: string; product_category: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number; goods_cost: number; canceled_goods_cost: number; gross_profit: number }>>([]);
+const topProducts = ref<Array<{ product_key: string; product_name: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number; goods_cost: number; canceled_goods_cost: number; gross_profit: number }>>([]);
 const heatGrid = ref<Array<{ day: number; label: string; cells: Array<{ day: number; hour: number; count: number }> }>>([]);
 const recentEvents = ref<any[]>([]);
 
 const revenueCents = computed(() => metrics.value.revenueCents);
 const canceledCents = computed(() => metrics.value.canceledCents);
+const goodsCostCents = computed(() => metrics.value.goodsCostCents);
+const canceledGoodsCostCents = computed(() => metrics.value.canceledGoodsCostCents);
+const netRevenueCents = computed(() => metrics.value.netRevenueCents);
+const grossProfitCents = computed(() => metrics.value.grossProfitCents);
+const grossMarginPercent = computed(() => metrics.value.grossMarginPercent);
 const bookingCount = computed(() => metrics.value.bookingCount);
 const cancellationCount = computed(() => metrics.value.cancellationCount);
 const avgTicketCents = computed(() => metrics.value.avgTicketCents);
@@ -375,6 +392,8 @@ async function exportPdf() {
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Umsatz</div><div class="text-2xl font-semibold text-primary">{{ formatEuroFromCents(revenueCents) }}</div></div>
       <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Stornosumme</div><div class="text-2xl font-semibold text-red-700">{{ formatEuroFromCents(canceledCents) }}</div></div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Wareneinsatz</div><div class="text-2xl font-semibold text-amber-700">{{ formatEuroFromCents(goodsCostCents) }}</div><div class="text-xs text-gray-500">Storno: {{ formatEuroFromCents(canceledGoodsCostCents) }}</div></div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Rohgewinn</div><div class="text-2xl font-semibold" :class="grossProfitCents >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ formatEuroFromCents(grossProfitCents) }}</div><div class="text-xs text-gray-500">Marge: {{ grossMarginPercent.toFixed(1) }}%</div></div>
       <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Stornoquote</div><div class="text-sm text-gray-600">Anzahl: {{ stornoRateCount.toFixed(1) }}%</div><div class="text-xl font-semibold text-primary">Betrag: {{ stornoRateAmount.toFixed(1) }}%</div></div>
       <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Durchschnittsbon</div><div class="text-2xl font-semibold text-primary">{{ formatEuroFromCents(avgTicketCents) }}</div></div>
       <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Buchungen</div><div class="text-2xl font-semibold text-primary">{{ bookingCount }}</div></div>
@@ -382,6 +401,7 @@ async function exportPdf() {
       <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Aktive Käufer</div><div class="text-2xl font-semibold text-primary">{{ activeMembers }}</div></div>
       <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Freie Beträge</div><div class="text-sm text-gray-600">{{ freeAmountSummary.count }} Buchungen</div><div class="text-xl font-semibold text-primary">{{ formatEuroFromCents(freeAmountSummary.cents) }}</div></div>
       <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Nicht umsatzrelevant</div><div class="text-sm text-gray-600">{{ nonRevenueSummary.count }} Buchungen · {{ nonRevenueSummary.canceledCount }} Stornos</div><div class="text-xl font-semibold text-amber-700">{{ formatEuroFromCents(nonRevenueSummary.cents) }}</div><div class="text-xs text-gray-500">Storno: {{ formatEuroFromCents(nonRevenueSummary.canceledCents) }}</div></div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Netto-Umsatz</div><div class="text-2xl font-semibold text-primary">{{ formatEuroFromCents(netRevenueCents) }}</div></div>
     </div>
 
     <div v-if="loading" class="text-center py-10 text-gray-500">⏳ Umsatzreport wird geladen...</div>
@@ -400,7 +420,7 @@ async function exportPdf() {
             <div v-for="(row, idx) in topProducts" :key="row.product_key" class="rounded-xl border border-gray-200 p-3 bg-gradient-to-r from-white to-gray-50/80">
               <div class="flex items-center justify-between gap-3 mb-2"><div class="flex items-center gap-2 min-w-0"><span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">{{ idx + 1 }}</span><span class="font-medium text-gray-800 truncate">{{ row.product_name }}</span></div><div class="text-sm font-semibold whitespace-nowrap" :class="row.net_quantity >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ row.net_quantity }} netto</div></div>
               <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full transition-all duration-500" :style="productBarStyle(row.net_quantity)"></div></div>
-              <div class="mt-2 flex items-center justify-between text-xs text-gray-500"><span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos · {{ formatEuroFromCents(row.revenue - row.canceled) }}</span><span>{{ productSharePercent(row.net_quantity).toFixed(1) }}% Anteil</span></div>
+              <div class="mt-2 flex items-center justify-between text-xs text-gray-500"><span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos · {{ formatEuroFromCents(row.gross_profit) }} Rohgewinn</span><span>{{ productSharePercent(row.net_quantity).toFixed(1) }}% Anteil</span></div>
             </div>
             <div v-if="topProducts.length === 0" class="text-sm text-gray-400 italic py-8 text-center">Keine Produktdaten im Zeitraum</div>
           </div>
@@ -427,10 +447,10 @@ async function exportPdf() {
       <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
         <h3 class="font-semibold text-primary px-4 pt-4">Produktübersicht</h3>
         <table class="min-w-full text-sm text-gray-700">
-          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold"><tr><th class="px-4 py-3 text-left">Kategorie</th><th class="px-4 py-3 text-left">Produkt</th><th class="px-4 py-3 text-right">Buchungen</th><th class="px-4 py-3 text-right">Stornos</th><th class="px-4 py-3 text-right">Netto</th><th class="px-4 py-3 text-right">Umsatz</th><th class="px-4 py-3 text-right">Storno</th><th class="px-4 py-3 text-right">Stornoquote</th></tr></thead>
+          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold"><tr><th class="px-4 py-3 text-left">Kategorie</th><th class="px-4 py-3 text-left">Produkt</th><th class="px-4 py-3 text-right">Buchungen</th><th class="px-4 py-3 text-right">Stornos</th><th class="px-4 py-3 text-right">Netto</th><th class="px-4 py-3 text-right">Umsatz</th><th class="px-4 py-3 text-right">Wareneinsatz</th><th class="px-4 py-3 text-right">Rohgewinn</th><th class="px-4 py-3 text-right">Stornoquote</th></tr></thead>
           <tbody>
-            <tr v-for="row in productSummary" :key="row.product_key" class="border-t hover:bg-primary/5 transition-colors"><td class="px-4 py-2">{{ row.product_category }}</td><td class="px-4 py-2">{{ row.product_name }}</td><td class="px-4 py-2 text-right">{{ row.bookings }}</td><td class="px-4 py-2 text-right">{{ row.cancellations }}</td><td class="px-4 py-2 text-right font-semibold">{{ row.net_quantity }}</td><td class="px-4 py-2 text-right">{{ formatEuroFromCents(row.revenue) }}</td><td class="px-4 py-2 text-right text-red-700">{{ formatEuroFromCents(row.canceled) }}</td><td class="px-4 py-2 text-right font-semibold text-gray-700">{{ row.revenue > 0 ? ((row.canceled / row.revenue) * 100).toFixed(1) : "0.0" }}%</td></tr>
-            <tr v-if="productSummary.length === 0"><td colspan="8" class="text-center py-6 text-gray-400 italic">Keine Umsätze im gewählten Zeitraum</td></tr>
+            <tr v-for="row in productSummary" :key="row.product_key" class="border-t hover:bg-primary/5 transition-colors"><td class="px-4 py-2">{{ row.product_category }}</td><td class="px-4 py-2">{{ row.product_name }}</td><td class="px-4 py-2 text-right">{{ row.bookings }}</td><td class="px-4 py-2 text-right">{{ row.cancellations }}</td><td class="px-4 py-2 text-right font-semibold">{{ row.net_quantity }}</td><td class="px-4 py-2 text-right">{{ formatEuroFromCents(row.revenue - row.canceled) }}</td><td class="px-4 py-2 text-right text-amber-700">{{ formatEuroFromCents(row.goods_cost - row.canceled_goods_cost) }}</td><td class="px-4 py-2 text-right font-semibold" :class="row.gross_profit >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ formatEuroFromCents(row.gross_profit) }}</td><td class="px-4 py-2 text-right font-semibold text-gray-700">{{ row.revenue > 0 ? ((row.canceled / row.revenue) * 100).toFixed(1) : "0.0" }}%</td></tr>
+            <tr v-if="productSummary.length === 0"><td colspan="9" class="text-center py-6 text-gray-400 italic">Keine Umsätze im gewählten Zeitraum</td></tr>
           </tbody>
         </table>
       </div>

@@ -27,6 +27,7 @@ async function apiRequest(path: string, method = "GET", body?: unknown) {
 export const useAdminProductsStore = defineStore("adminProducts", {
   state: () => ({
     products: [] as any[],
+    purchaseLots: [] as any[],
     categories: [] as any[],
     loading: false,
   }),
@@ -37,6 +38,19 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         ...p,
         priceEuro: Number(p.price ?? 0) / 100,
         guestPriceEuro: Number(p.guest_price ?? 0) / 100,
+        lastPurchasePriceEuro: Number(p.last_purchase_price_cents ?? 0) / 100,
+        inventoryValueEuro: Number(p.inventory_value_cents ?? 0) / 100,
+      };
+    },
+
+    normalizePurchaseLot(lot: any) {
+      return {
+        ...lot,
+        unitCostEuro: Number(lot.unit_cost_cents ?? 0) / 100,
+        correctedFromPriceEuro:
+          lot.corrected_from_price_cents === null || lot.corrected_from_price_cents === undefined
+            ? null
+            : Number(lot.corrected_from_price_cents ?? 0) / 100,
       };
     },
 
@@ -188,21 +202,69 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         ...p,
         priceEuro: p.price / 100,
         guestPriceEuro: p.guest_price / 100,
+        lastPurchasePriceEuro: Number(p.last_purchase_price_cents ?? 0) / 100,
+        inventoryValueEuro: Number(p.inventory_value_cents ?? 0) / 100,
         warehouse_stock: p.warehouse_stock ?? 0,
         fridge_stock: p.fridge_stock ?? 0,
         total_stock: Number(p.warehouse_stock ?? 0) + Number(p.fridge_stock ?? 0),
         last_restocked_at: p.last_restocked_at,
+        last_purchase_price_cents: Number(p.last_purchase_price_cents ?? 0),
+        inventory_value_cents: Number(p.inventory_value_cents ?? 0),
+        purchasePriceEuro:
+          Number(p.last_purchase_price_cents ?? 0) > 0
+            ? Number(p.last_purchase_price_cents ?? 0) / 100
+            : null,
         delta: 0,
       }));
       this.loading = false;
     },
 
-    async updateStorageChanges() {
-      const changed = this.products.filter((p) => p.delta && p.delta !== 0);
-      await apiRequest("/api/admin-storage", "POST", {
-        items: changed.map((p) => ({ product_id: p.id, amount: p.delta })),
+    async loadPurchaseLots(productId: string | null = null, remainingOnly = true) {
+      const params = new URLSearchParams();
+      if (productId) params.set("product_id", productId);
+      params.set("remaining_only", remainingOnly ? "true" : "false");
+      const query = params.toString();
+      const data = await apiRequest(`/api/admin-product-lots${query ? `?${query}` : ""}`);
+      this.purchaseLots = (data ?? []).map((lot: any) => this.normalizePurchaseLot(lot));
+    },
+
+    async updatePurchaseLot(lot: any) {
+      const data = await apiRequest("/api/admin-product-lots", "PATCH", {
+        id: lot.id,
+        unit_cost_cents: Math.round(Number(lot.unitCostEuro ?? 0) * 100),
+        note: lot.note ?? null,
       });
       await this.loadProductsWithStorage();
+      await this.loadPurchaseLots(null, true);
+      return this.normalizePurchaseLot(data);
+    },
+
+    async updateStorageChanges() {
+      const changed = this.products.filter((p) => p.delta && p.delta !== 0);
+      const invalidPurchasePrice = changed.find((p) =>
+        Number(p.delta ?? 0) > 0
+          && (
+            p.purchasePriceEuro === null
+            || p.purchasePriceEuro === undefined
+            || p.purchasePriceEuro === ""
+            || !Number.isFinite(Number(p.purchasePriceEuro))
+          ),
+      );
+      if (invalidPurchasePrice) {
+        throw new Error(`Einkaufspreis fehlt für ${invalidPurchasePrice.name}`);
+      }
+      await apiRequest("/api/admin-storage", "POST", {
+        items: changed.map((p) => ({
+          product_id: p.id,
+          amount: p.delta,
+          purchase_price_cents:
+            Number(p.delta ?? 0) > 0
+              ? Math.round(Number(p.purchasePriceEuro ?? p.lastPurchasePriceEuro ?? 0) * 100)
+              : null,
+        })),
+      });
+      await this.loadProductsWithStorage();
+      await this.loadPurchaseLots(null, true);
     },
   },
 });
