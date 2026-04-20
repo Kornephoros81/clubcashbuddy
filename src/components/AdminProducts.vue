@@ -14,7 +14,6 @@ const newProductName = ref("");
 const newProductCategory = ref("Sonstiges");
 const newProductPrice = ref<number | null>(null);
 const newGuestPrice = ref<number | null>(null);
-const newLastPurchasePrice = ref<number | null>(null);
 const newProductInventoried = ref(true);
 const uploadingImageById = ref<Record<string, boolean>>({});
 const brokenPreviewById = ref<Record<string, boolean>>({});
@@ -213,7 +212,6 @@ async function confirmAddProduct() {
       category: newProductCategory.value.trim() || "Sonstiges",
       priceEuro: newProductPrice.value ?? 0,
       guestPriceEuro: newGuestPrice.value ?? 0,
-      lastPurchasePriceEuro: newLastPurchasePrice.value ?? 0,
       active: true,
       inventoried: newProductInventoried.value,
     });
@@ -223,7 +221,6 @@ async function confirmAddProduct() {
     newProductCategory.value = activeCategoryOptions.value[0]?.name ?? "Sonstiges";
     newProductPrice.value = null;
     newGuestPrice.value = null;
-    newLastPurchasePrice.value = null;
     newProductInventoried.value = true;
     showNewProductModal.value = false;
   } catch (err) {
@@ -406,16 +403,6 @@ async function deleteProduct(p: any) {
                 class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
               />
             </div>
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Letzter EK (€)</label>
-              <input
-                v-model.number="p.lastPurchasePriceEuro"
-                type="number"
-                step="0.01"
-                min="0"
-                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
-              />
-            </div>
             <div class="sm:col-span-2">
               <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Kategorie</label>
               <select
@@ -499,7 +486,6 @@ async function deleteProduct(p: any) {
             </th>
             <th class="px-4 py-3 text-right">Preis (€)</th>
             <th class="px-4 py-3 text-right">Gast (€)</th>
-            <th class="px-4 py-3 text-right">Letzter EK (€)</th>
             <th class="px-4 py-3 text-left">
               <button @click="toggleSort('category')" class="hover:underline normal-case">
                 Kategorie{{ sortIndicator("category") }}
@@ -546,18 +532,6 @@ async function deleteProduct(p: any) {
                 step="0.01"
                 min="0"
                 placeholder="Gast"
-                class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-              />
-              <span class="text-gray-500 ml-1">€</span>
-            </td>
-
-            <td class="px-4 py-2 text-right">
-              <input
-                v-model.number="p.lastPurchasePriceEuro"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="EK"
                 class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
               />
               <span class="text-gray-500 ml-1">€</span>
@@ -643,7 +617,7 @@ async function deleteProduct(p: any) {
             </td>
           </tr>
           <tr v-if="sortedProducts.length === 0">
-            <td colspan="9" class="text-center py-6 text-gray-400 italic">
+            <td colspan="8" class="text-center py-6 text-gray-400 italic">
               Keine Artikel für den gewählten Filter
             </td>
           </tr>
@@ -679,15 +653,6 @@ async function deleteProduct(p: any) {
           v-model.number="newGuestPrice"
           type="number"
           step="0.01"
-          class="w-full border rounded-md p-2 text-sm"
-        />
-
-        <label class="block text-sm text-gray-600">Letzter EK (€)</label>
-        <input
-          v-model.number="newLastPurchasePrice"
-          type="number"
-          step="0.01"
-          min="0"
           class="w-full border rounded-md p-2 text-sm"
         />
 

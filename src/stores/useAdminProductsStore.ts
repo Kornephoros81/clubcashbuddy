@@ -27,6 +27,7 @@ async function apiRequest(path: string, method = "GET", body?: unknown) {
 export const useAdminProductsStore = defineStore("adminProducts", {
   state: () => ({
     products: [] as any[],
+    purchaseLots: [] as any[],
     categories: [] as any[],
     loading: false,
   }),
@@ -39,6 +40,17 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         guestPriceEuro: Number(p.guest_price ?? 0) / 100,
         lastPurchasePriceEuro: Number(p.last_purchase_price_cents ?? 0) / 100,
         inventoryValueEuro: Number(p.inventory_value_cents ?? 0) / 100,
+      };
+    },
+
+    normalizePurchaseLot(lot: any) {
+      return {
+        ...lot,
+        unitCostEuro: Number(lot.unit_cost_cents ?? 0) / 100,
+        correctedFromPriceEuro:
+          lot.corrected_from_price_cents === null || lot.corrected_from_price_cents === undefined
+            ? null
+            : Number(lot.corrected_from_price_cents ?? 0) / 100,
       };
     },
 
@@ -101,7 +113,6 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         category: p.category,
         price: Math.round(p.priceEuro * 100),
         guest_price: Math.round(p.guestPriceEuro * 100),
-        last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
         active: p.active,
         inventoried: p.inventoried,
       });
@@ -116,7 +127,6 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         name: p.name,
         price: Math.round(p.priceEuro * 100),
         guest_price: Math.round(p.guestPriceEuro * 100),
-        last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
         category: p.category,
         active: p.active,
         inventoried: p.inventoried,
@@ -133,7 +143,6 @@ export const useAdminProductsStore = defineStore("adminProducts", {
             name: p.name,
             price: Math.round(Number(p.priceEuro ?? 0) * 100),
             guest_price: Math.round(Number(p.guestPriceEuro ?? 0) * 100),
-            last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
             category: p.category,
             active: p.active,
             inventoried: p.inventoried,
@@ -210,6 +219,26 @@ export const useAdminProductsStore = defineStore("adminProducts", {
       this.loading = false;
     },
 
+    async loadPurchaseLots(productId: string | null = null, remainingOnly = true) {
+      const params = new URLSearchParams();
+      if (productId) params.set("product_id", productId);
+      params.set("remaining_only", remainingOnly ? "true" : "false");
+      const query = params.toString();
+      const data = await apiRequest(`/api/admin-product-lots${query ? `?${query}` : ""}`);
+      this.purchaseLots = (data ?? []).map((lot: any) => this.normalizePurchaseLot(lot));
+    },
+
+    async updatePurchaseLot(lot: any) {
+      const data = await apiRequest("/api/admin-product-lots", "PATCH", {
+        id: lot.id,
+        unit_cost_cents: Math.round(Number(lot.unitCostEuro ?? 0) * 100),
+        note: lot.note ?? null,
+      });
+      await this.loadProductsWithStorage();
+      await this.loadPurchaseLots(null, true);
+      return this.normalizePurchaseLot(data);
+    },
+
     async updateStorageChanges() {
       const changed = this.products.filter((p) => p.delta && p.delta !== 0);
       const invalidPurchasePrice = changed.find((p) =>
@@ -235,6 +264,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         })),
       });
       await this.loadProductsWithStorage();
+      await this.loadPurchaseLots(null, true);
     },
   },
 });

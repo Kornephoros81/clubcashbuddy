@@ -6,10 +6,11 @@ import { useToast } from "@/composables/useToast";
 
 const store = useAdminProductsStore();
 const { show: showToast } = useToast();
-const loading = ref(false);
+const savingLotById = ref<Record<string, boolean>>({});
 
 onMounted(async () => {
   await store.loadProductsWithStorage();
+  await store.loadPurchaseLots(null, true);
 });
 
 async function delay(ms = 800) {
@@ -32,6 +33,30 @@ async function saveAll() {
   } catch (err) {
     console.error("[saveAllStorage]", err);
     showToast("⚠️ Fehler beim Aktualisieren der Lagerbestände");
+  }
+}
+
+function setLotSaving(lotId: string, saving: boolean) {
+  savingLotById.value = {
+    ...savingLotById.value,
+    [lotId]: saving,
+  };
+}
+
+function isLotSaving(lotId: string) {
+  return Boolean(savingLotById.value[lotId]);
+}
+
+async function saveLot(lot: any) {
+  try {
+    setLotSaving(lot.id, true);
+    await store.updatePurchaseLot(lot);
+    showToast(`✅ EK für ${lot.product_name} aktualisiert`);
+  } catch (err) {
+    console.error("[savePurchaseLot]", err);
+    showToast("⚠️ Fehler beim Aktualisieren des EK");
+  } finally {
+    setLotSaving(lot.id, false);
   }
 }
 </script>
@@ -124,6 +149,86 @@ async function saveAll() {
                   ? new Date(p.last_restocked_at).toLocaleString()
                   : "-"
               }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
+      <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-primary">Aktive Einlagerungen / Lots</h3>
+        <span class="text-xs text-gray-500">
+          EK-Korrekturen wirken nur auf Restbestand und zukünftige Verkäufe.
+        </span>
+      </div>
+
+      <table class="min-w-full text-sm text-gray-700">
+        <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
+          <tr>
+            <th class="px-4 py-3 text-left">Produkt</th>
+            <th class="px-4 py-3 text-left">Quelle</th>
+            <th class="px-4 py-3 text-right">Menge</th>
+            <th class="px-4 py-3 text-right">Rest</th>
+            <th class="px-4 py-3 text-right">EK</th>
+            <th class="px-4 py-3 text-right">Vorher</th>
+            <th class="px-4 py-3 text-left">Datum</th>
+            <th class="px-4 py-3 text-left">Notiz</th>
+            <th class="px-4 py-3 text-right">Aktion</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr v-if="!store.purchaseLots.length">
+            <td colspan="9" class="px-4 py-6 text-center text-gray-500">
+              Keine aktiven Lots vorhanden.
+            </td>
+          </tr>
+
+          <tr
+            v-for="lot in store.purchaseLots"
+            :key="lot.id"
+            class="border-t hover:bg-primary/5 transition-colors"
+          >
+            <td class="px-4 py-2">{{ lot.product_name }}</td>
+            <td class="px-4 py-2">{{ lot.source_reason }}</td>
+            <td class="px-4 py-2 text-right">{{ lot.purchased_quantity ?? 0 }}</td>
+            <td class="px-4 py-2 text-right">{{ lot.remaining_quantity ?? 0 }}</td>
+            <td class="px-4 py-2 text-right">
+              <input
+                v-model.number="lot.unitCostEuro"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+              />
+            </td>
+            <td class="px-4 py-2 text-right">
+              {{
+                lot.correctedFromPriceEuro === null || lot.correctedFromPriceEuro === undefined
+                  ? "-"
+                  : `${Number(lot.correctedFromPriceEuro).toFixed(2)} €`
+              }}
+            </td>
+            <td class="px-4 py-2">
+              {{ lot.created_at ? new Date(lot.created_at).toLocaleString() : "-" }}
+            </td>
+            <td class="px-4 py-2">
+              <input
+                v-model="lot.note"
+                type="text"
+                class="w-56 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                placeholder="Korrekturgrund"
+              />
+            </td>
+            <td class="px-4 py-2 text-right">
+              <button
+                @click="saveLot(lot)"
+                class="bg-primary text-white px-3 py-1.5 rounded-lg shadow hover:bg-primary/90 transition disabled:opacity-50"
+                :disabled="isLotSaving(lot.id)"
+              >
+                {{ isLotSaving(lot.id) ? "..." : "Speichern" }}
+              </button>
             </td>
           </tr>
         </tbody>

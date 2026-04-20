@@ -592,7 +592,6 @@ async function handleRoute(route, req, res) {
         p_category: body.category ?? "Sonstiges",
         p_active: body.active ?? true,
         p_inventoried: body.inventoried ?? true,
-        p_last_purchase_price_cents: body.last_purchase_price_cents ?? 0,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 201, data);
@@ -608,7 +607,6 @@ async function handleRoute(route, req, res) {
         p_category: body.category ?? null,
         p_active: body.active ?? null,
         p_inventoried: body.inventoried ?? null,
-        p_last_purchase_price_cents: body.last_purchase_price_cents ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 200, data);
@@ -645,7 +643,6 @@ async function handleRoute(route, req, res) {
         p_category: item.category ?? null,
         p_active: item.active ?? null,
         p_inventoried: item.inventoried ?? null,
-        p_last_purchase_price_cents: item.last_purchase_price_cents ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       updatedItems.push(data);
@@ -821,6 +818,38 @@ async function handleRoute(route, req, res) {
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
     }
     return json(res, 200, { success: true });
+  }
+
+  if (route === "admin-product-lots") {
+    const token = extractBearerToken(req);
+    if (!token) return json(res, 401, { error: "Unauthorized" });
+
+    if (req.method === "GET") {
+      const productIdRaw = Array.isArray(req.query.product_id) ? req.query.product_id[0] : req.query.product_id;
+      const remainingOnlyRaw = Array.isArray(req.query.remaining_only) ? req.query.remaining_only[0] : req.query.remaining_only;
+      const remainingOnly = remainingOnlyRaw === undefined ? true : String(remainingOnlyRaw).toLowerCase() !== "false";
+      const { data, error } = await supabase.rpc("api_admin_list_purchase_lots", {
+        p_token: token,
+        p_product_id: productIdRaw ? String(productIdRaw) : null,
+        p_remaining_only: remainingOnly,
+      });
+      if (error) return json(res, 403, { error: error.message || "Forbidden" });
+      return json(res, 200, data ?? []);
+    }
+
+    if (req.method === "PATCH") {
+      if (!body.id) return json(res, 400, { error: "Missing id" });
+      const { data, error } = await supabase.rpc("api_admin_update_purchase_lot_cost", {
+        p_token: token,
+        p_lot_id: body.id,
+        p_unit_cost_cents: body.unit_cost_cents ?? 0,
+        p_note: body.note ?? null,
+      });
+      if (error) return json(res, 403, { error: error.message || "Forbidden" });
+      return json(res, 200, data);
+    }
+
+    return json(res, 405, { error: "Method not allowed" });
   }
 
   if (route === "admin-report-summary") {
