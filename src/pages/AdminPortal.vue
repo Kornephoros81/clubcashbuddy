@@ -30,6 +30,7 @@ const reportLinks = [
   { to: "/admin/fridge-refills-report", label: "Kühlschrank-Auffüllungen", icon: "🧊" },
   { to: "/admin/cancellations-report", label: "Storno-Report", icon: "↩️" },
   { to: "/admin/revenue-report", label: "Umsatzreport", icon: "💶" },
+  { to: "/admin/complimentary-report", label: "Freigetränke", icon: "🎟️" },
   { to: "/admin/settlements-report", label: "Abrechnungsprotokoll", icon: "📒" },
   { to: "/admin/settlement", label: "Monatsabschluss", icon: "📘" },
 ];

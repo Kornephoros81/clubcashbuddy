@@ -374,6 +374,16 @@ const ADMIN_RPC_ACTIONS = {
       p_offset: p.offset ?? 0,
     }),
   },
+  get_complimentary_report_period: {
+    fn: "api_admin_get_complimentary_report_period",
+    args: (token, p) => ({
+      p_token: token,
+      p_start: p.start,
+      p_end: p.end,
+      p_limit: p.limit ?? null,
+      p_offset: p.offset ?? 0,
+    }),
+  },
   get_branding_settings: {
     fn: "api_admin_get_branding_settings",
     args: (token) => ({ p_token: token }),

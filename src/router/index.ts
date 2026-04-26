@@ -16,6 +16,7 @@ const AdminStockAdjustmentsReport = () => import("@/components/AdminStockAdjustm
 const AdminFridgeRefillsReport = () => import("@/components/AdminFridgeRefillsReport.vue");
 const AdminCancellationsReport = () => import("@/components/AdminCancellationsReport.vue");
 const AdminRevenueReport = () => import("@/components/AdminRevenueReportOptimized.vue");
+const AdminComplimentaryReport = () => import("@/components/AdminComplimentaryReport.vue");
 const AdminSettlementsReport = () => import("@/components/AdminSettlementsReport.vue");
 const AdminBrandingSettings = () => import("@/components/AdminBrandingSettings.vue");
 const AdminUsers = () => import("@/components/AdminUsers.vue");
@@ -41,6 +42,7 @@ const routes = [
       { path: "fridge-refills-report", component: AdminFridgeRefillsReport },
       { path: "cancellations-report", component: AdminCancellationsReport },
       { path: "revenue-report", component: AdminRevenueReport },
+      { path: "complimentary-report", component: AdminComplimentaryReport },
       { path: "settlements-report", component: AdminSettlementsReport },
       { path: "branding", component: AdminBrandingSettings },
       { path: "users", component: AdminUsers },
