@@ -1292,12 +1292,85 @@ async function handleRoute(route, req, res) {
     return json(res, 201, { success: true, data });
   }
 
+  if (route === "device-inactive-guests") {
+    if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+    const search = String(body.search ?? "").trim().toLowerCase();
+    const { data, error } = await supabase
+      .from("members")
+      .select("id,firstname,lastname,settled,last_settled_at,created_at")
+      .eq("is_guest", true)
+      .eq("active", false)
+      .order("lastname", { ascending: true })
+      .order("firstname", { ascending: true })
+      .limit(100);
+    if (error) return json(res, 500, { error: error.message || "Query failed" });
+
+    const rows = (Array.isArray(data) ? data : [])
+      .filter((m) => {
+        if (!search) return true;
+        const haystack = `${m.firstname ?? ""} ${m.lastname ?? ""}`.toLowerCase();
+        return haystack.includes(search);
+      })
+      .slice(0, 25)
+      .map((m) => {
+        const firstname = String(m.firstname ?? "").trim();
+        const lastname = String(m.lastname ?? "").trim();
+        const name = [lastname ? `Gast: ${lastname}` : "Gast", firstname]
+          .filter(Boolean)
+          .join(", ");
+        return {
+          id: m.id,
+          firstname,
+          lastname,
+          name,
+          settled: Boolean(m.settled),
+          last_settled_at: m.last_settled_at ?? null,
+          created_at: m.created_at ?? null,
+        };
+      });
+
+    return json(res, 200, { success: true, data: rows });
+  }
+
+  if (route === "device-reactivate-guest") {
+    if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+    if (!body.member_id) return json(res, 400, { error: "Missing member_id" });
+    const { data, error } = await supabase
+      .from("members")
+      .update({ active: true, settled: false })
+      .eq("id", body.member_id)
+      .eq("is_guest", true)
+      .eq("active", false)
+      .select()
+      .maybeSingle();
+    if (error) return json(res, 500, { error: error.message || "Update failed" });
+    if (!data) return json(res, 404, { error: "Guest not found" });
+    return json(res, 200, { success: true, data });
+  }
+
   if (route === "device-settle-guest") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
     if (!body.member_id) return json(res, 400, { error: "Missing member_id" });
+
+    const { data: member, error: memberLookupError } = await supabase
+      .from("members")
+      .select("id,is_guest")
+      .eq("id", body.member_id)
+      .maybeSingle();
+    if (memberLookupError) return json(res, 500, { error: memberLookupError.message || "Member lookup failed" });
+    if (!member || !member.is_guest) return json(res, 404, { error: "Guest not found" });
+
+    const settledAt = new Date().toISOString();
+    const { error: transactionError } = await supabase
+      .from("transactions")
+      .update({ settled_at: settledAt })
+      .eq("member_id", body.member_id)
+      .is("settled_at", null);
+    if (transactionError) return json(res, 500, { error: transactionError.message || "Transaction update failed" });
+
     const { error } = await supabase
       .from("members")
-      .update({ settled: true, active: false })
+      .update({ settled: true, active: false, last_settled_at: settledAt })
       .eq("id", body.member_id)
       .eq("is_guest", true);
     if (error) return json(res, 500, { error: error.message || "Update failed" });
