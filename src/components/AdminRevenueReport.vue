@@ -10,7 +10,7 @@ import { exportReportAsPdf } from "@/utils/reportExport";
 
 type RevenueEventRow = {
   event_type: "booking" | "cancellation";
-  transaction_type: "sale_product" | "sale_free_amount" | "cash_withdrawal" | "credit_adjustment";
+  transaction_type: "sale_product" | "sale_free_amount" | "cash_withdrawal" | "credit_adjustment" | "complimentary_product";
   event_at: string;
   local_day: string;
   transaction_created_at: string;
@@ -160,6 +160,7 @@ const transactionTypeOptions = [
   { value: "non_revenue", label: "Nicht umsatzrelevant" },
   { value: "sale_product", label: "Nur Produktverkäufe" },
   { value: "sale_free_amount", label: "Nur freie Verkäufe" },
+  { value: "complimentary_product", label: "Nur Freigetränke" },
 ];
 
 const filteredRows = computed(() =>
@@ -631,6 +632,7 @@ function productSharePercent(net: number) {
 }
 
 function transactionTypeLabel(v: RevenueEventRow["transaction_type"]) {
+  if (v === "complimentary_product") return "Freigetränk";
   if (v === "cash_withdrawal") return "Bar-Entnahme";
   if (v === "credit_adjustment") return "Guthabenbuchung";
   if (v === "sale_free_amount") return "Freier Verkauf";

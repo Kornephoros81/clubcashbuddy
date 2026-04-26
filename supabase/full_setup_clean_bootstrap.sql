@@ -5731,7 +5731,7 @@ alter table public.transactions
 
 alter table public.transactions
   add constraint transactions_transaction_type_chk
-  check (transaction_type in ('sale_product', 'sale_free_amount', 'cash_withdrawal', 'credit_adjustment'));
+  check (transaction_type in ('sale_product', 'sale_free_amount', 'cash_withdrawal', 'credit_adjustment', 'complimentary_product'));
 
 alter table public.storno_log
   add column if not exists transaction_type text;
@@ -5755,7 +5755,7 @@ alter table public.storno_log
 
 alter table public.storno_log
   add constraint storno_log_transaction_type_chk
-  check (transaction_type in ('sale_product', 'sale_free_amount', 'cash_withdrawal', 'credit_adjustment'));
+  check (transaction_type in ('sale_product', 'sale_free_amount', 'cash_withdrawal', 'credit_adjustment', 'complimentary_product'));
 
 drop function if exists public.book_transaction(uuid, uuid, integer, text, uuid);
 

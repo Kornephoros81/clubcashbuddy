@@ -165,6 +165,54 @@ function buildBrandingImageUrl(supabase, bustToken = null) {
   return bustToken ? `${base}?v=${encodeURIComponent(String(bustToken))}` : base;
 }
 
+async function markComplimentaryProductTransactions(supabase, memberId, transactionIds = null) {
+  let query = supabase
+    .from("transactions")
+    .select("id,amount,product_id")
+    .eq("member_id", memberId)
+    .is("settled_at", null)
+    .not("product_id", "is", null);
+
+  if (Array.isArray(transactionIds)) {
+    const ids = transactionIds.filter(Boolean);
+    if (!ids.length) return { count: 0, adjustedCents: 0 };
+    query = query.in("id", ids);
+  }
+
+  const { data: rows, error: readError } = await query;
+  if (readError) throw readError;
+
+  const targetRows = Array.isArray(rows) ? rows : [];
+  const ids = targetRows.map((row) => row.id).filter(Boolean);
+  if (!ids.length) return { count: 0, adjustedCents: 0 };
+
+  const oldAmountSum = targetRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const { error: updateError } = await supabase
+    .from("transactions")
+    .update({ amount: 0, transaction_type: "complimentary_product" })
+    .in("id", ids);
+  if (updateError) throw updateError;
+
+  const balanceAdjustment = -oldAmountSum;
+  if (balanceAdjustment !== 0) {
+    const { data: member, error: memberError } = await supabase
+      .from("members")
+      .select("balance")
+      .eq("id", memberId)
+      .maybeSingle();
+    if (memberError) throw memberError;
+
+    const nextBalance = Number(member?.balance ?? 0) + balanceAdjustment;
+    const { error: balanceError } = await supabase
+      .from("members")
+      .update({ balance: nextBalance })
+      .eq("id", memberId);
+    if (balanceError) throw balanceError;
+  }
+
+  return { count: ids.length, adjustedCents: balanceAdjustment };
+}
+
 async function verifyAdminSession(req) {
   const token = extractBearerToken(req);
   if (!token) return { ok: false, status: 401, error: "Unauthorized" };
@@ -1360,6 +1408,16 @@ async function handleRoute(route, req, res) {
     if (memberLookupError) return json(res, 500, { error: memberLookupError.message || "Member lookup failed" });
     if (!member || !member.is_guest) return json(res, 404, { error: "Guest not found" });
 
+    let complimentaryResult = { count: 0, adjustedCents: 0 };
+    if (body.complimentary_products === true) {
+      try {
+        complimentaryResult = await markComplimentaryProductTransactions(supabase, body.member_id);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Complimentary update failed";
+        return json(res, 500, { error: message });
+      }
+    }
+
     const settledAt = new Date().toISOString();
     const { error: transactionError } = await supabase
       .from("transactions")
@@ -1374,7 +1432,7 @@ async function handleRoute(route, req, res) {
       .eq("id", body.member_id)
       .eq("is_guest", true);
     if (error) return json(res, 500, { error: error.message || "Update failed" });
-    return json(res, 200, { success: true });
+    return json(res, 200, { success: true, complimentary: complimentaryResult });
   }
 
   if (route === "device-settle-guest-partial") {
@@ -1382,6 +1440,16 @@ async function handleRoute(route, req, res) {
     const memberId = body.member_id;
     const transactionIds = Array.isArray(body.transaction_ids) ? body.transaction_ids : [];
     if (!memberId || !transactionIds.length) return json(res, 400, { error: "Missing parameters" });
+
+    let complimentaryResult = { count: 0, adjustedCents: 0 };
+    if (body.complimentary_products === true) {
+      try {
+        complimentaryResult = await markComplimentaryProductTransactions(supabase, memberId, transactionIds);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Complimentary update failed";
+        return json(res, 500, { error: message });
+      }
+    }
 
     const { error } = await supabase
       .from("transactions")
@@ -1397,7 +1465,11 @@ async function handleRoute(route, req, res) {
       .is("settled_at", null);
     if (countError) return json(res, 500, { error: countError.message || "Count failed" });
 
-    return json(res, 200, { success: true, remaining_open_transactions: count ?? 0 });
+    return json(res, 200, {
+      success: true,
+      remaining_open_transactions: count ?? 0,
+      complimentary: complimentaryResult,
+    });
   }
 
   return json(res, 404, { error: "Unknown route" });

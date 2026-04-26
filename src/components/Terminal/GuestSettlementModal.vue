@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import BaseModal from "@/components/BaseModal.vue";
+import { useModal } from "@/composables/useModal";
 import { fetchMemberBookingsCached } from "@/utils/memberBookingsCache";
 
 const props = defineProps<{
@@ -10,11 +11,13 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   (e: "close"): void;
-  (e: "confirm"): void;
+  (e: "confirm", payload?: { complimentaryProducts?: boolean }): void;
 }>();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
+const complimentaryProducts = ref(false);
+const { confirm: confirmModal } = useModal();
 
 // rohe Einzeltransaktionen (ungrouped)
 type RawTx = {
@@ -30,6 +33,17 @@ const rawItems = ref<RawTx[]>([]);
 // Summe der heutigen Gesamtbeträge (aus Gruppen abgeleitet)
 const total = computed(() =>
   groupedItems.value.reduce((s, g) => s + (g.amount || 0), 0)
+);
+const productBookingCount = computed(() =>
+  rawItems.value.filter((tx) => !!tx.product_id).length
+);
+const nonProductTotal = computed(() =>
+  rawItems.value
+    .filter((tx) => !tx.product_id)
+    .reduce((sum, tx) => sum + (tx.amount || 0), 0)
+);
+const payableTotal = computed(() =>
+  complimentaryProducts.value ? nonProductTotal.value : total.value
 );
 
 // Gruppentyp
@@ -70,10 +84,15 @@ const groupedItems = computed<Grouped[]>(() => {
   );
 });
 
+function displayGroupAmount(group: Grouped) {
+  return complimentaryProducts.value && group.product_id ? 0 : group.amount;
+}
+
 async function loadAllBookings() {
   if (!props.show || !props.memberId) return;
   loading.value = true;
   error.value = null;
+  complimentaryProducts.value = false;
   rawItems.value = [];
   try {
     const deviceToken = localStorage.getItem("device_token");
@@ -111,25 +130,44 @@ async function loadAllBookings() {
   }
 }
 
+async function confirmSettlement() {
+  if (complimentaryProducts.value) {
+    const ok = await confirmModal(
+      "Freigetränke bestätigen?",
+      `Alle Produktbuchungen dieser Abrechnung werden als Freigetränke gespeichert und nicht als Umsatz oder Gewinn gezählt.\n\nBetroffene Produktbuchungen: ${productBookingCount.value}`,
+      { danger: true }
+    );
+    if (!ok) return;
+  }
+
+  emit("confirm", { complimentaryProducts: complimentaryProducts.value });
+}
+
 watch(() => props.show, loadAllBookings);
 watch(() => props.memberId, loadAllBookings);
+watch(productBookingCount, (count) => {
+  if (count === 0) complimentaryProducts.value = false;
+});
 </script>
 
 <template>
   <BaseModal
     :show="show"
     :title="`🧾 Gast abrechnen – ${memberName}`"
-    confirm-label="Geld erhalten - Gastkonto schließen"
+    :confirm-label="
+      complimentaryProducts
+        ? 'Freigetränke bestätigen - Gastkonto schließen'
+        : 'Geld erhalten - Gastkonto schließen'
+    "
     cancel-label="Abbrechen"
     :danger="true"
     @close="emit('close')"
-    @confirm="emit('confirm')"
+    @confirm="confirmSettlement"
   >
     <div class="space-y-3">
       <p class="text-sm text-gray-600">
-        Unten siehst du die Buchungen des Gastes. Mit
-        <strong>„Geld erhalten - Gastkonto schließen“</strong> bestätigst du die
-        Abrechnung.
+        Unten siehst du die Buchungen des Gastes. Der Abschluss übernimmt die
+        aktuell gewählte Abrechnungsart.
       </p>
 
       <div v-if="loading" class="py-6 text-center text-gray-400">
@@ -141,6 +179,23 @@ watch(() => props.memberId, loadAllBookings);
       </div>
 
       <div v-else>
+        <label
+          class="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm"
+        >
+          <span>
+            <span class="block font-semibold text-amber-900">Als Freigetränke abrechnen</span>
+            <span class="block text-xs text-amber-800">
+              Produktbuchungen werden nicht umsatz- oder gewinnrelevant.
+            </span>
+          </span>
+          <input
+            v-model="complimentaryProducts"
+            type="checkbox"
+            :disabled="productBookingCount === 0"
+            class="h-5 w-5 accent-amber-600"
+          />
+        </label>
+
         <ul
           v-if="groupedItems.length"
           class="divide-y divide-gray-100 max-h-80 overflow-y-auto"
@@ -160,9 +215,9 @@ watch(() => props.memberId, loadAllBookings);
             </div>
             <div
               class="font-mono"
-              :class="g.amount < 0 ? 'text-red-600' : 'text-green-600'"
+              :class="displayGroupAmount(g) < 0 ? 'text-red-600' : 'text-green-600'"
             >
-              {{ (Math.abs(g.amount) / 100).toFixed(2) }} €
+              {{ (Math.abs(displayGroupAmount(g)) / 100).toFixed(2) }} €
             </div>
           </li>
         </ul>
@@ -173,9 +228,9 @@ watch(() => props.memberId, loadAllBookings);
 
         <div
           class="mt-3 pt-3 border-t text-right font-semibold"
-          :class="total < 0 ? 'text-red-600' : 'text-green-600'"
+          :class="payableTotal < 0 ? 'text-red-600' : 'text-green-600'"
         >
-          Zu zahlen: {{ (Math.abs(total) / 100).toFixed(2) }} €
+          Zu zahlen: {{ (Math.abs(payableTotal) / 100).toFixed(2) }} €
         </div>
       </div>
     </div>

@@ -248,7 +248,7 @@ const showSettleModal = ref(false);
 const showFreeAmount = ref(false);
 
 // Gäste abrechnen
-async function settleGuest() {
+async function settleGuest(complimentaryProducts = false) {
   if (!selectedMember.value?.is_guest) return;
   try {
     const res = await fetch("/api/device-settle-guest", {
@@ -257,19 +257,26 @@ async function settleGuest() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${auth.token}`,
       },
-      body: JSON.stringify({ member_id: selectedMember.value.id }),
+      body: JSON.stringify({
+        member_id: selectedMember.value.id,
+        complimentary_products: complimentaryProducts,
+      }),
     });
     if (auth.handleAuthStatus(res.status)) return;
     if (!res.ok) throw new Error(await res.text());
-    showToast("✅ Gast erfolgreich abgerechnet");
+    showToast(
+      complimentaryProducts
+        ? "✅ Gast als Freigetränke abgerechnet"
+        : "✅ Gast erfolgreich abgerechnet"
+    );
     closeMember();
     await refreshTerminalSnapshot();
   } catch {
     showToast("⚠️ Fehler beim Abrechnen des Gastes");
   }
 }
-async function confirmGuestSettlement() {
-  await settleGuest();
+async function confirmGuestSettlement(payload?: { complimentaryProducts?: boolean }) {
+  await settleGuest(!!payload?.complimentaryProducts);
   showSettleModal.value = false;
 }
 async function addFreeAndClose(
@@ -684,7 +691,9 @@ watch(showPinModal, async (isOpen) => {
         showToast(
           guestEnded
             ? '✅ Teilabrechnung erfolgreich, Gast beendet'
-            : '✅ Teilabrechnung erfolgreich'
+            : result?.complimentaryProducts
+              ? '✅ Teilabrechnung als Freigetränke gespeichert'
+              : '✅ Teilabrechnung erfolgreich'
         );
         const id = selectedMember?.id;
         if (id) {
