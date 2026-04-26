@@ -573,11 +573,13 @@ watch(showPinModal, async (isOpen) => {
           <div class="soft-scrollbar touch-scroll flex-1 min-h-0 overflow-y-auto space-y-3 p-3">
             <section>
               <div class="px-1 pb-2">
-                <div class="section-chip">Heute gebucht</div>
+                <div class="section-chip !text-amber-700 !border-amber-200 !bg-amber-50/90">
+                  Neu
+                </div>
               </div>
               <BookingList
-                :bookings="confirmedBookings"
-                :totalToday="totalToday"
+                :bookings="queuedBookings"
+                :totalToday="0"
                 :loading="loading"
                 :showTotal="false"
                 @undo="undoBooking"
@@ -586,13 +588,11 @@ watch(showPinModal, async (isOpen) => {
 
             <section>
               <div class="px-1 pb-2">
-                <div class="section-chip !text-amber-700 !border-amber-200 !bg-amber-50/90">
-                  Neu
-                </div>
+                <div class="section-chip">Heute gebucht</div>
               </div>
               <BookingList
-                :bookings="queuedBookings"
-                :totalToday="0"
+                :bookings="confirmedBookings"
+                :totalToday="totalToday"
                 :loading="loading"
                 :showTotal="false"
                 @undo="undoBooking"
