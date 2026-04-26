@@ -45,6 +45,130 @@ function onLogoError(event: Event) {
 const showAddGuestModal = ref(false);
 const guestFirstname = ref("");
 const guestLastname = ref("");
+const inactiveGuestSearch = ref("");
+const inactiveGuests = ref<InactiveGuest[]>([]);
+const inactiveGuestsLoading = ref(false);
+const inactiveGuestsError = ref("");
+const reactivatingGuestId = ref<string | null>(null);
+let inactiveGuestSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+type InactiveGuest = {
+  id: string;
+  firstname: string;
+  lastname: string;
+  name: string;
+  last_settled_at?: string | null;
+  created_at?: string | null;
+};
+
+function openAddGuestModal() {
+  showAddGuestModal.value = true;
+}
+
+function closeAddGuestModal() {
+  showAddGuestModal.value = false;
+  guestFirstname.value = "";
+  guestLastname.value = "";
+  inactiveGuestSearch.value = "";
+  inactiveGuests.value = [];
+  inactiveGuestsError.value = "";
+  reactivatingGuestId.value = null;
+  if (inactiveGuestSearchTimer) {
+    clearTimeout(inactiveGuestSearchTimer);
+    inactiveGuestSearchTimer = null;
+  }
+}
+
+function formatGuestDate(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(date);
+}
+
+async function loadInactiveGuests() {
+  if (!auth.token || !showAddGuestModal.value) return;
+  if (!isOnline.value) {
+    inactiveGuests.value = [];
+    inactiveGuestsError.value = "Reaktivieren ist nur online möglich";
+    return;
+  }
+
+  inactiveGuestsLoading.value = true;
+  inactiveGuestsError.value = "";
+  try {
+    const res = await fetch("/api/device-inactive-guests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${auth.token}`,
+      },
+      body: JSON.stringify({ search: inactiveGuestSearch.value.trim() }),
+    });
+    if (auth.handleAuthStatus(res.status)) return;
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+    inactiveGuests.value = Array.isArray(body?.data) ? body.data : [];
+  } catch (err) {
+    console.error("[loadInactiveGuests]", err);
+    inactiveGuests.value = [];
+    inactiveGuestsError.value = "Deaktivierte Gäste konnten nicht geladen werden";
+  } finally {
+    inactiveGuestsLoading.value = false;
+  }
+}
+
+async function reactivateGuest(guest: InactiveGuest) {
+  if (!auth.token || reactivatingGuestId.value) return;
+  reactivatingGuestId.value = guest.id;
+  inactiveGuestsError.value = "";
+  try {
+    const res = await fetch("/api/device-reactivate-guest", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${auth.token}`,
+      },
+      body: JSON.stringify({ member_id: guest.id }),
+    });
+    if (auth.handleAuthStatus(res.status)) return;
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+
+    showToast(`Gast ${guest.name} reaktiviert`);
+    closeAddGuestModal();
+    await refreshTerminalSnapshot();
+    await openMember(guest.id);
+  } catch (err) {
+    console.error("[reactivateGuest]", err);
+    inactiveGuestsError.value = "Gast konnte nicht reaktiviert werden";
+  } finally {
+    reactivatingGuestId.value = null;
+  }
+}
+
+watch(showAddGuestModal, (isOpen) => {
+  if (isOpen) {
+    void loadInactiveGuests();
+    return;
+  }
+  if (inactiveGuestSearchTimer) {
+    clearTimeout(inactiveGuestSearchTimer);
+    inactiveGuestSearchTimer = null;
+  }
+});
+
+watch(inactiveGuestSearch, () => {
+  if (!showAddGuestModal.value) return;
+  if (inactiveGuestSearchTimer) clearTimeout(inactiveGuestSearchTimer);
+  inactiveGuestSearchTimer = setTimeout(() => {
+    void loadInactiveGuests();
+  }, 250);
+});
 
 async function addGuest() {
   if (!guestFirstname.value.trim() && !guestLastname.value.trim()) {
@@ -71,7 +195,7 @@ async function addGuest() {
     showToast(`Gast ${data.firstname} ${data.lastname} hinzugefügt`);
     guestFirstname.value = "";
     guestLastname.value = "";
-    showAddGuestModal.value = false;
+    closeAddGuestModal();
 
     await refreshTerminalSnapshot();
 
@@ -355,7 +479,7 @@ watch(showPinModal, async (isOpen) => {
             Admin
           </RouterLink>
           <button
-            @click="showAddGuestModal = true"
+            @click="openAddGuestModal"
             class="button-outline-strong rounded-2xl border-emerald-700 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
           >
             Gast anlegen
@@ -585,23 +709,92 @@ watch(showPinModal, async (isOpen) => {
   <!-- Gast-Modal -->
   <BaseModal
     :show="showAddGuestModal"
-    title="Neuen Gast anlegen"
-    @close="showAddGuestModal = false"
+    title="Gast anlegen oder reaktivieren"
+    confirm-label="Neu anlegen"
+    @close="closeAddGuestModal"
     @confirm="addGuest"
   >
-    <div class="space-y-3">
-      <label class="block text-sm font-medium text-gray-600">Vorname</label>
+    <div class="space-y-4">
+      <section class="space-y-3">
+        <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+          Neuer Gast
+        </div>
+        <label class="block text-sm font-medium text-gray-600">Vorname</label>
         <input
           v-model="guestFirstname"
-        class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
-        placeholder="Vorname"
-      />
-      <label class="block text-sm font-medium text-gray-600">Nachname</label>
+          class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
+          placeholder="Vorname"
+        />
+        <label class="block text-sm font-medium text-gray-600">Nachname</label>
         <input
           v-model="guestLastname"
-        class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
-        placeholder="Nachname"
-      />
+          class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
+          placeholder="Nachname"
+        />
+      </section>
+
+      <section class="space-y-3 border-t border-slate-200 pt-4">
+        <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+          Deaktivierte Gäste
+        </div>
+        <input
+          v-model="inactiveGuestSearch"
+          class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
+          placeholder="Name suchen"
+        />
+
+        <div
+          v-if="inactiveGuestsError"
+          class="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          {{ inactiveGuestsError }}
+        </div>
+
+        <div
+          v-else-if="inactiveGuestsLoading"
+          class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-center text-sm text-slate-500"
+        >
+          Lade Gäste …
+        </div>
+
+        <div
+          v-else-if="inactiveGuests.length"
+          class="max-h-48 space-y-2 overflow-y-auto pr-1"
+        >
+          <button
+            v-for="guest in inactiveGuests"
+            :key="guest.id"
+            type="button"
+            @click="reactivateGuest(guest)"
+            :disabled="!!reactivatingGuestId"
+            class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-60"
+          >
+            <span class="flex items-center justify-between gap-3">
+              <span class="min-w-0">
+                <span class="block truncate font-semibold text-slate-900">
+                  {{ guest.name }}
+                </span>
+                <span
+                  v-if="formatGuestDate(guest.last_settled_at || guest.created_at)"
+                  class="block text-xs text-slate-500"
+                >
+                  Zuletzt aktiv: {{ formatGuestDate(guest.last_settled_at || guest.created_at) }}
+                </span>
+              </span>
+              <span class="shrink-0 text-sm font-semibold text-emerald-700">
+                {{ reactivatingGuestId === guest.id ? "…" : "Reaktivieren" }}
+              </span>
+            </span>
+          </button>
+        </div>
+
+        <div
+          v-else
+          class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-center text-sm text-slate-500"
+        >
+          Keine deaktivierten Gäste gefunden
+        </div>
+      </section>
     </div>
   </BaseModal>
 
