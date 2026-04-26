@@ -16,6 +16,7 @@ export type QueuePayload = {
 };
 
 const BOOKING_SYNC_BATCH_SIZE = 25;
+const MAX_QUEUE_SYNC_ATTEMPTS = 3;
 let syncInFlight: Promise<number> | null = null;
 
 function getErrorText(err: unknown): string {
@@ -116,10 +117,23 @@ export async function syncQueue(token: string): Promise<number> {
   syncInFlight = (async () => {
     if (!navigator.onLine) return 0;
     let successCount = 0;
+    const attemptedThisRun = new Set<number>();
+
+    function shouldAttemptEntry(entry: any) {
+      const id = Number(entry?.id ?? 0);
+      if (!Number.isFinite(id) || id <= 0) return false;
+      if (attemptedThisRun.has(id)) return false;
+
+      const status = entry?.status ?? "pending";
+      const attempts = Number(entry?.attempts ?? 0);
+      if (status === "failed") return attempts < MAX_QUEUE_SYNC_ATTEMPTS;
+      return true;
+    }
 
     const processEntry = async (entry: any): Promise<boolean> => {
       const id = Number(entry?.id ?? 0);
       if (!Number.isFinite(id) || id <= 0) return false;
+      attemptedThisRun.add(id);
 
       const payload = (entry?.payload ?? {}) as QueuePayload;
       const attempts = Number(entry?.attempts ?? 0) + 1;
@@ -195,6 +209,7 @@ export async function syncQueue(token: string): Promise<number> {
         for (const entry of slice) {
           const id = Number(entry?.id ?? 0);
           if (!Number.isFinite(id) || id <= 0) continue;
+          attemptedThisRun.add(id);
           const payload = (entry?.payload ?? {}) as QueuePayload;
           const attempts = Number(entry?.attempts ?? 0) + 1;
           attemptsById.set(id, attempts);
@@ -298,7 +313,7 @@ export async function syncQueue(token: string): Promise<number> {
 
     while (navigator.onLine) {
       const entries = (await getQueueEntries())
-        .filter((entry: any) => entry?.status !== "failed")
+        .filter(shouldAttemptEntry)
         .sort((a: any, b: any) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
 
       if (!entries.length) break;

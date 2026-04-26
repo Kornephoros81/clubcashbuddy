@@ -8,7 +8,7 @@ import { fmt } from "@/utils/currency";
 
 type RevenueEventRow = {
   event_type: "booking" | "cancellation";
-  transaction_type: "sale_product" | "sale_free_amount" | "cash_withdrawal" | "credit_adjustment";
+  transaction_type: "sale_product" | "sale_free_amount" | "cash_withdrawal" | "credit_adjustment" | "complimentary_product";
   event_at: string;
   local_day: string;
   member_id: string | null;

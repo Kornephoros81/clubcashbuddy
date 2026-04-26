@@ -20,7 +20,8 @@ type BookingItem = {
     | "sale_product"
     | "sale_free_amount"
     | "cash_withdrawal"
-    | "credit_adjustment";
+    | "credit_adjustment"
+    | "complimentary_product";
   created_at: string;
   settled_at: string | null;
   amount: number;
@@ -47,6 +48,7 @@ type GroupedReportRow = {
       | "sale_free_amount"
       | "cash_withdrawal"
       | "credit_adjustment"
+      | "complimentary_product"
       | null;
   }>;
 };
@@ -112,11 +114,13 @@ const transactionTypeOptions = [
   { value: "", label: "Alle Typen" },
   { value: "sale_product", label: "Produktverkauf" },
   { value: "sale_free_amount", label: "Freier Verkauf" },
+  { value: "complimentary_product", label: "Freigetränk" },
   { value: "cash_withdrawal", label: "Bar-Entnahme" },
   { value: "credit_adjustment", label: "Guthabenbuchung" },
 ];
 
 function transactionTypeLabel(v: BookingItem["transaction_type"]) {
+  if (v === "complimentary_product") return "Freigetränk";
   if (v === "cash_withdrawal") return "Bar-Entnahme";
   if (v === "credit_adjustment") return "Guthabenbuchung";
   if (v === "sale_free_amount") return "Freier Verkauf";

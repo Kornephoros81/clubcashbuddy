@@ -14,13 +14,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "close"): void;
-  (e: "confirm", payload?: { guestEnded?: boolean }): void;
+  (e: "confirm", payload?: { guestEnded?: boolean; complimentaryProducts?: boolean }): void;
 }>();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
 const transactions = ref<any[]>([]);
 const selected = ref<Set<string>>(new Set());
+const complimentaryProducts = ref(false);
 const { confirm: confirmModal } = useModal();
 
 type Group = {
@@ -68,6 +69,17 @@ const totalSelected = computed(() =>
 );
 
 const selectedCount = computed(() => selected.value.size);
+const selectedProductCount = computed(() =>
+  transactions.value.filter((tx) => selected.value.has(tx.id) && !!tx.product_id).length
+);
+const selectedNonProductTotal = computed(() =>
+  transactions.value
+    .filter((tx) => selected.value.has(tx.id) && !tx.product_id)
+    .reduce((sum, tx) => sum + tx.amount, 0)
+);
+const payableTotalSelected = computed(() =>
+  complimentaryProducts.value ? selectedNonProductTotal.value : totalSelected.value
+);
 
 function selectedCountForGroup(group: Group) {
   return group.txs.filter((tx) => selected.value.has(tx.id)).length;
@@ -75,6 +87,13 @@ function selectedCountForGroup(group: Group) {
 
 function amountForSelection(group: Group, count: number) {
   return group.txs.slice(0, count).reduce((sum, tx) => sum + tx.amount, 0);
+}
+
+function displayAmountForSelection(group: Group, count: number) {
+  if (complimentaryProducts.value && group.txs.some((tx) => !!tx.product_id)) {
+    return 0;
+  }
+  return amountForSelection(group, count);
 }
 
 function setGroupSelection(group: Group, count: number) {
@@ -98,6 +117,7 @@ async function loadTransactions() {
   loading.value = true;
   error.value = null;
   selected.value = new Set();
+  complimentaryProducts.value = false;
 
   try {
     const token = localStorage.getItem("device_token");
@@ -129,6 +149,15 @@ async function confirmPartialSettlement() {
       return;
     }
 
+    if (complimentaryProducts.value) {
+      const ok = await confirmModal(
+        "Freigetränke bestätigen?",
+        `Die ausgewählten Produktbuchungen dieser Teilabrechnung werden als Freigetränke gespeichert und nicht als Umsatz oder Gewinn gezählt.\n\nBetroffene Produktbuchungen: ${selectedProductCount.value}`,
+        { danger: true }
+      );
+      if (!ok) return;
+    }
+
     const res = await fetch("/api/device-settle-guest-partial", {
       method: "POST",
       headers: {
@@ -138,6 +167,7 @@ async function confirmPartialSettlement() {
       body: JSON.stringify({
         member_id: props.memberId,
         transaction_ids: ids,
+        complimentary_products: complimentaryProducts.value,
       }),
     });
 
@@ -174,13 +204,16 @@ async function confirmPartialSettlement() {
       }
     }
 
-    emit("confirm", { guestEnded });
+    emit("confirm", { guestEnded, complimentaryProducts: complimentaryProducts.value });
   } catch (e: any) {
     error.value = e.message || "Fehler bei der Teilabrechnung";
   }
 }
 
 watch(() => props.show, loadTransactions);
+watch(selectedProductCount, (count) => {
+  if (count === 0) complimentaryProducts.value = false;
+});
 </script>
 
 <template>
@@ -239,7 +272,7 @@ watch(() => props.show, loadTransactions);
                         : 'bg-slate-100 text-slate-600'
                     "
                   >
-                    {{ (Math.abs(amountForSelection(group, selectedCountForGroup(group))) / 100).toFixed(2) }} €
+                    {{ (Math.abs(displayAmountForSelection(group, selectedCountForGroup(group))) / 100).toFixed(2) }} €
                   </div>
                 </div>
                 <div class="shrink-0 w-[6.5rem]"></div>
@@ -297,9 +330,26 @@ watch(() => props.show, loadTransactions);
               class="text-xl font-semibold"
               :class="selectedCount > 0 ? 'text-emerald-700' : 'text-slate-500'"
             >
-              {{ (Math.abs(totalSelected) / 100).toFixed(2) }} €
+              {{ (Math.abs(payableTotalSelected) / 100).toFixed(2) }} €
             </div>
           </div>
+
+          <label
+            class="mb-3 flex items-center justify-between gap-3 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm"
+          >
+            <span>
+              <span class="block font-semibold text-amber-900">Als Freigetränke abrechnen</span>
+              <span class="block text-xs text-amber-800">
+                Ausgewählte Produktbuchungen werden nicht umsatz- oder gewinnrelevant.
+              </span>
+            </span>
+            <input
+              v-model="complimentaryProducts"
+              type="checkbox"
+              :disabled="selectedProductCount === 0"
+              class="h-5 w-5 accent-amber-600"
+            />
+          </label>
 
           <div class="flex justify-end gap-3">
             <button
@@ -313,7 +363,7 @@ watch(() => props.show, loadTransactions);
               :disabled="selectedCount === 0"
               class="button-outline-strong rounded-2xl border-red-800 bg-red-600 px-5 py-3 text-base font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
-              Teil abrechnen
+              {{ complimentaryProducts ? "Freigetränke abrechnen" : "Teil abrechnen" }}
             </button>
           </div>
         </div>

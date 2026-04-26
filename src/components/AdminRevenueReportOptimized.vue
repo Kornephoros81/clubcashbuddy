@@ -119,6 +119,7 @@ const transactionTypeOptions = [
   { value: "non_revenue", label: "Nicht umsatzrelevant" },
   { value: "sale_product", label: "Nur Produktverkäufe" },
   { value: "sale_free_amount", label: "Nur freie Verkäufe" },
+  { value: "complimentary_product", label: "Nur Freigetränke" },
 ];
 
 const trendCanvas = ref<HTMLCanvasElement | null>(null);
@@ -187,6 +188,7 @@ function formatEuroFromCents(cents: number) {
 }
 
 function transactionTypeLabel(v: string) {
+  if (v === "complimentary_product") return "Freigetränk";
   if (v === "cash_withdrawal") return "Bar-Entnahme";
   if (v === "credit_adjustment") return "Guthabenbuchung";
   if (v === "sale_free_amount") return "Freier Verkauf";
