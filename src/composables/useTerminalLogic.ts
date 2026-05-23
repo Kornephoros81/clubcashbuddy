@@ -4,7 +4,6 @@ import { useCatalog, type Member, type Product } from "@/stores/useCatalog";
 import { useDeviceAuthStore } from "@/stores/useDeviceAuthStore";
 import { useTransactionStore } from "@/stores/useTransactionStore";
 import { book, cancelBooking, syncQueue, type QueuePayload } from "@/pwa/offlineSync";
-import { useToast } from "@/composables/useToast";
 import { useModal } from "@/composables/useModal";
 import { getQueueEntries, getQueuedBookingsForMember } from "@/utils/offlineDB";
 import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
@@ -40,12 +39,10 @@ function createLogic() {
   const auth = useDeviceAuthStore();
   const store = useCatalog();
   const txStore = useTransactionStore();
-  const globalToast = useToast();
   const toast = ref<string | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   function showToast(msg: string) {
     toast.value = msg;
-    globalToast.show(msg);
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { toast.value = null; }, 3500);
   }
