@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, provide, nextTick } from "vue";
+import { computed, ref, watch, onMounted, onUnmounted, provide, nextTick } from "vue";
 import { useTerminalLogic } from "@/composables/useTerminalLogic";
 import DeviceAuthDialog from "@/components/DeviceAuthDialog.vue";
 import MemberPicker from "@/components/Terminal/MemberPicker.vue";
@@ -46,7 +46,6 @@ function onLogoError(event: Event) {
 const showAddGuestModal = ref(false);
 const guestFirstname = ref("");
 const guestLastname = ref("");
-const inactiveGuestSearch = ref("");
 const inactiveGuests = ref<InactiveGuest[]>([]);
 const inactiveGuestsLoading = ref(false);
 const inactiveGuestsError = ref("");
@@ -70,7 +69,6 @@ function closeAddGuestModal() {
   showAddGuestModal.value = false;
   guestFirstname.value = "";
   guestLastname.value = "";
-  inactiveGuestSearch.value = "";
   inactiveGuests.value = [];
   inactiveGuestsError.value = "";
   reactivatingGuestId.value = null;
@@ -91,8 +89,23 @@ function formatGuestDate(value?: string | null) {
   }).format(date);
 }
 
+const inactiveGuestSearchTerm = computed(() =>
+  [guestFirstname.value, guestLastname.value]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim()
+);
+
 async function loadInactiveGuests() {
   if (!auth.token || !showAddGuestModal.value) return;
+  const search = inactiveGuestSearchTerm.value;
+  if (search.length < 2) {
+    inactiveGuests.value = [];
+    inactiveGuestsError.value = "";
+    inactiveGuestsLoading.value = false;
+    return;
+  }
   if (!isOnline.value) {
     inactiveGuests.value = [];
     inactiveGuestsError.value = "Reaktivieren ist nur online möglich";
@@ -108,11 +121,12 @@ async function loadInactiveGuests() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${auth.token}`,
       },
-      body: JSON.stringify({ search: inactiveGuestSearch.value.trim() }),
+      body: JSON.stringify({ search }),
     });
     if (auth.handleAuthStatus(res.status)) return;
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+    if (search !== inactiveGuestSearchTerm.value) return;
     inactiveGuests.value = Array.isArray(body?.data) ? body.data : [];
   } catch (err) {
     console.error("[loadInactiveGuests]", err);
@@ -163,7 +177,7 @@ watch(showAddGuestModal, (isOpen) => {
   }
 });
 
-watch(inactiveGuestSearch, () => {
+watch([guestFirstname, guestLastname], () => {
   if (!showAddGuestModal.value) return;
   if (inactiveGuestSearchTimer) clearTimeout(inactiveGuestSearchTimer);
   inactiveGuestSearchTimer = setTimeout(() => {
@@ -770,13 +784,8 @@ watch(showPinModal, async (isOpen) => {
 
       <section class="space-y-3 border-t border-slate-200 pt-4">
         <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-          Deaktivierte Gäste
+          Passende deaktivierte Gäste
         </div>
-        <input
-          v-model="inactiveGuestSearch"
-          class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
-          placeholder="Name suchen"
-        />
 
         <div
           v-if="inactiveGuestsError"
@@ -790,6 +799,13 @@ watch(showPinModal, async (isOpen) => {
           class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-center text-sm text-slate-500"
         >
           Lade Gäste …
+        </div>
+
+        <div
+          v-else-if="inactiveGuestSearchTerm.length < 2"
+          class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-center text-sm text-slate-500"
+        >
+          Vor- oder Nachname eingeben, um deaktivierte Gäste zu suchen
         </div>
 
         <div
