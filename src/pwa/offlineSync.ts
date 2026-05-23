@@ -16,8 +16,17 @@ export type QueuePayload = {
 };
 
 const BOOKING_SYNC_BATCH_SIZE = 25;
-const MAX_QUEUE_SYNC_ATTEMPTS = 3;
+const QUICK_RETRY_ATTEMPTS = 3;
 let syncInFlight: Promise<number> | null = null;
+
+function getNextRetryDelayMs(attempts: number): number {
+  if (attempts <= QUICK_RETRY_ATTEMPTS) return 0;
+  if (attempts === 4) return 5 * 60_000;
+  if (attempts === 5) return 15 * 60_000;
+  if (attempts === 6) return 60 * 60_000;
+  if (attempts === 7) return 4 * 60 * 60_000;
+  return 12 * 60 * 60_000;
+}
 
 function getErrorText(err: unknown): string {
   if (err instanceof Error) return err.message ?? "";
@@ -31,6 +40,18 @@ function isMemberMissingError(err: unknown): boolean {
     raw.includes("mitglied nicht gefunden") ||
     raw.includes("member not found")
   );
+}
+
+async function markQueueFailure(id: number, attempts: number, err: unknown) {
+  const message = getErrorText(err) || "Unknown error";
+  const fatal = isMemberMissingError(message);
+  await updateQueueEntry(id, {
+    status: "failed",
+    attempts,
+    lastError: message,
+    retryClass: fatal ? "fatal" : "retryable",
+    nextRetryAt: fatal ? undefined : Date.now() + getNextRetryDelayMs(attempts),
+  });
 }
 
 /**
@@ -125,8 +146,11 @@ export async function syncQueue(token: string): Promise<number> {
       if (attemptedThisRun.has(id)) return false;
 
       const status = entry?.status ?? "pending";
-      const attempts = Number(entry?.attempts ?? 0);
-      if (status === "failed") return attempts < MAX_QUEUE_SYNC_ATTEMPTS;
+      if (status === "failed") {
+        if (entry?.retryClass === "fatal") return false;
+        const nextRetryAt = Number(entry?.nextRetryAt ?? 0);
+        return nextRetryAt <= Date.now();
+      }
       return true;
     }
 
@@ -177,21 +201,7 @@ export async function syncQueue(token: string): Promise<number> {
         await deleteQueueEntry(id);
         return true;
       } catch (err) {
-        if (!isCancel && isMemberMissingError(err)) {
-          await deleteQueueEntry(id);
-          console.warn(
-            "[offlineSync.syncQueue] Queue-Eintrag geloescht (Mitglied nicht gefunden):",
-            id
-          );
-          return false;
-        }
-
-        await updateQueueEntry(id, {
-          status: "failed",
-          attempts,
-          lastError:
-            getErrorText(err) || "Unknown error",
-        });
+        await markQueueFailure(id, attempts, err);
         console.error("[offlineSync.syncQueue] Fehler bei Queue-ID", id, err);
         return false;
       }
@@ -255,20 +265,7 @@ export async function syncQueue(token: string): Promise<number> {
               await deleteQueueEntry(id);
               runSuccess += 1;
             } catch (singleErr) {
-              if (isMemberMissingError(singleErr)) {
-                await deleteQueueEntry(id);
-                console.warn(
-                  "[offlineSync.syncQueue] Queue-Eintrag geloescht (Mitglied nicht gefunden):",
-                  id
-                );
-                continue;
-              }
-
-              await updateQueueEntry(id, {
-                status: "failed",
-                attempts: attemptsById.get(id) ?? 1,
-                lastError: getErrorText(singleErr) || getErrorText(err) || "Unknown error",
-              });
+              await markQueueFailure(id, attemptsById.get(id) ?? 1, singleErr || err);
             }
           }
           continue;
@@ -291,20 +288,11 @@ export async function syncQueue(token: string): Promise<number> {
             continue;
           }
 
-          if (isMemberMissingError(result?.error)) {
-            await deleteQueueEntry(id);
-            console.warn(
-              "[offlineSync.syncQueue] Queue-Eintrag geloescht (Mitglied nicht gefunden):",
-              id
-            );
-            continue;
-          }
-
-          await updateQueueEntry(id, {
-            status: "failed",
-            attempts: attemptsById.get(id) ?? 1,
-            lastError: String(result?.error ?? "Batch sync failed"),
-          });
+          await markQueueFailure(
+            id,
+            attemptsById.get(id) ?? 1,
+            String(result?.error ?? "Batch sync failed")
+          );
         }
       }
 

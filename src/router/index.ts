@@ -21,6 +21,7 @@ const AdminSettlementsReport = () => import("@/components/AdminSettlementsReport
 const AdminBrandingSettings = () => import("@/components/AdminBrandingSettings.vue");
 const AdminUsers = () => import("@/components/AdminUsers.vue");
 const AdminDevicePairing = () => import("@/components/AdminDevicePairing.vue");
+const AdminSyncQueue = () => import("@/components/AdminSyncQueue.vue");
 
 const routes = [
   { path: "/", component: Terminal },
@@ -47,6 +48,7 @@ const routes = [
       { path: "branding", component: AdminBrandingSettings },
       { path: "users", component: AdminUsers },
       { path: "device-pairing", component: AdminDevicePairing },
+      { path: "sync-queue", component: AdminSyncQueue },
       { path: "settlement", component: AdminSettlementView },
       { path: "storage", component: AdminStorageView },
     ],
