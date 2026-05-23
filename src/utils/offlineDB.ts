@@ -141,7 +141,7 @@ export async function drainQueue(
     } catch (err) {
       entry.status = "failed";
       entry.lastError =
-        err instanceof Error ? err.message : String(err ?? "Unknown error");
+        err instanceof Error ? err.message : String(err ?? "Unbekannter Fehler");
       await db.put(STORE_QUEUE, entry);
       console.warn(`[offlineDB.drainQueue] Fehler bei Eintrag ${key}:`, err);
       continue;

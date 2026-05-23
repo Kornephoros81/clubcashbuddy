@@ -3,7 +3,9 @@ import {
   getQueueEntries,
   queueBooking,
   updateQueueEntry,
+  type QueueEntry,
 } from "@/utils/offlineDB";
+import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
 
 export type QueuePayload = {
   member_id: string;
@@ -43,7 +45,7 @@ function isMemberMissingError(err: unknown): boolean {
 }
 
 async function markQueueFailure(id: number, attempts: number, err: unknown) {
-  const message = getErrorText(err) || "Unknown error";
+  const message = getErrorText(err) || "Unbekannter Fehler";
   const fatal = isMemberMissingError(message);
   await updateQueueEntry(id, {
     status: "failed",
@@ -104,9 +106,9 @@ export async function cancelBooking(
 async function callEF(
   token: string,
   endpoint: string,
-  payload: any
-): Promise<any> {
-  const res = await fetch(endpoint, {
+  payload: QueuePayload | Record<string, unknown>
+): Promise<unknown> {
+  const res = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -140,7 +142,7 @@ export async function syncQueue(token: string): Promise<number> {
     let successCount = 0;
     const attemptedThisRun = new Set<number>();
 
-    function shouldAttemptEntry(entry: any) {
+    function shouldAttemptEntry(entry: QueueEntry) {
       const id = Number(entry?.id ?? 0);
       if (!Number.isFinite(id) || id <= 0) return false;
       if (attemptedThisRun.has(id)) return false;
@@ -154,7 +156,7 @@ export async function syncQueue(token: string): Promise<number> {
       return true;
     }
 
-    const processEntry = async (entry: any): Promise<boolean> => {
+    const processEntry = async (entry: QueueEntry): Promise<boolean> => {
       const id = Number(entry?.id ?? 0);
       if (!Number.isFinite(id) || id <= 0) return false;
       attemptedThisRun.add(id);
@@ -175,17 +177,14 @@ export async function syncQueue(token: string): Promise<number> {
         );
 
         if (isCancel) {
-          const result = await callEF(token, "/api/cancel-transaction", {
+          await callEF(token, "/api/cancel-transaction", {
             cancel_tx_id: payload.cancel_tx_id ?? null,
             member_id: payload.member_id,
             product_id: payload.product_id ?? null,
             note: payload.note ?? null,
           });
-          if (result?.cancelled) {
-            console.log("[offlineSync] ✅ storniert:", result.cancelled);
-          }
         } else {
-          const result = await callEF(token, "/api/book-transaction", {
+          await callEF(token, "/api/book-transaction", {
             member_id: payload.member_id,
             product_id: payload.product_id,
             free_amount: payload.amount,
@@ -193,9 +192,6 @@ export async function syncQueue(token: string): Promise<number> {
             p_note: payload.note ?? null,
             client_tx_id_param: payload.client_tx_id ?? crypto.randomUUID(),
           });
-          if (result?.success) {
-            console.log("[offlineSync] ✅ gebucht:", result.data);
-          }
         }
 
         await deleteQueueEntry(id);
@@ -207,14 +203,19 @@ export async function syncQueue(token: string): Promise<number> {
       }
     };
 
-    const processBookingRun = async (run: any[]) => {
+    const processBookingRun = async (run: QueueEntry[]) => {
       if (!run.length) return 0;
       let runSuccess = 0;
 
       for (let start = 0; start < run.length; start += BOOKING_SYNC_BATCH_SIZE) {
         const slice = run.slice(start, start + BOOKING_SYNC_BATCH_SIZE);
         const attemptsById = new Map<number, number>();
-        const payloadItems: any[] = [];
+        type BatchItem = {
+          queue_id: number; member_id: string; product_id: string | null;
+          free_amount: number; p_transaction_type: string | null;
+          p_note: string | null; client_tx_id_param: string;
+        };
+        const payloadItems: BatchItem[] = [];
 
         for (const entry of slice) {
           const id = Number(entry?.id ?? 0);
@@ -243,12 +244,12 @@ export async function syncQueue(token: string): Promise<number> {
 
         if (!payloadItems.length) continue;
 
-        let results: any[] = [];
+        let results: Record<string, unknown>[] = [];
         try {
           const response = await callEF(token, "/api/book-transactions-batch", {
             items: payloadItems,
-          });
-          results = Array.isArray(response?.results) ? response.results : [];
+          }) as Record<string, unknown>;
+          results = Array.isArray(response?.results) ? (response.results as Record<string, unknown>[]) : [];
         } catch (err) {
           for (const item of payloadItems) {
             const id = Number(item.queue_id ?? 0);
@@ -271,7 +272,7 @@ export async function syncQueue(token: string): Promise<number> {
           continue;
         }
 
-        const byQueueId = new Map<number, any>();
+        const byQueueId = new Map<number, Record<string, unknown>>();
         for (const result of results) {
           const id = Number(result?.queue_id ?? 0);
           if (Number.isFinite(id) && id > 0) byQueueId.set(id, result);
@@ -291,7 +292,7 @@ export async function syncQueue(token: string): Promise<number> {
           await markQueueFailure(
             id,
             attemptsById.get(id) ?? 1,
-            String(result?.error ?? "Batch sync failed")
+            String(result?.error ?? "Batch-Sync fehlgeschlagen")
           );
         }
       }
@@ -300,9 +301,9 @@ export async function syncQueue(token: string): Promise<number> {
     };
 
     while (navigator.onLine) {
-      const entries = (await getQueueEntries())
+      const entries = (await getQueueEntries() as QueueEntry[])
         .filter(shouldAttemptEntry)
-        .sort((a: any, b: any) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
+        .sort((a, b) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
 
       if (!entries.length) break;
 
@@ -322,7 +323,7 @@ export async function syncQueue(token: string): Promise<number> {
           continue;
         }
 
-        const run: any[] = [];
+        const run: QueueEntry[] = [];
         while (i < entries.length) {
           const e = entries[i];
           const p = (e?.payload ?? {}) as QueuePayload;

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useToast } from "@/composables/useToast";
 import Datepicker from "@vuepic/vue-datepicker";
+import DateRangeQuickSelect from "@/components/DateRangeQuickSelect.vue";
 import "@vuepic/vue-datepicker/dist/main.css";
 import { adminRpc } from "@/lib/adminApi";
 import { exportReportAsPdf } from "@/utils/reportExport";
@@ -278,6 +279,12 @@ const drilldownDayToProducts = computed(() => {
   return result;
 });
 
+function onQuickDateSelect(start: Date, end: Date) {
+  startDate.value = start;
+  endDate.value = end;
+  void loadReport();
+}
+
 async function loadReport() {
   if (!startDate.value || !endDate.value) {
     showToast("⚠️ Bitte Start- und Enddatum auswählen");
@@ -360,6 +367,9 @@ async function exportPdf() {
     </div>
 
     <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
+      <div class="col-span-full">
+        <DateRangeQuickSelect @select="onQuickDateSelect" />
+      </div>
       <div>
         <label class="block text-sm font-medium text-gray-600 mb-1">Startdatum</label>
         <Datepicker

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import Datepicker from "@vuepic/vue-datepicker";
+import DateRangeQuickSelect from "@/components/DateRangeQuickSelect.vue";
 import "@vuepic/vue-datepicker/dist/main.css";
 import { fetchAdminReportSummary } from "@/lib/adminApi";
 import { fmt } from "@/utils/currency";
@@ -294,6 +295,14 @@ async function renderCharts() {
   }
 }
 
+function onQuickDateSelect(start: Date, end: Date) {
+  suppressDateReload.value = true;
+  startDate.value = start;
+  endDate.value = end;
+  suppressDateReload.value = false;
+  void loadReport();
+}
+
 async function loadReport() {
   loading.value = true;
   error.value = null;
@@ -383,6 +392,7 @@ async function exportPdf() {
     </div>
 
     <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
+      <div class="col-span-full"><DateRangeQuickSelect @select="onQuickDateSelect" /></div>
       <div><label class="block text-sm font-medium text-gray-600 mb-1">Startdatum</label><Datepicker v-model="startDate" :enable-time-picker="false" :format="'dd.MM.yyyy'" :auto-apply="true" :close-on-auto-apply="true" :config="{ keepActionRow: true }" :action-row="{ showNow: true, nowBtnLabel: 'Heute', showSelect: false, showCancel: false }" /></div>
       <div><label class="block text-sm font-medium text-gray-600 mb-1">Enddatum</label><Datepicker v-model="endDate" :enable-time-picker="false" :format="'dd.MM.yyyy'" :auto-apply="true" :close-on-auto-apply="true" :config="{ keepActionRow: true }" :action-row="{ showNow: true, nowBtnLabel: 'Heute', showSelect: false, showCancel: false }" /></div>
       <div><label class="block text-sm font-medium text-gray-600 mb-1">Mitglied</label><select v-model="selectedMemberId" class="h-[38px] min-w-[220px] rounded-md border border-gray-300 px-3"><option value="">Alle Mitglieder</option><option v-for="member in memberOptions" :key="member.id" :value="member.id">{{ member.name }}</option></select></div>

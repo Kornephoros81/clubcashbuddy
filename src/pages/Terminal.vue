@@ -24,6 +24,7 @@ const {
   loading,
   toast,
   isOnline,
+  failedQueueCount,
   openMember,
   closeMember,
   addProduct,
@@ -241,6 +242,13 @@ onMounted(async () => {
   }
 });
 
+onUnmounted(() => {
+  if (inactiveGuestSearchTimer) {
+    clearTimeout(inactiveGuestSearchTimer);
+    inactiveGuestSearchTimer = null;
+  }
+});
+
 // Modals/Overlays
 const showPartialModal = ref(false);
 const showBookings = ref(false);
@@ -452,6 +460,24 @@ watch(showPinModal, async (isOpen) => {
 
   <div v-else class="app-shell min-h-screen flex flex-col text-gray-800">
     <OfflineStatus />
+
+    <!-- Banner: dauerhaft fehlgeschlagene Offline-Buchungen -->
+    <transition name="fade">
+      <div
+        v-if="failedQueueCount > 0"
+        class="sticky top-0 z-50 flex items-center justify-between gap-3 bg-red-600 px-4 py-2.5 text-white text-sm font-semibold shadow-md"
+      >
+        <span>
+          ⚠️ {{ failedQueueCount }} Buchung{{ failedQueueCount > 1 ? 'en' : '' }} konnten nicht synchronisiert werden.
+        </span>
+        <RouterLink
+          to="/admin/sync-queue"
+          class="shrink-0 rounded-xl border border-white/40 bg-white/15 px-3 py-1 text-xs font-bold hover:bg-white/25 transition"
+        >
+          Details
+        </RouterLink>
+      </div>
+    </transition>
 
     <!-- HEADER -->
     <header

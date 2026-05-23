@@ -86,12 +86,12 @@ function clearAdminTimers() {
 async function safeLogout(reason: string) {
   if (logoutTriggered) return;
   logoutTriggered = true;
-  console.warn(`[Admin Logout] ${reason}`);
+  void reason;
   try {
     const authStore = useAppAuthStore();
     await authStore.logoutAdmin();
-  } catch (e) {
-    console.error("[Admin Logout Error]", e);
+  } catch {
+    // Logout-Fehler können ignoriert werden – Weiterleitung erfolgt trotzdem
   } finally {
     await router.replace("/");
   }
@@ -134,9 +134,6 @@ router.beforeEach(async (to, from) => {
     const enteringAdmin = to.path.startsWith("/admin");
 
     if (leavingAdmin) {
-      console.log(
-        "[Admin Timeout] verlässt Adminbereich → Exit-Timer gestartet"
-      );
       adminExitTimer = window.setTimeout(
         () => safeLogout("zu lange außerhalb des Adminbereichs"),
         ADMIN_EXIT_TIMEOUT
@@ -146,7 +143,6 @@ router.beforeEach(async (to, from) => {
     if (enteringAdmin) {
       clearAdminTimers();
       attachActivityListeners();
-      console.log("[Admin Timeout] im Adminbereich → Timer gestoppt");
     }
   } else {
     clearAdminTimers();
