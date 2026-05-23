@@ -327,6 +327,57 @@ function createLogic() {
     updateTxStoreItems();
   }
 
+  function flattenGroupedBookings(groups: any[]): BookingEntry[] {
+    return groups.flatMap((group) =>
+      (Array.isArray(group?.items) ? group.items : []).map((item: any) => ({
+        id: String(item.id),
+        product_id: item.product_id ?? null,
+        product_name: item.product_name ?? item.note ?? "frei",
+        note: item.note ?? null,
+        amount: Number(item.amount ?? 0),
+        count: 1,
+        syncStatus: null,
+        queueOp: null,
+      }))
+    );
+  }
+
+  async function fetchConfirmedBookingsForMember(memberId: string, member?: Member | null) {
+    if (member?.is_guest) {
+      const end = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const res = await fetchWithTimeout("/api/get-member-bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          member_id: memberId,
+          start: "1970-01-01T00:00:00.000Z",
+          end,
+          exclude_settled: true,
+        }),
+      });
+      if (auth.handleAuthStatus(res.status)) return null;
+      const json = await res.json();
+      if (!res.ok || !json.success) return null;
+      return flattenGroupedBookings(json.data ?? []);
+    }
+
+    const res = await fetchWithTimeout("/api/get-today-transactions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${auth.token}`,
+      },
+      body: JSON.stringify({ member_id: memberId, limit: 300 }),
+    });
+    if (auth.handleAuthStatus(res.status)) return null;
+    const json = await res.json();
+    if (!res.ok || !json.success) return null;
+    return json.data ?? [];
+  }
+
   async function loadBookings(memberId: string) {
     try {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -336,23 +387,14 @@ function createLogic() {
         return;
       }
 
-      const res = await fetchWithTimeout("/api/get-today-transactions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.token}`,
-        },
-        body: JSON.stringify({ member_id: memberId, limit: 300 }),
-      });
-      if (auth.handleAuthStatus(res.status)) return;
-      const json = await res.json();
-      if (!res.ok || !json.success) {
+      const member = store.members.find((m) => m.id === memberId);
+      const confirmed = await fetchConfirmedBookingsForMember(memberId, member);
+      if (!confirmed) {
         showToast("⚠️ Fehler beim Laden der Buchungen");
         return;
       }
       const queued = await getQueuedBookingsForMember(memberId);
-      const member = store.members.find((m) => m.id === memberId);
-      const baseTx = applyQueuedCancelsToServer(json.data ?? [], queued);
+      const baseTx = applyQueuedCancelsToServer(confirmed, queued);
       const queuedTx = mapQueuedDisplayToTx(member, queued);
       confirmedBookings.value = groupBookings(baseTx);
       queuedBookings.value = groupBookings(queuedTx);

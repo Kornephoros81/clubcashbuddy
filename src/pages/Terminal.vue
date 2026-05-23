@@ -549,7 +549,7 @@ watch(showPinModal, async (isOpen) => {
             class="justify-self-end rounded-2xl bg-white/90 px-3 py-1.5 text-right shadow-sm"
           >
             <div class="text-sm md:text-[0.95rem] font-semibold text-slate-900 whitespace-nowrap">
-              Heute {{ (totalToday / 100).toFixed(2) }} €
+              {{ selectedMember?.is_guest ? "Offen" : "Heute" }} {{ (totalToday / 100).toFixed(2) }} €
             </div>
           </div>
         </div>
@@ -882,4 +882,3 @@ watch(showPinModal, async (isOpen) => {
   transform: scale(0.97);
 }
 </style>
-
