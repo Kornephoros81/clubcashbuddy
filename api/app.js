@@ -499,12 +499,34 @@ const ADMIN_RPC_ACTIONS = {
   },
 };
 
+const loginAttempts = new Map();
+const LOGIN_RATE_LIMIT_MAX = 5;
+const LOGIN_RATE_LIMIT_WINDOW_MS = 60_000;
+
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now - entry.firstAt > LOGIN_RATE_LIMIT_WINDOW_MS) {
+    loginAttempts.set(ip, { count: 1, firstAt: now });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= LOGIN_RATE_LIMIT_MAX;
+}
+
 async function handleRoute(route, req, res) {
   const supabase = getServiceClient();
   const body = req.body || {};
 
   if (route === "admin-login") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+    const ip =
+      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      "unknown";
+    if (!checkLoginRateLimit(ip)) {
+      return json(res, 429, { error: "Zu viele Anmeldeversuche. Bitte warte eine Minute." });
+    }
     const { username, password } = body;
     if (!username || !password) return json(res, 400, { error: "username and password are required" });
     const debugAuth = String(req.headers["x-debug-auth"] ?? "").trim() === "1";

@@ -5,7 +5,7 @@ async function apiRequest(path: string, method = "GET", body?: unknown) {
   const auth = useAppAuthStore();
   auth.ensureHydrated();
   const token = auth.adminToken;
-  if (!token) throw new Error("Unauthorized");
+  if (!token) throw new Error("Nicht authentifiziert");
 
   const res = await fetch(path, {
     method,
@@ -17,8 +17,13 @@ async function apiRequest(path: string, method = "GET", body?: unknown) {
   });
 
   if (res.status === 204) return null;
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(payload?.error || "Request failed");
+  let payload: Record<string, unknown>;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new Error("Ungültige Server-Antwort");
+  }
+  if (!res.ok) throw new Error((payload?.error as string) || "Anfrage fehlgeschlagen");
   return payload;
 }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import Datepicker from "@vuepic/vue-datepicker";
+import DateRangeQuickSelect from "@/components/DateRangeQuickSelect.vue";
 import "@vuepic/vue-datepicker/dist/main.css";
 import { useToast } from "@/composables/useToast";
 import { adminRpc } from "@/lib/adminApi";
@@ -41,6 +42,12 @@ const totalSettledCents = computed(() =>
   rows.value.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
 );
 const settlementsCount = computed(() => rows.value.length);
+
+function onQuickDateSelect(start: Date, end: Date) {
+  startDate.value = start;
+  endDate.value = end;
+  void loadReport();
+}
 
 async function loadReport() {
   if (!startDate.value || !endDate.value) return;
@@ -115,6 +122,9 @@ async function exportPdf() {
     </div>
 
     <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+      <div class="col-span-full">
+        <DateRangeQuickSelect @select="onQuickDateSelect" />
+      </div>
       <div>
         <label class="block text-sm font-medium text-gray-600 mb-1">Startdatum</label>
         <Datepicker

@@ -22,6 +22,7 @@ const adminLinks = [
   { to: "/admin/branding", label: "Branding", icon: "🏷️" },
   { to: "/admin/users", label: "Admin-Benutzer", icon: "👤" },
   { to: "/admin/device-pairing", label: "Geräte koppeln", icon: "🔐" },
+  { to: "/admin/sync-queue", label: "Sync-Queue", icon: "🔄" },
 ];
 
 const reportLinks = [

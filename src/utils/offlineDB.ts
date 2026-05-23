@@ -38,6 +38,7 @@ export async function getDB() {
 // ----------------------
 
 export type QueueStatus = "pending" | "sending" | "failed";
+export type QueueRetryClass = "retryable" | "fatal";
 
 export type QueueEntry = {
   id?: number;
@@ -46,6 +47,8 @@ export type QueueEntry = {
   createdAt: number;
   attempts?: number;
   lastError?: string;
+  nextRetryAt?: number;
+  retryClass?: QueueRetryClass;
 };
 
 export async function queueBooking(payload: any) {
@@ -66,6 +69,38 @@ export async function updateQueueEntry(
   const entry = await db.get(STORE_QUEUE, id);
   if (!entry) return;
   await db.put(STORE_QUEUE, { ...entry, ...patch });
+}
+
+export async function resetQueueEntryRetry(id: number): Promise<boolean> {
+  const db = await getDB();
+  const entry = await db.get(STORE_QUEUE, id);
+  if (!entry) return false;
+  await db.put(STORE_QUEUE, {
+    ...entry,
+    status: "pending",
+    retryClass: "retryable",
+    nextRetryAt: undefined,
+  });
+  return true;
+}
+
+export async function resetFailedQueueRetries(): Promise<number> {
+  const db = await getDB();
+  const entries = await db.getAll(STORE_QUEUE);
+  let count = 0;
+
+  for (const entry of entries) {
+    if (entry.status !== "failed") continue;
+    await db.put(STORE_QUEUE, {
+      ...entry,
+      status: "pending",
+      retryClass: "retryable",
+      nextRetryAt: undefined,
+    });
+    count++;
+  }
+
+  return count;
 }
 
 export async function deleteQueueEntry(id: number) {
@@ -106,7 +141,7 @@ export async function drainQueue(
     } catch (err) {
       entry.status = "failed";
       entry.lastError =
-        err instanceof Error ? err.message : String(err ?? "Unknown error");
+        err instanceof Error ? err.message : String(err ?? "Unbekannter Fehler");
       await db.put(STORE_QUEUE, entry);
       console.warn(`[offlineDB.drainQueue] Fehler bei Eintrag ${key}:`, err);
       continue;

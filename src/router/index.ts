@@ -21,6 +21,7 @@ const AdminSettlementsReport = () => import("@/components/AdminSettlementsReport
 const AdminBrandingSettings = () => import("@/components/AdminBrandingSettings.vue");
 const AdminUsers = () => import("@/components/AdminUsers.vue");
 const AdminDevicePairing = () => import("@/components/AdminDevicePairing.vue");
+const AdminSyncQueue = () => import("@/components/AdminSyncQueue.vue");
 
 const routes = [
   { path: "/", component: Terminal },
@@ -47,6 +48,7 @@ const routes = [
       { path: "branding", component: AdminBrandingSettings },
       { path: "users", component: AdminUsers },
       { path: "device-pairing", component: AdminDevicePairing },
+      { path: "sync-queue", component: AdminSyncQueue },
       { path: "settlement", component: AdminSettlementView },
       { path: "storage", component: AdminStorageView },
     ],
@@ -84,12 +86,12 @@ function clearAdminTimers() {
 async function safeLogout(reason: string) {
   if (logoutTriggered) return;
   logoutTriggered = true;
-  console.warn(`[Admin Logout] ${reason}`);
+  void reason;
   try {
     const authStore = useAppAuthStore();
     await authStore.logoutAdmin();
-  } catch (e) {
-    console.error("[Admin Logout Error]", e);
+  } catch {
+    // Logout-Fehler können ignoriert werden – Weiterleitung erfolgt trotzdem
   } finally {
     await router.replace("/");
   }
@@ -132,9 +134,6 @@ router.beforeEach(async (to, from) => {
     const enteringAdmin = to.path.startsWith("/admin");
 
     if (leavingAdmin) {
-      console.log(
-        "[Admin Timeout] verlässt Adminbereich → Exit-Timer gestartet"
-      );
       adminExitTimer = window.setTimeout(
         () => safeLogout("zu lange außerhalb des Adminbereichs"),
         ADMIN_EXIT_TIMEOUT
@@ -144,7 +143,6 @@ router.beforeEach(async (to, from) => {
     if (enteringAdmin) {
       clearAdminTimers();
       attachActivityListeners();
-      console.log("[Admin Timeout] im Adminbereich → Timer gestoppt");
     }
   } else {
     clearAdminTimers();

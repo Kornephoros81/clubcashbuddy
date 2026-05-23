@@ -4,6 +4,7 @@ import { onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { useToast } from "@/composables/useToast";
 import Datepicker from "@vuepic/vue-datepicker";
+import DateRangeQuickSelect from "@/components/DateRangeQuickSelect.vue";
 import "@vuepic/vue-datepicker/dist/main.css";
 import { adminRpc } from "@/lib/adminApi";
 import { exportReportAsPdf } from "@/utils/reportExport";
@@ -105,6 +106,14 @@ const totalAmountEuro = computed(
   () => filteredRows.value.reduce((sum, row) => sum + Math.abs(Number(row.amount ?? 0)), 0) / 100,
 );
 
+function onQuickDateSelect(start: Date, end: Date) {
+  suppressDateReload.value = true;
+  startDate.value = start;
+  endDate.value = end;
+  suppressDateReload.value = false;
+  void loadReport();
+}
+
 async function loadReport() {
   if (!startDate.value || !endDate.value) {
     showToast("⚠️ Bitte Start- und Enddatum auswählen");
@@ -193,6 +202,9 @@ async function exportPdf() {
     </div>
 
     <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
+      <div class="col-span-full">
+        <DateRangeQuickSelect @select="onQuickDateSelect" />
+      </div>
       <div>
         <label class="block text-sm font-medium text-gray-600 mb-1">Startdatum</label>
         <Datepicker

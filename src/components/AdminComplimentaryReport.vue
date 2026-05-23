@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import Datepicker from "@vuepic/vue-datepicker";
+import DateRangeQuickSelect from "@/components/DateRangeQuickSelect.vue";
 import "@vuepic/vue-datepicker/dist/main.css";
 import { adminRpc } from "@/lib/adminApi";
 import { fmt } from "@/utils/currency";
@@ -176,6 +177,12 @@ const memberSummary = computed(() => {
   );
 });
 
+function onQuickDateSelect(start: Date, end: Date) {
+  startDate.value = start;
+  endDate.value = end;
+  void loadReport();
+}
+
 async function loadReport() {
   if (!startDate.value || !endDate.value) return;
   loading.value = true;
@@ -249,6 +256,9 @@ onMounted(loadReport);
     </div>
 
     <div class="flex flex-wrap items-end gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div class="w-full">
+        <DateRangeQuickSelect @select="onQuickDateSelect" />
+      </div>
       <div>
         <label class="mb-1 block text-sm font-medium text-gray-600">Start</label>
         <Datepicker v-model="startDate" locale="de" :enable-time-picker="false" format="dd.MM.yyyy" />

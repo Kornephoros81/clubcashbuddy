@@ -1,12 +1,32 @@
 // src/composables/useTerminalLogic.ts
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
-import { useCatalog } from "@/stores/useCatalog";
+import { useCatalog, type Member, type Product } from "@/stores/useCatalog";
 import { useDeviceAuthStore } from "@/stores/useDeviceAuthStore";
 import { useTransactionStore } from "@/stores/useTransactionStore";
-import { book, cancelBooking, syncQueue } from "@/pwa/offlineSync";
-import { useToast } from "@/composables/useToast";
+import { book, cancelBooking, syncQueue, type QueuePayload } from "@/pwa/offlineSync";
 import { useModal } from "@/composables/useModal";
 import { getQueueEntries, getQueuedBookingsForMember } from "@/utils/offlineDB";
+import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
+
+export type BookingEntry = {
+  id: string;
+  product_id: string | null;
+  product_name: string;
+  note: string | null;
+  amount: number;
+  count: number;
+  syncStatus?: "pending" | "failed" | null;
+  queueOp?: "book" | "cancel" | null;
+};
+
+type QueueEntry = {
+  id?: number;
+  status?: string;
+  retryClass?: string;
+  nextRetryAt?: number;
+  payload?: QueuePayload;
+  attempts?: number;
+};
 
 let singleton: ReturnType<typeof createLogic> | null = null;
 
@@ -19,7 +39,13 @@ function createLogic() {
   const auth = useDeviceAuthStore();
   const store = useCatalog();
   const txStore = useTransactionStore();
-  const { message: toast, show: showToast } = useToast();
+  const toast = ref<string | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  function showToast(msg: string) {
+    toast.value = msg;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.value = null; }, 3500);
+  }
   const { confirm: confirmModal } = useModal();
 
   const isOnline = ref(true);
@@ -29,9 +55,9 @@ function createLogic() {
     window.addEventListener("offline", () => (isOnline.value = false));
   }
 
-  const selectedMember = ref<any | null>(null);
-  const confirmedBookings = ref<any[]>([]);
-  const queuedBookings = ref<any[]>([]);
+  const selectedMember = ref<Member | null>(null);
+  const confirmedBookings = ref<BookingEntry[]>([]);
+  const queuedBookings = ref<BookingEntry[]>([]);
   const loading = ref(false);
 
   const bookedTodayIds = ref<Set<string>>(new Set());
@@ -50,11 +76,9 @@ function createLogic() {
   let syncTimer: ReturnType<typeof setTimeout> | null = null;
   const DIRECT_SYNC_DELAY_MS = 200;
   async function refreshQueueCount() {
-    const all = await getQueueEntries();
-    pendingQueueCount.value = all.filter((e: any) => e.status !== "failed")
-      .length;
-    failedQueueCount.value = all.filter((e: any) => e.status === "failed")
-      .length;
+    const all = await getQueueEntries() as QueueEntry[];
+    pendingQueueCount.value = all.filter((e) => e.status !== "failed").length;
+    failedQueueCount.value = all.filter((e) => e.status === "failed").length;
   }
 
   onMounted(async () => {
@@ -62,7 +86,7 @@ function createLogic() {
     if (auth.authenticated) await initDataOnce();
     watch(
       () => auth.authenticated,
-      async (ok) => ok && (await initDataOnce())
+      async (ok: boolean) => ok && (await initDataOnce())
     );
     if (typeof window !== "undefined") {
       window.addEventListener("online", onOnline);
@@ -95,7 +119,11 @@ function createLogic() {
       await refreshQueueCount();
 
       if (auth.token && !hasInitialSync.value) {
-        await syncQueue(auth.token).catch(() => {});
+        try {
+          await syncQueue(auth.token);
+        } catch {
+          showToast("⚠️ Synchronisation beim Start fehlgeschlagen");
+        }
         await refreshQueueCount();
         hasInitialSync.value = true;
       }
@@ -142,28 +170,28 @@ function createLogic() {
     }, DIRECT_SYNC_DELAY_MS);
   }
 
-  function isQueuedCancel(entry: any) {
-    const p = entry?.payload ?? entry;
-    return Object.prototype.hasOwnProperty.call(p, "cancel_tx_id");
+  function isQueuedCancel(entry: QueueEntry): boolean {
+    return Object.prototype.hasOwnProperty.call(entry.payload ?? {}, "cancel_tx_id");
   }
 
   function applyQueuedCancelsToServer(
-    serverTx: any[],
-    queued: any[]
-  ): any[] {
+    serverTx: BookingEntry[],
+    queued: QueueEntry[]
+  ): BookingEntry[] {
     const out = [...serverTx];
     for (const entry of queued) {
       if (!isQueuedCancel(entry)) continue;
-      const p = entry.payload ?? entry;
+      const p = entry.payload;
+      if (!p) continue;
 
       let idx = -1;
       if (p.cancel_tx_id) {
-        idx = out.findIndex((t: any) => t.id === p.cancel_tx_id);
+        idx = out.findIndex((t) => t.id === p.cancel_tx_id);
       } else if (p.product_id) {
-        idx = out.findIndex((t: any) => t.product_id === p.product_id);
+        idx = out.findIndex((t) => t.product_id === p.product_id);
       } else if (p.note != null) {
         idx = out.findIndex(
-          (t: any) => !t.product_id && (t.note ?? null) === (p.note ?? null)
+          (t) => !t.product_id && (t.note ?? null) === (p.note ?? null)
         );
       }
 
@@ -172,21 +200,22 @@ function createLogic() {
     return out;
   }
 
-  function mapQueuedDisplayToTx(member: any, queued: any[]) {
-    const out: any[] = [];
-    const openQueuedBooks: any[] = [];
+  function mapQueuedDisplayToTx(member: Member | null, queued: QueueEntry[]): BookingEntry[] {
+    const out: BookingEntry[] = [];
+    const openQueuedBooks: BookingEntry[] = [];
 
     for (const entry of queued) {
-      const p = entry.payload ?? entry;
+      const p = entry.payload;
+      if (!p) continue;
       const syncStatus = entry.status === "failed" ? "failed" : "pending";
 
       if (!isQueuedCancel(entry)) {
         if (p.product_id) {
-          const prod = store.products.find((x: any) => x.id === p.product_id);
+          const prod = store.products.find((x: Product) => x.id === p.product_id);
           const basePrice = prod?.price ?? 0;
           const guestPrice = prod?.guest_price ?? basePrice;
           const cents = member?.is_guest ? guestPrice : basePrice;
-          const bookTx = {
+          const bookTx: BookingEntry = {
             id: p.client_tx_id || crypto.randomUUID(),
             product_id: p.product_id,
             product_name: prod?.name ?? "(Produkt)",
@@ -203,7 +232,7 @@ function createLogic() {
             p.transaction_type === "cash_withdrawal"
               ? "Bar-Entnahme"
               : p.note ?? "Freier Betrag";
-          const freeTx = {
+          const freeTx: BookingEntry = {
             id: p.client_tx_id || crypto.randomUUID(),
             product_id: null,
             product_name: freeLabel,
@@ -250,7 +279,7 @@ function createLogic() {
         cancelAmount = -Number(matched.amount || 0);
         cancelName = `Storno: ${matched.product_name || matched.note || "Buchung"}`;
       } else if (p.product_id) {
-        const prod = store.products.find((x: any) => x.id === p.product_id);
+        const prod = store.products.find((x: Product) => x.id === p.product_id);
         const basePrice = prod?.price ?? 0;
         const guestPrice = prod?.guest_price ?? basePrice;
         cancelAmount = Math.abs(member?.is_guest ? guestPrice : basePrice);
@@ -295,6 +324,57 @@ function createLogic() {
     updateTxStoreItems();
   }
 
+  function flattenGroupedBookings(groups: any[]): BookingEntry[] {
+    return groups.flatMap((group) =>
+      (Array.isArray(group?.items) ? group.items : []).map((item: any) => ({
+        id: String(item.id),
+        product_id: item.product_id ?? null,
+        product_name: item.product_name ?? item.note ?? "frei",
+        note: item.note ?? null,
+        amount: Number(item.amount ?? 0),
+        count: 1,
+        syncStatus: null,
+        queueOp: null,
+      }))
+    );
+  }
+
+  async function fetchConfirmedBookingsForMember(memberId: string, member?: Member | null) {
+    if (member?.is_guest) {
+      const end = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const res = await fetchWithTimeout("/api/get-member-bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          member_id: memberId,
+          start: "1970-01-01T00:00:00.000Z",
+          end,
+          exclude_settled: true,
+        }),
+      });
+      if (auth.handleAuthStatus(res.status)) return null;
+      const json = await res.json();
+      if (!res.ok || !json.success) return null;
+      return flattenGroupedBookings(json.data ?? []);
+    }
+
+    const res = await fetchWithTimeout("/api/get-today-transactions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${auth.token}`,
+      },
+      body: JSON.stringify({ member_id: memberId, limit: 300 }),
+    });
+    if (auth.handleAuthStatus(res.status)) return null;
+    const json = await res.json();
+    if (!res.ok || !json.success) return null;
+    return json.data ?? [];
+  }
+
   async function loadBookings(memberId: string) {
     try {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -304,23 +384,14 @@ function createLogic() {
         return;
       }
 
-      const res = await fetch("/api/get-today-transactions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.token}`,
-        },
-        body: JSON.stringify({ member_id: memberId, limit: 300 }),
-      });
-      if (auth.handleAuthStatus(res.status)) return;
-      const json = await res.json();
-      if (!res.ok || !json.success) {
+      const member = store.members.find((m) => m.id === memberId);
+      const confirmed = await fetchConfirmedBookingsForMember(memberId, member);
+      if (!confirmed) {
         showToast("⚠️ Fehler beim Laden der Buchungen");
         return;
       }
       const queued = await getQueuedBookingsForMember(memberId);
-      const member = store.members.find((m) => m.id === memberId);
-      const baseTx = applyQueuedCancelsToServer(json.data ?? [], queued);
+      const baseTx = applyQueuedCancelsToServer(confirmed, queued);
       const queuedTx = mapQueuedDisplayToTx(member, queued);
       confirmedBookings.value = groupBookings(baseTx);
       queuedBookings.value = groupBookings(queuedTx);
@@ -331,8 +402,8 @@ function createLogic() {
     }
   }
 
-  function groupBookings(data: any[]) {
-    const groups: Record<string, any> = {};
+  function groupBookings(data: BookingEntry[]): BookingEntry[] {
+    const groups: Record<string, BookingEntry> = {};
     for (const b of data) {
       const queuePrefix = b.queueOp ? `${b.queueOp}-` : "";
       const key = b.product_id
@@ -342,8 +413,9 @@ function createLogic() {
         b.syncStatus === "failed" ? 2 : b.syncStatus === "pending" ? 1 : 0;
       if (!groups[key]) {
         groups[key] = {
+          id: b.id,
           product_id: b.product_id,
-          product_name: b.product_name ?? b.products?.name ?? b.note ?? "frei",
+          product_name: b.product_name ?? b.note ?? "frei",
           note: b.note,
           amount: b.amount,
           count: 1,
@@ -364,7 +436,7 @@ function createLogic() {
         }
       }
     }
-    return Object.values(groups).sort((a: any, b: any) =>
+    return Object.values(groups).sort((a, b) =>
       (a.product_name || "").localeCompare(b.product_name || "", "de")
     );
   }
@@ -383,7 +455,7 @@ function createLogic() {
     updateTxStoreItems();
   }
 
-  async function addProduct(product: any) {
+  async function addProduct(product: Product) {
     if (!selectedMember.value || !auth.token) {
       showToast("⚠️ Kein Mitglied oder keine Authentifizierung");
       return;
@@ -463,7 +535,7 @@ function createLogic() {
     }
   }
 
-  async function undoBooking(b: any) {
+  async function undoBooking(b: BookingEntry) {
     if (!selectedMember.value || !auth.token) {
       showToast("⚠️ Kein Mitglied oder keine Authentifizierung");
       return;
@@ -518,7 +590,7 @@ function createLogic() {
       )
         return;
 
-      const res = await fetch("/api/get-booked-today-members", {
+      const res = await fetchWithTimeout("/api/get-booked-today-members", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -548,7 +620,7 @@ function createLogic() {
         return;
       }
 
-      const res = await fetch("/api/terminal-snapshot", {
+      const res = await fetchWithTimeout("/api/terminal-snapshot", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -566,9 +638,9 @@ function createLogic() {
         await store.applyProducts(products);
       }
       bookedTodayIds.value = new Set<string>(
-        members
-          .filter((m: any) => m?.has_booked_today)
-          .map((m: any) => String(m.id))
+        (members as Member[])
+          .filter((m) => m?.has_booked_today)
+          .map((m) => String(m.id))
       );
       lastBookedTodayFetch.value = Date.now();
     } catch (err) {

@@ -58,7 +58,7 @@ export const useCatalog = defineStore("catalog", {
           method: "POST",
           headers: { Authorization: `Bearer ${auth.token}` },
         });
-        if (auth.handleAuthStatus(res.status)) throw new Error("Unauthorized");
+        if (auth.handleAuthStatus(res.status)) throw new Error("Nicht autorisiert");
         if (!res.ok) throw new Error("HTTP " + res.status);
 
         const data = await res.json();
