@@ -39,6 +39,54 @@ function extractBearerToken(req) {
   return auth.slice(7).trim() || null;
 }
 
+function compactText(value, maxLength = 4000) {
+  const text = String(value ?? "").trim();
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength);
+}
+
+function normalizeUuid(value) {
+  const text = String(value ?? "").trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
+    ? text
+    : null;
+}
+
+function normalizeSyncFailurePayload(body, deviceId) {
+  const payload = body?.payload && typeof body.payload === "object" ? body.payload : {};
+  const isCancel = Object.prototype.hasOwnProperty.call(payload, "cancel_tx_id");
+  const queueId = Number(body?.queue_id ?? 0);
+  const operation = body?.operation === "book" || body?.operation === "cancel"
+    ? body.operation
+    : isCancel
+      ? "cancel"
+      : payload.product_id || Object.prototype.hasOwnProperty.call(payload, "amount")
+        ? "book"
+        : "unknown";
+
+  const nextRetryAtMs = Number(body?.next_retry_at ?? body?.nextRetryAt ?? 0);
+  const nextRetryAt = Number.isFinite(nextRetryAtMs) && nextRetryAtMs > 0
+    ? new Date(nextRetryAtMs).toISOString()
+    : null;
+
+  return {
+    device_id: deviceId,
+    client_queue_id: Number.isFinite(queueId) && queueId > 0 ? queueId : null,
+    client_tx_id: compactText(payload.client_tx_id, 120) || null,
+    operation,
+    member_id: normalizeUuid(payload.member_id),
+    product_id: normalizeUuid(payload.product_id),
+    amount: Number.isFinite(Number(payload.amount)) ? Number(payload.amount) : null,
+    transaction_type: compactText(payload.transaction_type, 80) || null,
+    note: compactText(payload.note, 500) || null,
+    payload,
+    error_message: compactText(body?.error_message ?? body?.lastError ?? body?.error, 4000) || "Unbekannter Sync-Fehler",
+    retry_class: body?.retry_class === "fatal" || body?.retry_class === "retryable" ? body.retry_class : null,
+    attempts: Math.max(0, Math.min(100000, Number(body?.attempts ?? 0) || 0)),
+    next_retry_at: nextRetryAt,
+  };
+}
+
 async function stampBookingDeviceTrace(supabase, txId, deviceId) {
   if (!txId || !deviceId) return null;
 
@@ -440,6 +488,15 @@ const ADMIN_RPC_ACTIONS = {
       p_token: token,
       p_device_id: p.device_id,
       p_ttl_minutes: p.ttl_minutes ?? 5,
+    }),
+  },
+  list_device_sync_errors: {
+    fn: "api_admin_list_device_sync_errors",
+    args: (token, p) => ({
+      p_token: token,
+      p_limit: p.limit ?? 200,
+      p_device_id: p.device_id ?? null,
+      p_since: p.since ?? null,
     }),
   },
   cancel_transaction: {
@@ -1060,6 +1117,18 @@ async function handleRoute(route, req, res) {
 
   const v = await verifyDevice(req);
   if (!v.ok) return json(res, v.status, { error: v.error });
+
+  if (route === "device-sync-error") {
+    if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+    const row = normalizeSyncFailurePayload(body, v.deviceId);
+    const { data, error } = await supabase
+      .from("device_sync_errors")
+      .insert(row)
+      .select("id")
+      .single();
+    if (error) return json(res, 500, { error: error.message || "Sync error log failed" });
+    return json(res, 200, { success: true, id: data?.id ?? null });
+  }
 
   if (route === "member-pin-status") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });

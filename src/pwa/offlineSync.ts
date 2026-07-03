@@ -44,15 +44,80 @@ function isMemberMissingError(err: unknown): boolean {
   );
 }
 
-async function markQueueFailure(id: number, attempts: number, err: unknown) {
+function getQueueOperation(payload: QueuePayload): "book" | "cancel" {
+  return Object.prototype.hasOwnProperty.call(payload, "cancel_tx_id")
+    ? "cancel"
+    : "book";
+}
+
+async function reportSyncFailure(
+  token: string,
+  id: number,
+  payload: QueuePayload,
+  attempts: number,
+  message: string,
+  retryClass: "retryable" | "fatal",
+  nextRetryAt?: number
+) {
+  if (!token || typeof navigator !== "undefined" && !navigator.onLine) return;
+
+  const res = await fetchWithTimeout(
+    "/api/device-sync-error",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        queue_id: id,
+        operation: getQueueOperation(payload),
+        payload,
+        error_message: message,
+        retry_class: retryClass,
+        attempts,
+        next_retry_at: nextRetryAt ?? null,
+      }),
+    },
+    5_000
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+}
+
+async function markQueueFailure(
+  token: string,
+  id: number,
+  payload: QueuePayload,
+  attempts: number,
+  err: unknown
+) {
   const message = getErrorText(err) || "Unbekannter Fehler";
   const fatal = isMemberMissingError(message);
+  const retryClass = fatal ? "fatal" : "retryable";
+  const nextRetryAt = fatal ? undefined : Date.now() + getNextRetryDelayMs(attempts);
+
   await updateQueueEntry(id, {
     status: "failed",
     attempts,
     lastError: message,
-    retryClass: fatal ? "fatal" : "retryable",
-    nextRetryAt: fatal ? undefined : Date.now() + getNextRetryDelayMs(attempts),
+    retryClass,
+    nextRetryAt,
+  });
+
+  void reportSyncFailure(
+    token,
+    id,
+    payload,
+    attempts,
+    message,
+    retryClass,
+    nextRetryAt
+  ).catch((logErr) => {
+    console.warn("[offlineSync.reportSyncFailure] Fehler konnte nicht zentral geloggt werden", logErr);
   });
 }
 
@@ -197,7 +262,7 @@ export async function syncQueue(token: string): Promise<number> {
         await deleteQueueEntry(id);
         return true;
       } catch (err) {
-        await markQueueFailure(id, attempts, err);
+        await markQueueFailure(token, id, payload, attempts, err);
         console.error("[offlineSync.syncQueue] Fehler bei Queue-ID", id, err);
         return false;
       }
@@ -266,7 +331,20 @@ export async function syncQueue(token: string): Promise<number> {
               await deleteQueueEntry(id);
               runSuccess += 1;
             } catch (singleErr) {
-              await markQueueFailure(id, attemptsById.get(id) ?? 1, singleErr || err);
+              await markQueueFailure(
+                token,
+                id,
+                {
+                  member_id: item.member_id,
+                  product_id: item.product_id,
+                  amount: item.free_amount,
+                  transaction_type: item.p_transaction_type as QueuePayload["transaction_type"],
+                  note: item.p_note,
+                  client_tx_id: item.client_tx_id_param,
+                },
+                attemptsById.get(id) ?? 1,
+                singleErr || err
+              );
             }
           }
           continue;
@@ -290,7 +368,16 @@ export async function syncQueue(token: string): Promise<number> {
           }
 
           await markQueueFailure(
+            token,
             id,
+            {
+              member_id: item.member_id,
+              product_id: item.product_id,
+              amount: item.free_amount,
+              transaction_type: item.p_transaction_type as QueuePayload["transaction_type"],
+              note: item.p_note,
+              client_tx_id: item.client_tx_id_param,
+            },
             attemptsById.get(id) ?? 1,
             String(result?.error ?? "Batch-Sync fehlgeschlagen")
           );
