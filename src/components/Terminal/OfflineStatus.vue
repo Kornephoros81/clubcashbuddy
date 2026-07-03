@@ -3,18 +3,15 @@
 import { computed } from "vue";
 import { useTerminalLogic } from "@/composables/useTerminalLogic";
 
-const { isOnline, pendingQueueCount, failedQueueCount } = useTerminalLogic();
+const { isOnline, pendingQueueCount } = useTerminalLogic();
 
 const visible = computed(
   () =>
     !isOnline.value ||
-    pendingQueueCount.value > 0 ||
-    failedQueueCount.value > 0
+    pendingQueueCount.value > 0
 );
 
 const message = computed(() => {
-  if (failedQueueCount.value > 0)
-    return `⚠️ ${failedQueueCount.value} Buchungen fehlgeschlagen`;
   if (!isOnline.value) return "📴 Offline-Modus";
   if (pendingQueueCount.value > 0)
     return `⏳ ${pendingQueueCount.value} Buchungen werden synchronisiert`;

@@ -1,6 +1,7 @@
 import { syncQueue } from "@/pwa/offlineSync";
 import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
 import {
+  deleteQueueEntry,
   getQueueEntries,
   resetFailedQueueRetries,
   type QueueEntry,
@@ -17,6 +18,7 @@ export type DeviceQueueStatus = {
 type DeviceCommand = {
   id: string;
   command: "sync_now" | string;
+  payload?: Record<string, unknown> | null;
   requested_at?: string | null;
 };
 
@@ -81,6 +83,33 @@ export async function reportDeviceQueueStatus(token: string): Promise<void> {
   });
 }
 
+async function deleteLocalQueueEntryFromCommand(
+  command: DeviceCommand
+): Promise<{ queueId: number; deleted: boolean; alreadyMissing: boolean }> {
+  const payload = command.payload && typeof command.payload === "object"
+    ? command.payload
+    : {};
+  const queueId = Math.floor(Number(payload.client_queue_id ?? 0));
+  if (!Number.isFinite(queueId) || queueId <= 0) {
+    throw new Error("client_queue_id fehlt");
+  }
+
+  const entries = (await getQueueEntries()) as QueueEntry[];
+  const entry = entries.find((item) => Number(item.id ?? 0) === queueId);
+  if (!entry) {
+    return { queueId, deleted: false, alreadyMissing: true };
+  }
+
+  const expectedClientTxId = String(payload.client_tx_id ?? "").trim();
+  const actualClientTxId = String(entry.payload?.client_tx_id ?? "").trim();
+  if (expectedClientTxId && actualClientTxId && expectedClientTxId !== actualClientTxId) {
+    throw new Error("client_tx_id passt nicht zum lokalen Queue-Eintrag");
+  }
+
+  await deleteQueueEntry(queueId);
+  return { queueId, deleted: true, alreadyMissing: false };
+}
+
 export async function pollAndRunDeviceCommands(token: string): Promise<void> {
   if (commandPollInFlight) return;
   if (!token) return;
@@ -98,7 +127,57 @@ export async function pollAndRunDeviceCommands(token: string): Promise<void> {
       : [];
 
     for (const command of commands) {
-      if (command.command !== "sync_now" || !command.id) continue;
+      if (!command.id) continue;
+
+      if (command.command === "delete_queue_entry") {
+        try {
+          const deleteResult = await deleteLocalQueueEntryFromCommand(command);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("queue-synced", {
+                detail: { deleted_queue_id: deleteResult.queueId },
+              })
+            );
+          }
+          await postDeviceSyncControl(token, {
+            action: "complete",
+            command_id: command.id,
+            success: true,
+            processed_count: 0,
+            deleted_queue_id: deleteResult.queueId,
+            queue_entry_deleted: deleteResult.deleted,
+            queue_entry_already_missing: deleteResult.alreadyMissing,
+            queue_status: await getLocalQueueStatus(),
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err ?? "Queue-Loeschen fehlgeschlagen");
+          await postDeviceSyncControl(token, {
+            action: "complete",
+            command_id: command.id,
+            success: false,
+            processed_count: 0,
+            error: message,
+            queue_status: await getLocalQueueStatus(),
+          }).catch((completeErr) => {
+            console.warn("[deviceSyncControl.delete.complete]", completeErr);
+          });
+        }
+        continue;
+      }
+
+      if (command.command !== "sync_now") {
+        await postDeviceSyncControl(token, {
+          action: "complete",
+          command_id: command.id,
+          success: false,
+          processed_count: 0,
+          error: `Unbekannter Geräte-Command: ${command.command}`,
+          queue_status: await getLocalQueueStatus(),
+        }).catch((completeErr) => {
+          console.warn("[deviceSyncControl.unknown.complete]", completeErr);
+        });
+        continue;
+      }
 
       let releasedFailedCount = 0;
       try {

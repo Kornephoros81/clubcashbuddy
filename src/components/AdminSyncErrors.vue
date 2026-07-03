@@ -27,6 +27,12 @@ type SyncErrorRow = {
   attempts: number;
   next_retry_at: string | null;
   payload: Record<string, unknown>;
+  delete_command_id: string | null;
+  delete_command_status: string | null;
+  delete_command_requested_at: string | null;
+  delete_command_claimed_at: string | null;
+  delete_command_completed_at: string | null;
+  delete_command_result: Record<string, unknown> | null;
 };
 
 const loading = ref(false);
@@ -36,6 +42,9 @@ const devices = ref<KioskDevice[]>([]);
 const selectedDeviceId = ref("");
 const sincePreset = ref("7d");
 const limit = ref(200);
+const message = ref("");
+const deletingRowId = ref("");
+const DELETE_COMMAND_STALE_MS = 90_000;
 
 const failedCount = computed(() => rows.value.length);
 const fatalCount = computed(
@@ -80,6 +89,48 @@ function payloadPreview(row: SyncErrorRow) {
   }
 }
 
+function deleteCommandLabel(row: SyncErrorRow) {
+  if (row.delete_command_status === "pending") return "Löschung wartet";
+  if (row.delete_command_status === "claimed") {
+    return isDeleteCommandStale(row) ? "Erneut versuchen" : "Löschung läuft";
+  }
+  if (row.delete_command_status === "done") {
+    if (row.delete_command_result?.queue_entry_already_missing) return "War schon gelöscht";
+    return "Bereits gelöscht";
+  }
+  if (row.delete_command_status === "failed") return "Löschung fehlgeschlagen";
+  return "Eintrag löschen";
+}
+
+function deleteCommandHint(row: SyncErrorRow) {
+  if (!row.delete_command_status) return "";
+  const requested = formatDate(row.delete_command_requested_at);
+  const claimed = formatDate(row.delete_command_claimed_at);
+  const completed = formatDate(row.delete_command_completed_at);
+  if (row.delete_command_status === "done") return `Erledigt: ${completed}`;
+  if (row.delete_command_status === "failed") return `Fehlgeschlagen: ${completed}`;
+  if (row.delete_command_status === "claimed" && isDeleteCommandStale(row)) {
+    return `Hängt seit: ${claimed}`;
+  }
+  if (row.delete_command_status === "claimed") return `Läuft seit: ${claimed}`;
+  return `Angelegt: ${requested}`;
+}
+
+function isDeleteCommandStale(row: SyncErrorRow) {
+  if (row.delete_command_status !== "claimed" || !row.delete_command_claimed_at) return false;
+  const claimedAt = new Date(row.delete_command_claimed_at).getTime();
+  return Number.isFinite(claimedAt) && Date.now() - claimedAt > DELETE_COMMAND_STALE_MS;
+}
+
+function canRequestQueueDelete(row: SyncErrorRow) {
+  if (!row.client_queue_id) return false;
+  if (deletingRowId.value) return false;
+  if (row.delete_command_status === "pending") return false;
+  if (row.delete_command_status === "claimed" && !isDeleteCommandStale(row)) return false;
+  if (row.delete_command_status === "done") return false;
+  return true;
+}
+
 async function loadDevices() {
   try {
     const data = await adminRpc("list_kiosk_devices");
@@ -100,6 +151,7 @@ async function loadDevices() {
 async function loadErrors() {
   loading.value = true;
   error.value = "";
+  message.value = "";
   try {
     const safeLimit = Math.min(1000, Math.max(1, Number(limit.value) || 200));
     const data = await adminRpc("list_device_sync_errors", {
@@ -125,6 +177,12 @@ async function loadErrors() {
       attempts: Number(row.attempts ?? 0),
       next_retry_at: row.next_retry_at ?? null,
       payload: row.payload ?? {},
+      delete_command_id: row.delete_command_id ?? null,
+      delete_command_status: row.delete_command_status ?? null,
+      delete_command_requested_at: row.delete_command_requested_at ?? null,
+      delete_command_claimed_at: row.delete_command_claimed_at ?? null,
+      delete_command_completed_at: row.delete_command_completed_at ?? null,
+      delete_command_result: row.delete_command_result ?? null,
     }));
   } catch (err: any) {
     console.error("[AdminSyncErrors.loadErrors]", err);
@@ -136,6 +194,41 @@ async function loadErrors() {
 
 async function refresh() {
   await Promise.all([loadDevices(), loadErrors()]);
+}
+
+async function requestQueueDelete(row: SyncErrorRow) {
+  if (!row.client_queue_id) {
+    error.value = "Dieser Logeintrag hat keine lokale Queue-ID.";
+    return;
+  }
+
+  const ok = window.confirm(
+    `Lokalen Queue-Eintrag ${row.client_queue_id} auf Gerät "${row.device_name}" löschen?\n\n` +
+      "Das entfernt die Buchung aus der lokalen Sync-Queue dieses Geräts, sobald das Gerät den Command abholt."
+  );
+  if (!ok) return;
+
+  deletingRowId.value = row.id;
+  error.value = "";
+  message.value = "";
+  try {
+    const data = await adminRpc("enqueue_device_queue_delete_command", {
+      device_id: row.device_id,
+      client_queue_id: row.client_queue_id,
+      client_tx_id: row.client_tx_id,
+    });
+    const inserted = Array.isArray(data) ? data.length : 0;
+    const nextMessage = inserted > 0
+      ? "Lösch-Command wurde für das Gerät angelegt."
+      : "Kein Lösch-Command angelegt. Prüfe, ob das Gerät aktiv ist.";
+    await loadErrors();
+    message.value = nextMessage;
+  } catch (err: any) {
+    console.error("[AdminSyncErrors.requestQueueDelete]", err);
+    error.value = err?.message || "Lösch-Command konnte nicht angelegt werden";
+  } finally {
+    deletingRowId.value = "";
+  }
 }
 
 onMounted(refresh);
@@ -219,6 +312,9 @@ onMounted(refresh);
     <div v-if="error" class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
       {{ error }}
     </div>
+    <div v-if="message" class="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+      {{ message }}
+    </div>
 
     <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
       <table class="min-w-full divide-y divide-gray-200 text-sm">
@@ -233,16 +329,17 @@ onMounted(refresh);
             <th class="px-4 py-3">Retry</th>
             <th class="px-4 py-3">Fehler</th>
             <th class="px-4 py-3">Payload</th>
+            <th class="px-4 py-3 text-right">Aktion</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
           <tr v-if="loading">
-            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+            <td colspan="10" class="px-4 py-8 text-center text-gray-500">
               Fehlerlog wird geladen...
             </td>
           </tr>
           <tr v-else-if="rows.length === 0">
-            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+            <td colspan="10" class="px-4 py-8 text-center text-gray-500">
               Keine globalen Sync-Fehler im gewählten Filter.
             </td>
           </tr>
@@ -282,6 +379,18 @@ onMounted(refresh);
                   <summary class="cursor-pointer text-blue-700 hover:underline">Ansehen</summary>
                   <pre class="mt-2 max-w-[28rem] overflow-auto rounded-md bg-gray-900 p-3 text-xs text-gray-100">{{ payloadPreview(row) }}</pre>
                 </details>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <button
+                  class="rounded-md border border-red-700 bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  :disabled="!canRequestQueueDelete(row)"
+                  @click="requestQueueDelete(row)"
+                >
+                  {{ deletingRowId === row.id ? "Wird angelegt..." : deleteCommandLabel(row) }}
+                </button>
+                <div v-if="deleteCommandHint(row)" class="mt-1 text-xs text-gray-500">
+                  {{ deleteCommandHint(row) }}
+                </div>
               </td>
             </tr>
           </template>

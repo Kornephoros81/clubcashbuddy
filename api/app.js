@@ -540,6 +540,15 @@ const ADMIN_RPC_ACTIONS = {
       p_device_id: p.device_id ?? null,
     }),
   },
+  enqueue_device_queue_delete_command: {
+    fn: "api_admin_enqueue_device_queue_delete_command",
+    args: (token, p) => ({
+      p_token: token,
+      p_device_id: p.device_id,
+      p_client_queue_id: p.client_queue_id,
+      p_client_tx_id: p.client_tx_id ?? null,
+    }),
+  },
   prune_device_sync_errors: {
     fn: "api_admin_prune_device_sync_errors",
     args: (token, p) => ({
@@ -1206,9 +1215,29 @@ async function handleRoute(route, req, res) {
       try {
         await upsertDeviceSyncStatus(supabase, v.deviceId, body);
 
+        const staleDeleteClaimedBefore = new Date(Date.now() - 60_000).toISOString();
+        const staleSyncClaimedBefore = new Date(Date.now() - 10 * 60_000).toISOString();
+        const { error: staleDeleteError } = await supabase
+          .from("device_commands")
+          .update({ status: "pending", claimed_at: null })
+          .eq("device_id", v.deviceId)
+          .eq("command", "delete_queue_entry")
+          .eq("status", "claimed")
+          .lt("claimed_at", staleDeleteClaimedBefore);
+        if (staleDeleteError) throw staleDeleteError;
+
+        const { error: staleSyncError } = await supabase
+          .from("device_commands")
+          .update({ status: "pending", claimed_at: null })
+          .eq("device_id", v.deviceId)
+          .eq("command", "sync_now")
+          .eq("status", "claimed")
+          .lt("claimed_at", staleSyncClaimedBefore);
+        if (staleSyncError) throw staleSyncError;
+
         const { data: pendingRows, error: pendingError } = await supabase
           .from("device_commands")
-          .select("id,command,requested_at")
+          .select("id,command,payload,requested_at")
           .eq("device_id", v.deviceId)
           .eq("status", "pending")
           .order("requested_at", { ascending: true })
@@ -1225,7 +1254,7 @@ async function handleRoute(route, req, res) {
             .in("id", ids)
             .eq("device_id", v.deviceId)
             .eq("status", "pending")
-            .select("id,command,requested_at");
+            .select("id,command,payload,requested_at");
           if (claimError) throw claimError;
 
           commands = Array.isArray(claimedRows) ? claimedRows : [];
@@ -1263,11 +1292,17 @@ async function handleRoute(route, req, res) {
         const nowIso = new Date().toISOString();
         const processedCount = Math.max(0, Math.floor(Number(body?.processed_count ?? 0)) || 0);
         const releasedFailedCount = Math.max(0, Math.floor(Number(body?.released_failed_count ?? 0)) || 0);
+        const deletedQueueId = Math.max(0, Math.floor(Number(body?.deleted_queue_id ?? 0)) || 0);
+        const queueEntryDeleted = body?.queue_entry_deleted === true;
+        const queueEntryAlreadyMissing = body?.queue_entry_already_missing === true;
         const errorText = success ? null : compactText(body?.error, 4000) || "Command failed";
         const result = {
           success,
           processed_count: processedCount,
           released_failed_count: releasedFailedCount,
+          deleted_queue_id: deletedQueueId || null,
+          queue_entry_deleted: queueEntryDeleted,
+          queue_entry_already_missing: queueEntryAlreadyMissing,
           queue_status: normalizeQueueStatus(body),
         };
 

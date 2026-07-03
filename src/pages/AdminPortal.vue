@@ -8,42 +8,52 @@ const router = useRouter();
 const route = useRoute();
 const authStore = useAppAuthStore();
 const loading = ref(false);
+const showMasterData = ref(false);
+const showActions = ref(false);
 const showReports = ref(false);
-const showAdmin = ref(false);
+const showSystem = ref(false);
 const showMobileMenu = ref(false);
 const { appTitle, logoUrl, loadBrandingAdmin } = useBranding();
 
-const adminLinks = [
+const masterDataLinks = [
   { to: "/admin/members", label: "Mitglieder", icon: "👥" },
   { to: "/admin/products", label: "Artikel", icon: "🧃" },
   { to: "/admin/product-categories", label: "Kategorien", icon: "🧩" },
+];
+
+const actionLinks = [
   { to: "/admin/storage", label: "Lagerverwaltung", icon: "📦" },
   { to: "/admin/bookings-report", label: "Buchungsübersicht", icon: "🧾" },
-  { to: "/admin/branding", label: "Branding", icon: "🏷️" },
-  { to: "/admin/users", label: "Admin-Benutzer", icon: "👤" },
-  { to: "/admin/device-pairing", label: "Geräte koppeln", icon: "🔐" },
-  { to: "/admin/sync-queue", label: "Sync-Queue", icon: "🔄" },
-  { to: "/admin/sync-errors", label: "Sync-Fehler", icon: "⚠️" },
-  { to: "/admin/device-sync", label: "Geräte-Sync", icon: "🔁" },
-  { to: "/admin/performance", label: "Performance", icon: "📈" },
+  { to: "/admin/inventory-report", label: "Inventurabgleich", icon: "📦" },
+  { to: "/admin/settlement", label: "Monatsabschluss", icon: "📘" },
 ];
 
 const reportLinks = [
-  { to: "/admin/inventory-report", label: "Inventurabgleich", icon: "📦" },
   { to: "/admin/stock-adjustments-report", label: "Fehlbestände & Anpassungen", icon: "📉" },
   { to: "/admin/fridge-refills-report", label: "Kühlschrank-Auffüllungen", icon: "🧊" },
   { to: "/admin/cancellations-report", label: "Storno-Report", icon: "↩️" },
   { to: "/admin/revenue-report", label: "Umsatzreport", icon: "💶" },
   { to: "/admin/complimentary-report", label: "Freigetränke", icon: "🎟️" },
   { to: "/admin/settlements-report", label: "Abrechnungsprotokoll", icon: "📒" },
-  { to: "/admin/settlement", label: "Monatsabschluss", icon: "📘" },
+];
+
+const systemLinks = [
+  { to: "/admin/branding", label: "Branding", icon: "🏷️" },
+  { to: "/admin/users", label: "Admin-Benutzer", icon: "👤" },
+  { to: "/admin/device-pairing", label: "Geräte koppeln", icon: "🔐" },
+  { to: "/admin/device-sync", label: "Geräte-Sync", icon: "🔁" },
+  { to: "/admin/sync-errors", label: "Sync-Fehler", icon: "⚠️" },
+  { to: "/admin/sync-queue", label: "Sync-Queue", icon: "🔄" },
+  { to: "/admin/performance", label: "Performance", icon: "📈" },
 ];
 
 const currentSectionLabel = computed(() => {
   const allLinks = [
     { to: "/admin/dashboard", label: "Dashboard" },
-    ...adminLinks,
+    ...masterDataLinks,
+    ...actionLinks,
     ...reportLinks,
+    ...systemLinks,
   ];
   return allLinks.find((item) => route.path === item.to)?.label ?? "Adminportal";
 });
@@ -54,43 +64,48 @@ function onLogoError(event: Event) {
 }
 
 function closeAllMenus() {
-  showAdmin.value = false;
+  showMasterData.value = false;
+  showActions.value = false;
   showReports.value = false;
+  showSystem.value = false;
   showMobileMenu.value = false;
 }
 
-function toggleAdminMenu() {
-  const next = !showAdmin.value;
-  showAdmin.value = next;
-  if (next) showReports.value = false;
+function closeSectionMenus() {
+  showMasterData.value = false;
+  showActions.value = false;
+  showReports.value = false;
+  showSystem.value = false;
 }
 
-function toggleReportsMenu() {
-  const next = !showReports.value;
-  showReports.value = next;
-  if (next) showAdmin.value = false;
+function toggleSection(section: "masterData" | "actions" | "reports" | "system") {
+  const current =
+    section === "masterData"
+      ? showMasterData.value
+      : section === "actions"
+        ? showActions.value
+        : section === "reports"
+          ? showReports.value
+          : showSystem.value;
+
+  closeSectionMenus();
+
+  if (section === "masterData") showMasterData.value = !current;
+  else if (section === "actions") showActions.value = !current;
+  else if (section === "reports") showReports.value = !current;
+  else showSystem.value = !current;
 }
 
 function toggleMobileMenu() {
   const next = !showMobileMenu.value;
   showMobileMenu.value = next;
   if (!next) {
-    showAdmin.value = false;
-    showReports.value = false;
+    closeSectionMenus();
   }
 }
 
-function onMobileSectionToggle(section: "admin" | "reports") {
-  if (section === "admin") {
-    const next = !showAdmin.value;
-    showAdmin.value = next;
-    if (next) showReports.value = false;
-    return;
-  }
-
-  const next = !showReports.value;
-  showReports.value = next;
-  if (next) showAdmin.value = false;
+function onMobileSectionToggle(section: "masterData" | "actions" | "reports" | "system") {
+  toggleSection(section);
 }
 
 async function logout() {
@@ -136,35 +151,35 @@ onMounted(async () => {
             />
             <span class="truncate">{{ appTitle }} – Adminportal</span>
           </h1>
-          <div class="md:hidden text-xs text-white/75 mt-1 truncate">
+          <div class="lg:hidden text-xs text-white/75 mt-1 truncate">
             {{ currentSectionLabel }}
           </div>
         </div>
 
-        <div class="hidden md:flex gap-6 text-sm items-center relative">
+        <div class="hidden lg:flex gap-4 text-sm items-center relative">
           <RouterLink to="/admin/dashboard" class="hover:underline">
             Dashboard
           </RouterLink>
 
           <div class="relative">
             <button
-              @click="toggleAdminMenu"
+              @click="toggleSection('masterData')"
               class="hover:underline flex items-center gap-1"
             >
-              ⚙️ Verwaltung
-              <span class="text-xs" :class="{ 'rotate-180': showAdmin }">▼</span>
+              🗂️ Stammdaten
+              <span class="text-xs" :class="{ 'rotate-180': showMasterData }">▼</span>
             </button>
             <div
-              v-if="showAdmin"
+              v-if="showMasterData"
               class="absolute right-0 mt-2 w-56 bg-white text-gray-800 rounded-md shadow-lg border border-gray-200 z-50"
-              @mouseleave="showAdmin = false"
+              @mouseleave="showMasterData = false"
             >
               <RouterLink
-                v-for="item in adminLinks"
+                v-for="item in masterDataLinks"
                 :key="item.to"
                 :to="item.to"
                 class="block px-4 py-2 hover:bg-gray-100"
-                @click="showAdmin = false"
+                @click="showMasterData = false"
               >
                 {{ item.icon }} {{ item.label }}
               </RouterLink>
@@ -173,7 +188,32 @@ onMounted(async () => {
 
           <div class="relative">
             <button
-              @click="toggleReportsMenu"
+              @click="toggleSection('actions')"
+              class="hover:underline flex items-center gap-1"
+            >
+              🧭 Vorgänge
+              <span class="text-xs" :class="{ 'rotate-180': showActions }">▼</span>
+            </button>
+            <div
+              v-if="showActions"
+              class="absolute right-0 mt-2 w-60 bg-white text-gray-800 rounded-md shadow-lg border border-gray-200 z-50"
+              @mouseleave="showActions = false"
+            >
+              <RouterLink
+                v-for="item in actionLinks"
+                :key="item.to"
+                :to="item.to"
+                class="block px-4 py-2 hover:bg-gray-100"
+                @click="showActions = false"
+              >
+                {{ item.icon }} {{ item.label }}
+              </RouterLink>
+            </div>
+          </div>
+
+          <div class="relative">
+            <button
+              @click="toggleSection('reports')"
               class="hover:underline flex items-center gap-1"
             >
               📊 Berichte
@@ -198,25 +238,52 @@ onMounted(async () => {
             </div>
           </div>
 
+          <div class="relative">
+            <button
+              @click="toggleSection('system')"
+              class="hover:underline flex items-center gap-1"
+            >
+              🛠️ System
+              <span class="text-xs" :class="{ 'rotate-180': showSystem }">▼</span>
+            </button>
+            <div
+              v-if="showSystem"
+              class="absolute right-0 mt-2 w-56 bg-white text-gray-800 rounded-md shadow-lg border border-gray-200 z-50"
+              @mouseleave="showSystem = false"
+            >
+              <RouterLink
+                v-for="item in systemLinks"
+                :key="item.to"
+                :to="item.to"
+                class="block px-4 py-2 hover:bg-gray-100"
+                @click="showSystem = false"
+              >
+                {{ item.icon }} {{ item.label }}
+              </RouterLink>
+            </div>
+          </div>
+
           <RouterLink
             to="/"
-            class="ml-2 bg-white/20 px-3 py-1 rounded hover:bg-white/30 transition"
+            class="ml-1 bg-white/20 px-3 py-1 rounded hover:bg-white/30 transition"
           >
-            🏠 Terminal
+            Terminal
           </RouterLink>
 
           <button
             @click="logout"
-            class="bg-white/20 px-3 py-1 rounded hover:bg-white/30 transition"
+            class="flex h-8 w-8 items-center justify-center rounded bg-white/20 text-base hover:bg-white/30 transition disabled:opacity-50"
             :disabled="loading"
+            :title="loading ? 'Abmelden...' : 'Abmelden'"
+            aria-label="Abmelden"
           >
-            {{ loading ? "…" : "Abmelden" }}
+            {{ loading ? "…" : "⏻" }}
           </button>
         </div>
 
         <button
           @click="toggleMobileMenu"
-          class="md:hidden inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-medium shadow-sm hover:bg-white/20 transition"
+          class="lg:hidden inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-medium shadow-sm hover:bg-white/20 transition"
           :aria-expanded="showMobileMenu"
           aria-label="Admin-Menü öffnen"
         >
@@ -227,7 +294,7 @@ onMounted(async () => {
       <transition name="mobile-menu">
         <div
           v-if="showMobileMenu"
-          class="md:hidden border-t border-white/15 bg-primary/95 backdrop-blur-sm"
+          class="lg:hidden border-t border-white/15 bg-primary/95 backdrop-blur-sm"
         >
           <nav class="px-4 py-4 space-y-3">
             <RouterLink
@@ -239,15 +306,35 @@ onMounted(async () => {
 
             <div class="rounded-xl bg-white/10 overflow-hidden">
               <button
-                @click="onMobileSectionToggle('admin')"
+                @click="onMobileSectionToggle('masterData')"
                 class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium"
               >
-                <span>⚙️ Verwaltung</span>
-                <span class="text-xs" :class="{ 'rotate-180': showAdmin }">▼</span>
+                <span>🗂️ Stammdaten</span>
+                <span class="text-xs" :class="{ 'rotate-180': showMasterData }">▼</span>
               </button>
-              <div v-if="showAdmin" class="border-t border-white/10 bg-black/10">
+              <div v-if="showMasterData" class="border-t border-white/10 bg-black/10">
                 <RouterLink
-                  v-for="item in adminLinks"
+                  v-for="item in masterDataLinks"
+                  :key="item.to"
+                  :to="item.to"
+                  class="block px-4 py-3 text-sm text-white/95 hover:bg-white/10 transition"
+                >
+                  {{ item.icon }} {{ item.label }}
+                </RouterLink>
+              </div>
+            </div>
+
+            <div class="rounded-xl bg-white/10 overflow-hidden">
+              <button
+                @click="onMobileSectionToggle('actions')"
+                class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium"
+              >
+                <span>🧭 Vorgänge</span>
+                <span class="text-xs" :class="{ 'rotate-180': showActions }">▼</span>
+              </button>
+              <div v-if="showActions" class="border-t border-white/10 bg-black/10">
+                <RouterLink
+                  v-for="item in actionLinks"
                   :key="item.to"
                   :to="item.to"
                   class="block px-4 py-3 text-sm text-white/95 hover:bg-white/10 transition"
@@ -277,12 +364,32 @@ onMounted(async () => {
               </div>
             </div>
 
+            <div class="rounded-xl bg-white/10 overflow-hidden">
+              <button
+                @click="onMobileSectionToggle('system')"
+                class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium"
+              >
+                <span>🛠️ System</span>
+                <span class="text-xs" :class="{ 'rotate-180': showSystem }">▼</span>
+              </button>
+              <div v-if="showSystem" class="border-t border-white/10 bg-black/10">
+                <RouterLink
+                  v-for="item in systemLinks"
+                  :key="item.to"
+                  :to="item.to"
+                  class="block px-4 py-3 text-sm text-white/95 hover:bg-white/10 transition"
+                >
+                  {{ item.icon }} {{ item.label }}
+                </RouterLink>
+              </div>
+            </div>
+
             <div class="grid grid-cols-2 gap-3 pt-1">
               <RouterLink
                 to="/"
                 class="rounded-lg bg-white/10 px-4 py-3 text-center text-sm font-medium hover:bg-white/15 transition"
               >
-                🏠 Terminal
+                Terminal
               </RouterLink>
               <button
                 @click="logout"
