@@ -1,6 +1,10 @@
 import { syncQueue } from "@/pwa/offlineSync";
 import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
-import { getQueueEntries, type QueueEntry } from "@/utils/offlineDB";
+import {
+  getQueueEntries,
+  resetFailedQueueRetries,
+  type QueueEntry,
+} from "@/utils/offlineDB";
 
 export type DeviceQueueStatus = {
   pending_count: number;
@@ -96,11 +100,15 @@ export async function pollAndRunDeviceCommands(token: string): Promise<void> {
     for (const command of commands) {
       if (command.command !== "sync_now" || !command.id) continue;
 
+      let releasedFailedCount = 0;
       try {
+        releasedFailedCount = await resetFailedQueueRetries();
         const processed = await syncQueue(token);
-        if (processed > 0 && typeof window !== "undefined") {
+        if ((processed > 0 || releasedFailedCount > 0) && typeof window !== "undefined") {
           window.dispatchEvent(
-            new CustomEvent("queue-synced", { detail: { processed } })
+            new CustomEvent("queue-synced", {
+              detail: { processed, released_failed_count: releasedFailedCount },
+            })
           );
         }
         await postDeviceSyncControl(token, {
@@ -108,6 +116,7 @@ export async function pollAndRunDeviceCommands(token: string): Promise<void> {
           command_id: command.id,
           success: true,
           processed_count: processed,
+          released_failed_count: releasedFailedCount,
           queue_status: await getLocalQueueStatus(),
         });
       } catch (err) {
@@ -117,6 +126,7 @@ export async function pollAndRunDeviceCommands(token: string): Promise<void> {
           command_id: command.id,
           success: false,
           processed_count: 0,
+          released_failed_count: releasedFailedCount,
           error: message,
           queue_status: await getLocalQueueStatus(),
         }).catch((completeErr) => {

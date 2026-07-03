@@ -1262,10 +1262,12 @@ async function handleRoute(route, req, res) {
         const success = body?.success !== false;
         const nowIso = new Date().toISOString();
         const processedCount = Math.max(0, Math.floor(Number(body?.processed_count ?? 0)) || 0);
+        const releasedFailedCount = Math.max(0, Math.floor(Number(body?.released_failed_count ?? 0)) || 0);
         const errorText = success ? null : compactText(body?.error, 4000) || "Command failed";
         const result = {
           success,
           processed_count: processedCount,
+          released_failed_count: releasedFailedCount,
           queue_status: normalizeQueueStatus(body),
         };
 
