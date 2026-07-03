@@ -24,6 +24,7 @@ const adminLinks = [
   { to: "/admin/device-pairing", label: "Geräte koppeln", icon: "🔐" },
   { to: "/admin/sync-queue", label: "Sync-Queue", icon: "🔄" },
   { to: "/admin/sync-errors", label: "Sync-Fehler", icon: "⚠️" },
+  { to: "/admin/device-sync", label: "Geräte-Sync", icon: "🔁" },
   { to: "/admin/performance", label: "Performance", icon: "📈" },
 ];
 

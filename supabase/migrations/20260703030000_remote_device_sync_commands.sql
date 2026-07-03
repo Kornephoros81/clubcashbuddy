@@ -122,7 +122,13 @@ begin
     select count(*)::integer as pending_command_count
     from public.device_commands c
     where c.device_id = d.id
-      and c.status in ('pending', 'claimed')
+      and (
+        c.status = 'pending'
+        or (
+          c.status = 'claimed'
+          and c.claimed_at > now() - interval '10 minutes'
+        )
+      )
   ) pc on true
   left join lateral (
     select c.id, c.status, c.requested_at, c.completed_at
@@ -167,7 +173,13 @@ begin
         from public.device_commands existing
         where existing.device_id = d.id
           and existing.command = 'sync_now'
-          and existing.status in ('pending', 'claimed')
+          and (
+            existing.status = 'pending'
+            or (
+              existing.status = 'claimed'
+              and existing.claimed_at > now() - interval '10 minutes'
+            )
+          )
       )
   ),
   inserted as (

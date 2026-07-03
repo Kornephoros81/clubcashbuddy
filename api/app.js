@@ -87,6 +87,47 @@ function normalizeSyncFailurePayload(body, deviceId) {
   };
 }
 
+function normalizeQueueStatus(body = {}) {
+  const source = body?.queue_status && typeof body.queue_status === "object"
+    ? body.queue_status
+    : body;
+  const toCount = (value) => {
+    const n = Math.floor(Number(value ?? 0));
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 1000000) : 0;
+  };
+
+  return {
+    pending_count: toCount(source.pending_count ?? source.pendingCount),
+    failed_count: toCount(source.failed_count ?? source.failedCount),
+    total_count: toCount(source.total_count ?? source.totalCount),
+    fatal_failed_count: toCount(source.fatal_failed_count ?? source.fatalFailedCount),
+    retryable_failed_count: toCount(source.retryable_failed_count ?? source.retryableFailedCount),
+  };
+}
+
+async function upsertDeviceSyncStatus(supabase, deviceId, body = {}, extra = {}) {
+  const nowIso = new Date().toISOString();
+  const status = normalizeQueueStatus(body);
+  const payload = {
+    device_id: deviceId,
+    ...status,
+    last_queue_report_at: nowIso,
+    updated_at: nowIso,
+    ...extra,
+  };
+
+  const { error } = await supabase
+    .from("device_sync_status")
+    .upsert(payload, { onConflict: "device_id" });
+  if (error) throw error;
+
+  const { error: seenError } = await supabase
+    .from("kiosk_devices")
+    .update({ last_seen_at: nowIso })
+    .eq("id", deviceId);
+  if (seenError) throw seenError;
+}
+
 async function stampBookingDeviceTrace(supabase, txId, deviceId) {
   if (!txId || !deviceId) return null;
 
@@ -487,6 +528,17 @@ const ADMIN_RPC_ACTIONS = {
   get_performance_metrics: {
     fn: "api_admin_get_performance_metrics",
     args: (token) => ({ p_token: token }),
+  },
+  list_device_sync_status: {
+    fn: "api_admin_list_device_sync_status",
+    args: (token) => ({ p_token: token }),
+  },
+  enqueue_device_sync_command: {
+    fn: "api_admin_enqueue_device_sync_command",
+    args: (token, p) => ({
+      p_token: token,
+      p_device_id: p.device_id ?? null,
+    }),
   },
   prune_device_sync_errors: {
     fn: "api_admin_prune_device_sync_errors",
@@ -1133,6 +1185,117 @@ async function handleRoute(route, req, res) {
       .single();
     if (error) return json(res, 500, { error: error.message || "Sync error log failed" });
     return json(res, 200, { success: true, id: data?.id ?? null });
+  }
+
+  if (route === "device-sync-control") {
+    if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+    const action = String(body?.action ?? "").trim();
+
+    if (action === "report_status") {
+      try {
+        await upsertDeviceSyncStatus(supabase, v.deviceId, body);
+        return json(res, 200, { success: true });
+      } catch (error) {
+        return json(res, 500, {
+          error: error instanceof Error ? error.message : "Queue status update failed",
+        });
+      }
+    }
+
+    if (action === "poll") {
+      try {
+        await upsertDeviceSyncStatus(supabase, v.deviceId, body);
+
+        const { data: pendingRows, error: pendingError } = await supabase
+          .from("device_commands")
+          .select("id,command,requested_at")
+          .eq("device_id", v.deviceId)
+          .eq("status", "pending")
+          .order("requested_at", { ascending: true })
+          .limit(5);
+        if (pendingError) throw pendingError;
+
+        let commands = Array.isArray(pendingRows) ? pendingRows : [];
+        const ids = commands.map((row) => row.id).filter(Boolean);
+        if (ids.length) {
+          const nowIso = new Date().toISOString();
+          const { data: claimedRows, error: claimError } = await supabase
+            .from("device_commands")
+            .update({ status: "claimed", claimed_at: nowIso })
+            .in("id", ids)
+            .eq("device_id", v.deviceId)
+            .eq("status", "pending")
+            .select("id,command,requested_at");
+          if (claimError) throw claimError;
+
+          commands = Array.isArray(claimedRows) ? claimedRows : [];
+          if (commands.length) {
+            await upsertDeviceSyncStatus(supabase, v.deviceId, body, {
+              last_sync_started_at: nowIso,
+              last_error: null,
+            });
+          }
+        }
+
+        return json(res, 200, { success: true, commands });
+      } catch (error) {
+        return json(res, 500, {
+          error: error instanceof Error ? error.message : "Command poll failed",
+        });
+      }
+    }
+
+    if (action === "complete") {
+      const commandId = normalizeUuid(body?.command_id);
+      if (!commandId) return json(res, 400, { error: "command_id is required" });
+
+      try {
+        const { data: command, error: commandError } = await supabase
+          .from("device_commands")
+          .select("id,device_id,command")
+          .eq("id", commandId)
+          .eq("device_id", v.deviceId)
+          .maybeSingle();
+        if (commandError) throw commandError;
+        if (!command) return json(res, 404, { error: "Command not found" });
+
+        const success = body?.success !== false;
+        const nowIso = new Date().toISOString();
+        const processedCount = Math.max(0, Math.floor(Number(body?.processed_count ?? 0)) || 0);
+        const errorText = success ? null : compactText(body?.error, 4000) || "Command failed";
+        const result = {
+          success,
+          processed_count: processedCount,
+          queue_status: normalizeQueueStatus(body),
+        };
+
+        const { error: updateError } = await supabase
+          .from("device_commands")
+          .update({
+            status: success ? "done" : "failed",
+            completed_at: nowIso,
+            result,
+            error: errorText,
+          })
+          .eq("id", command.id)
+          .eq("device_id", v.deviceId);
+        if (updateError) throw updateError;
+
+        await upsertDeviceSyncStatus(supabase, v.deviceId, body, {
+          last_sync_finished_at: nowIso,
+          last_sync_processed_count: processedCount,
+          last_error: errorText,
+        });
+
+        return json(res, 200, { success: true });
+      } catch (error) {
+        return json(res, 500, {
+          error: error instanceof Error ? error.message : "Command completion failed",
+        });
+      }
+    }
+
+    return json(res, 400, { error: "Unknown action" });
   }
 
   if (route === "member-pin-status") {

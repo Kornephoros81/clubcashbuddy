@@ -4,6 +4,7 @@ import App from "./App.vue";
 import router from "./router";
 import { registerSW } from "./pwa/sw";
 import "./style.css";
+import { startDeviceSyncControlPoller } from "@/pwa/deviceSyncControl";
 import { syncQueue } from "@/pwa/offlineSync";
 import { useDeviceAuthStore } from "@/stores/useDeviceAuthStore";
 
@@ -94,6 +95,7 @@ async function bootstrap() {
 
   // Polling starten
   ensurePoller();
+  startDeviceSyncControlPoller(() => auth.token);
 
   app.mount("#app");
   registerSW();
