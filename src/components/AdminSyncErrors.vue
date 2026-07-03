@@ -30,6 +30,7 @@ type SyncErrorRow = {
   delete_command_id: string | null;
   delete_command_status: string | null;
   delete_command_requested_at: string | null;
+  delete_command_claimed_at: string | null;
   delete_command_completed_at: string | null;
   delete_command_result: Record<string, unknown> | null;
 };
@@ -43,6 +44,7 @@ const sincePreset = ref("7d");
 const limit = ref(200);
 const message = ref("");
 const deletingRowId = ref("");
+const DELETE_COMMAND_STALE_MS = 90_000;
 
 const failedCount = computed(() => rows.value.length);
 const fatalCount = computed(
@@ -89,7 +91,9 @@ function payloadPreview(row: SyncErrorRow) {
 
 function deleteCommandLabel(row: SyncErrorRow) {
   if (row.delete_command_status === "pending") return "Löschung wartet";
-  if (row.delete_command_status === "claimed") return "Löschung läuft";
+  if (row.delete_command_status === "claimed") {
+    return isDeleteCommandStale(row) ? "Erneut versuchen" : "Löschung läuft";
+  }
   if (row.delete_command_status === "done") {
     if (row.delete_command_result?.queue_entry_already_missing) return "War schon gelöscht";
     return "Bereits gelöscht";
@@ -101,16 +105,28 @@ function deleteCommandLabel(row: SyncErrorRow) {
 function deleteCommandHint(row: SyncErrorRow) {
   if (!row.delete_command_status) return "";
   const requested = formatDate(row.delete_command_requested_at);
+  const claimed = formatDate(row.delete_command_claimed_at);
   const completed = formatDate(row.delete_command_completed_at);
   if (row.delete_command_status === "done") return `Erledigt: ${completed}`;
   if (row.delete_command_status === "failed") return `Fehlgeschlagen: ${completed}`;
+  if (row.delete_command_status === "claimed" && isDeleteCommandStale(row)) {
+    return `Hängt seit: ${claimed}`;
+  }
+  if (row.delete_command_status === "claimed") return `Läuft seit: ${claimed}`;
   return `Angelegt: ${requested}`;
+}
+
+function isDeleteCommandStale(row: SyncErrorRow) {
+  if (row.delete_command_status !== "claimed" || !row.delete_command_claimed_at) return false;
+  const claimedAt = new Date(row.delete_command_claimed_at).getTime();
+  return Number.isFinite(claimedAt) && Date.now() - claimedAt > DELETE_COMMAND_STALE_MS;
 }
 
 function canRequestQueueDelete(row: SyncErrorRow) {
   if (!row.client_queue_id) return false;
   if (deletingRowId.value) return false;
-  if (row.delete_command_status === "pending" || row.delete_command_status === "claimed") return false;
+  if (row.delete_command_status === "pending") return false;
+  if (row.delete_command_status === "claimed" && !isDeleteCommandStale(row)) return false;
   if (row.delete_command_status === "done") return false;
   return true;
 }
@@ -164,6 +180,7 @@ async function loadErrors() {
       delete_command_id: row.delete_command_id ?? null,
       delete_command_status: row.delete_command_status ?? null,
       delete_command_requested_at: row.delete_command_requested_at ?? null,
+      delete_command_claimed_at: row.delete_command_claimed_at ?? null,
       delete_command_completed_at: row.delete_command_completed_at ?? null,
       delete_command_result: row.delete_command_result ?? null,
     }));

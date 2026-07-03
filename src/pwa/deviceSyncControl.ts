@@ -165,7 +165,19 @@ export async function pollAndRunDeviceCommands(token: string): Promise<void> {
         continue;
       }
 
-      if (command.command !== "sync_now") continue;
+      if (command.command !== "sync_now") {
+        await postDeviceSyncControl(token, {
+          action: "complete",
+          command_id: command.id,
+          success: false,
+          processed_count: 0,
+          error: `Unbekannter Geräte-Command: ${command.command}`,
+          queue_status: await getLocalQueueStatus(),
+        }).catch((completeErr) => {
+          console.warn("[deviceSyncControl.unknown.complete]", completeErr);
+        });
+        continue;
+      }
 
       let releasedFailedCount = 0;
       try {

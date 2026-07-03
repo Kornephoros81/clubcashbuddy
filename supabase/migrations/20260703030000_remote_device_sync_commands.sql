@@ -336,6 +336,7 @@ returns table(
   delete_command_id uuid,
   delete_command_status text,
   delete_command_requested_at timestamp with time zone,
+  delete_command_claimed_at timestamp with time zone,
   delete_command_completed_at timestamp with time zone,
   delete_command_result jsonb
 )
@@ -373,6 +374,7 @@ begin
     dc.id as delete_command_id,
     dc.status as delete_command_status,
     dc.requested_at as delete_command_requested_at,
+    dc.claimed_at as delete_command_claimed_at,
     dc.completed_at as delete_command_completed_at,
     dc.result as delete_command_result
   from public.device_sync_errors e
@@ -380,7 +382,7 @@ begin
   left join public.members m on m.id = e.member_id
   left join public.products p on p.id = e.product_id
   left join lateral (
-    select c.id, c.status, c.requested_at, c.completed_at, c.result
+    select c.id, c.status, c.requested_at, c.claimed_at, c.completed_at, c.result
     from public.device_commands c
     where c.device_id = e.device_id
       and c.command = 'delete_queue_entry'
@@ -432,6 +434,7 @@ returns table(
   delete_command_id uuid,
   delete_command_status text,
   delete_command_requested_at timestamp with time zone,
+  delete_command_claimed_at timestamp with time zone,
   delete_command_completed_at timestamp with time zone,
   delete_command_result jsonb
 )

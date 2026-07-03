@@ -1215,6 +1215,26 @@ async function handleRoute(route, req, res) {
       try {
         await upsertDeviceSyncStatus(supabase, v.deviceId, body);
 
+        const staleDeleteClaimedBefore = new Date(Date.now() - 60_000).toISOString();
+        const staleSyncClaimedBefore = new Date(Date.now() - 10 * 60_000).toISOString();
+        const { error: staleDeleteError } = await supabase
+          .from("device_commands")
+          .update({ status: "pending", claimed_at: null })
+          .eq("device_id", v.deviceId)
+          .eq("command", "delete_queue_entry")
+          .eq("status", "claimed")
+          .lt("claimed_at", staleDeleteClaimedBefore);
+        if (staleDeleteError) throw staleDeleteError;
+
+        const { error: staleSyncError } = await supabase
+          .from("device_commands")
+          .update({ status: "pending", claimed_at: null })
+          .eq("device_id", v.deviceId)
+          .eq("command", "sync_now")
+          .eq("status", "claimed")
+          .lt("claimed_at", staleSyncClaimedBefore);
+        if (staleSyncError) throw staleSyncError;
+
         const { data: pendingRows, error: pendingError } = await supabase
           .from("device_commands")
           .select("id,command,payload,requested_at")
