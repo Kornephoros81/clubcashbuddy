@@ -23,6 +23,7 @@ const AdminUsers = () => import("@/components/AdminUsers.vue");
 const AdminDevicePairing = () => import("@/components/AdminDevicePairing.vue");
 const AdminSyncQueue = () => import("@/components/AdminSyncQueue.vue");
 const AdminSyncErrors = () => import("@/components/AdminSyncErrors.vue");
+const AdminPerformanceMetrics = () => import("@/components/AdminPerformanceMetrics.vue");
 
 const routes = [
   { path: "/", component: Terminal },
@@ -51,6 +52,7 @@ const routes = [
       { path: "device-pairing", component: AdminDevicePairing },
       { path: "sync-queue", component: AdminSyncQueue },
       { path: "sync-errors", component: AdminSyncErrors },
+      { path: "performance", component: AdminPerformanceMetrics },
       { path: "settlement", component: AdminSettlementView },
       { path: "storage", component: AdminStorageView },
     ],

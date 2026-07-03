@@ -607,12 +607,25 @@ function createLogic() {
         return;
       }
 
+      const memberCatalogVersion =
+        store.members.length && typeof localStorage !== "undefined"
+          ? localStorage.getItem("terminal_member_catalog_version")
+          : null;
+      const productCatalogVersion =
+        store.products.length && typeof localStorage !== "undefined"
+          ? localStorage.getItem("terminal_product_catalog_version")
+          : null;
+
       const res = await fetchWithTimeout("/api/terminal-snapshot", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${auth.token}`,
         },
+        body: JSON.stringify({
+          member_catalog_version: memberCatalogVersion,
+          product_catalog_version: productCatalogVersion,
+        }),
       });
       if (auth.handleAuthStatus(res.status)) return;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -620,15 +633,41 @@ function createLogic() {
       const json = await res.json();
       const members = Array.isArray(json?.members) ? json.members : [];
       const products = Array.isArray(json?.products) ? json.products : [];
-      await store.applyMembers(members);
-      if (products.length) {
-        await store.applyProducts(products);
+      if (Array.isArray(json?.members)) {
+        await store.applyMembers(members);
+        if (json?.member_catalog_version && typeof localStorage !== "undefined") {
+          localStorage.setItem(
+            "terminal_member_catalog_version",
+            String(json.member_catalog_version)
+          );
+        }
       }
-      bookedTodayIds.value = new Set<string>(
-        (members as Member[])
-          .filter((m) => m?.has_booked_today)
-          .map((m) => String(m.id))
-      );
+      if (Array.isArray(json?.products)) {
+        await store.applyProducts(products);
+        if (json?.product_catalog_version && typeof localStorage !== "undefined") {
+          localStorage.setItem(
+            "terminal_product_catalog_version",
+            String(json.product_catalog_version)
+          );
+        }
+      }
+      if (Array.isArray(json?.member_activity)) {
+        const activityById = new Map(
+          json.member_activity.map((row: any) => [String(row.id), row])
+        );
+        for (const member of store.members) {
+          const activity = activityById.get(String(member.id));
+          if (!activity) continue;
+          member.last_booking_at = activity.last_booking_at ?? null;
+          member.has_booked_today = Boolean(activity.has_booked_today);
+        }
+      }
+      const bookedToday = Array.isArray(json?.booked_today_member_ids)
+        ? json.booked_today_member_ids
+        : (members as Member[])
+            .filter((m) => m?.has_booked_today)
+            .map((m) => String(m.id));
+      bookedTodayIds.value = new Set<string>(bookedToday.map((id: unknown) => String(id)));
       lastBookedTodayFetch.value = Date.now();
     } catch (err) {
       console.warn("[refreshTerminalSnapshot] fallback:", err);
