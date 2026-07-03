@@ -183,7 +183,7 @@ function onPresetChange() {
   if (preset.value !== "custom") {
     suppressDateReload.value = true;
     applyPreset(preset.value);
-    suppressDateReload.value = false;
+    void nextTick().then(() => { suppressDateReload.value = false; });
     void loadData();
   }
 }
@@ -311,7 +311,10 @@ async function renderCharts() {
   }
 }
 
+let loadSeq = 0;
+
 async function loadData() {
+  const seq = ++loadSeq;
   loading.value = true;
   error.value = null;
   try {
@@ -322,6 +325,7 @@ async function loadData() {
       heat_aggregation_mode: heatAggregationModeEffective.value,
       recent_events_limit: 0,
     });
+    if (seq !== loadSeq) return;
     metrics.value = payload.metrics ?? metrics.value;
     dailySummary.value = Array.isArray(payload.dailySummary) ? payload.dailySummary : [];
     categorySummary.value = Array.isArray(payload.categorySummary) ? payload.categorySummary : [];
@@ -331,10 +335,13 @@ async function loadData() {
     peakWeekday.value = payload.peakWeekday ?? null;
   } catch (e: any) {
     console.error("[DashboardOptimized]", e);
+    if (seq !== loadSeq) return;
     error.value = e.message || "Fehler beim Laden der Dashboard-Daten.";
   } finally {
-    loading.value = false;
-    await renderCharts();
+    if (seq === loadSeq) {
+      loading.value = false;
+      await renderCharts();
+    }
   }
 }
 
@@ -342,7 +349,7 @@ onMounted(async () => {
   await initChartJS();
   suppressDateReload.value = true;
   applyPreset(preset.value);
-  suppressDateReload.value = false;
+  void nextTick().then(() => { suppressDateReload.value = false; });
   await loadData();
 });
 

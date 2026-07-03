@@ -20,6 +20,7 @@ export type QueuePayload = {
 const BOOKING_SYNC_BATCH_SIZE = 25;
 const QUICK_RETRY_ATTEMPTS = 3;
 let syncInFlight: Promise<number> | null = null;
+let rerunRequested = false;
 
 function getNextRetryDelayMs(attempts: number): number {
   if (attempts <= QUICK_RETRY_ATTEMPTS) return 0;
@@ -200,7 +201,13 @@ async function callEF(
  * @returns Anzahl erfolgreich synchronisierter Einträge.
  */
 export async function syncQueue(token: string): Promise<number> {
-  if (syncInFlight) return syncInFlight;
+  if (syncInFlight) {
+    // Ein laufender Sync könnte den letzten Queue-Read schon hinter sich haben;
+    // nach Abschluss direkt einen Folgelauf starten, damit neue Einträge nicht
+    // bis zum nächsten Poller-Zyklus liegen bleiben.
+    rerunRequested = true;
+    return syncInFlight;
+  }
 
   syncInFlight = (async () => {
     if (!navigator.onLine) return 0;
@@ -247,6 +254,8 @@ export async function syncQueue(token: string): Promise<number> {
             member_id: payload.member_id,
             product_id: payload.product_id ?? null,
             note: payload.note ?? null,
+            // Idempotenz: verhindert Doppel-Storno bei Timeout + Retry
+            client_tx_id: payload.client_tx_id ?? null,
           });
         } else {
           await callEF(token, "/api/book-transaction", {
@@ -434,8 +443,9 @@ export async function syncQueue(token: string): Promise<number> {
     return await syncInFlight;
   } finally {
     syncInFlight = null;
+    if (rerunRequested) {
+      rerunRequested = false;
+      void syncQueue(token).catch(() => {});
+    }
   }
 }
-
-/** Rückwärtskompatibler Alias */
-export const syncQueued = syncQueue;

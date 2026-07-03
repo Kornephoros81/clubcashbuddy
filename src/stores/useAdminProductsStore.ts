@@ -1,32 +1,10 @@
 // src/stores/useAdminProductsStore.ts
 import { defineStore } from "pinia";
-import { useAppAuthStore } from "@/stores/useAppAuthStore";
+import { adminFetch } from "@/lib/adminApi";
 import { invalidateProductsCache } from "@/utils/productCatalogCache";
 
-async function apiRequest(path: string, method = "GET", body?: unknown) {
-  const auth = useAppAuthStore();
-  auth.ensureHydrated();
-  const token = auth.adminToken;
-  if (!token) throw new Error("Nicht authentifiziert");
-
-  const res = await fetch(path, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (res.status === 204) return null;
-  let payload: Record<string, unknown>;
-  try {
-    payload = await res.json();
-  } catch {
-    throw new Error("Ungültige Server-Antwort");
-  }
-  if (!res.ok) throw new Error((payload?.error as string) || "Anfrage fehlgeschlagen");
-  return payload;
+function apiRequest(path: string, method = "GET", body?: unknown) {
+  return adminFetch(path, { method, body });
 }
 
 export const useAdminProductsStore = defineStore("adminProducts", {
@@ -195,33 +173,32 @@ export const useAdminProductsStore = defineStore("adminProducts", {
     // === Erweiterung für Lagerverwaltung ===
     async loadProductsWithStorage() {
       this.loading = true;
-      const data = await apiRequest("/api/admin-products");
+      try {
+        const data = await apiRequest("/api/admin-products");
 
-      // Nur inventarisierte Produkte, alphabetisch sortiert
-      const filtered = (data ?? [])
-        .filter((p: any) => p.inventoried === true)
-        .filter((p: any) => p.active === true)
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        // Nur inventarisierte Produkte, alphabetisch sortiert
+        const filtered = (data ?? [])
+          .filter((p: any) => p.inventoried === true)
+          .filter((p: any) => p.active === true)
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
-      this.products = filtered.map((p: any) => ({
-        ...p,
-        priceEuro: p.price / 100,
-        guestPriceEuro: p.guest_price / 100,
-        lastPurchasePriceEuro: Number(p.last_purchase_price_cents ?? 0) / 100,
-        inventoryValueEuro: Number(p.inventory_value_cents ?? 0) / 100,
-        warehouse_stock: p.warehouse_stock ?? 0,
-        fridge_stock: p.fridge_stock ?? 0,
-        total_stock: Number(p.warehouse_stock ?? 0) + Number(p.fridge_stock ?? 0),
-        last_restocked_at: p.last_restocked_at,
-        last_purchase_price_cents: Number(p.last_purchase_price_cents ?? 0),
-        inventory_value_cents: Number(p.inventory_value_cents ?? 0),
-        purchasePriceEuro:
-          Number(p.last_purchase_price_cents ?? 0) > 0
-            ? Number(p.last_purchase_price_cents ?? 0) / 100
-            : null,
-        delta: 0,
-      }));
-      this.loading = false;
+        this.products = filtered.map((p: any) => ({
+          ...this.normalizeProduct(p),
+          warehouse_stock: p.warehouse_stock ?? 0,
+          fridge_stock: p.fridge_stock ?? 0,
+          total_stock: Number(p.warehouse_stock ?? 0) + Number(p.fridge_stock ?? 0),
+          last_restocked_at: p.last_restocked_at,
+          last_purchase_price_cents: Number(p.last_purchase_price_cents ?? 0),
+          inventory_value_cents: Number(p.inventory_value_cents ?? 0),
+          purchasePriceEuro:
+            Number(p.last_purchase_price_cents ?? 0) > 0
+              ? Number(p.last_purchase_price_cents ?? 0) / 100
+              : null,
+          delta: 0,
+        }));
+      } finally {
+        this.loading = false;
+      }
     },
 
     async loadPurchaseLots(productId: string | null = null, remainingOnly = true) {

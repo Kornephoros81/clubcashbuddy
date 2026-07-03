@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import { useToast } from "@/composables/useToast";
 import Datepicker from "@vuepic/vue-datepicker";
@@ -204,7 +204,7 @@ function onQuickDateSelect(start: Date, end: Date) {
   suppressDateReload.value = true;
   startDate.value = start;
   endDate.value = end;
-  suppressDateReload.value = false;
+  void nextTick().then(() => { suppressDateReload.value = false; });
   void loadBookings();
 }
 
@@ -307,7 +307,7 @@ async function confirmCancel() {
 onMounted(async () => {
   suppressDateReload.value = true;
   applyQueryFilters();
-  suppressDateReload.value = false;
+  void nextTick().then(() => { suppressDateReload.value = false; });
   await loadBookings();
 });
 

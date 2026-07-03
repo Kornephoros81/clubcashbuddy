@@ -1,8 +1,7 @@
 // src/composables/useTerminalLogic.ts
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import { ref, computed, watch, effectScope } from "vue";
 import { useCatalog, type Member, type Product } from "@/stores/useCatalog";
 import { useDeviceAuthStore } from "@/stores/useDeviceAuthStore";
-import { useTransactionStore } from "@/stores/useTransactionStore";
 import { book, cancelBooking, syncQueue, type QueuePayload } from "@/pwa/offlineSync";
 import { useModal } from "@/composables/useModal";
 import { getQueueEntries, getQueuedBookingsForMember } from "@/utils/offlineDB";
@@ -31,14 +30,19 @@ type QueueEntry = {
 let singleton: ReturnType<typeof createLogic> | null = null;
 
 export function useTerminalLogic() {
-  if (!singleton) singleton = createLogic();
-  return singleton!;
+  // Detached Scope: Watcher/Computed des Singletons dürfen nicht am Lifecycle
+  // der ersten aufrufenden Komponente hängen, sonst sterben sie bei deren
+  // Unmount (z. B. Wechsel Terminal → Admin → Terminal).
+  if (!singleton) {
+    const scope = effectScope(true);
+    singleton = scope.run(createLogic)!;
+  }
+  return singleton;
 }
 
 function createLogic() {
   const auth = useDeviceAuthStore();
   const store = useCatalog();
-  const txStore = useTransactionStore();
   const toast = ref<string | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   function showToast(msg: string) {
@@ -81,29 +85,19 @@ function createLogic() {
     failedQueueCount.value = all.filter((e) => e.status === "failed").length;
   }
 
-  onMounted(async () => {
-    auth.initFromStorage();
-    if (auth.authenticated) await initDataOnce();
-    watch(
-      () => auth.authenticated,
-      async (ok: boolean) => ok && (await initDataOnce())
-    );
-    if (typeof window !== "undefined") {
-      window.addEventListener("online", onOnline);
-      window.addEventListener("queue-synced", onQueueSynced as EventListener);
-    }
-  });
-
-  onBeforeUnmount(() => {
-    if (syncTimer) {
-      clearTimeout(syncTimer);
-      syncTimer = null;
-    }
-    if (typeof window !== "undefined") {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("queue-synced", onQueueSynced as EventListener);
-    }
-  });
+  // Einmalige Initialisierung auf Singleton-/App-Lebensdauer. Bewusst NICHT an
+  // onMounted/onBeforeUnmount einer Komponente gekoppelt: der Singleton überlebt
+  // die erste Komponente, deren Unmount hätte die Listener dauerhaft entfernt.
+  auth.initFromStorage();
+  if (auth.authenticated) void initDataOnce();
+  watch(
+    () => auth.authenticated,
+    async (ok: boolean) => ok && (await initDataOnce())
+  );
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", onOnline);
+    window.addEventListener("queue-synced", onQueueSynced as EventListener);
+  }
 
   async function initDataOnce() {
     if (hasInitialized.value) return;
@@ -301,10 +295,6 @@ function createLogic() {
     return out;
   }
 
-  function updateTxStoreItems() {
-    txStore.items = [...confirmedBookings.value, ...queuedBookings.value];
-  }
-
   async function refreshAfterRemoteChanges(forceSync = false) {
     if (forceSync && auth.token) {
       await syncQueue(auth.token);
@@ -321,7 +311,6 @@ function createLogic() {
     const queued = await getQueuedBookingsForMember(memberId);
     const queuedTx = mapQueuedDisplayToTx(member, queued);
     queuedBookings.value = groupBookings(queuedTx);
-    updateTxStoreItems();
   }
 
   function flattenGroupedBookings(groups: any[]): BookingEntry[] {
@@ -395,7 +384,6 @@ function createLogic() {
       const queuedTx = mapQueuedDisplayToTx(member, queued);
       confirmedBookings.value = groupBookings(baseTx);
       queuedBookings.value = groupBookings(queuedTx);
-      updateTxStoreItems();
     } catch (e) {
       console.info("[loadBookings] Offline/Fetch-Fehler:", e);
       showToast("📴 Offline: Buchungen können nicht geladen werden");
@@ -452,7 +440,6 @@ function createLogic() {
     selectedMember.value = null;
     confirmedBookings.value = [];
     queuedBookings.value = [];
-    updateTxStoreItems();
   }
 
   async function addProduct(product: Product) {
@@ -463,7 +450,7 @@ function createLogic() {
     loading.value = true;
     try {
       const price = selectedMember.value.is_guest
-        ? product.guest_price || product.price
+        ? product.guest_price ?? product.price
         : product.price;
       await book(
         auth.token,

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import Datepicker from "@vuepic/vue-datepicker";
 import DateRangeQuickSelect from "@/components/DateRangeQuickSelect.vue";
 import "@vuepic/vue-datepicker/dist/main.css";
+import { useToast } from "@/composables/useToast";
 import { adminRpc } from "@/lib/adminApi";
 import { fmt } from "@/utils/currency";
 import { exportReportAsPdf } from "@/utils/reportExport";
@@ -20,6 +21,8 @@ type ComplimentaryRow = {
   cost_amount_abs: number;
   note: string | null;
 };
+
+const { show: showToast } = useToast();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -196,6 +199,7 @@ async function loadReport() {
 
     const chunks: any[] = [];
     let offset = 0;
+    let truncated = false;
     for (let page = 0; page < maxPages; page += 1) {
       const data = await adminRpc("get_complimentary_report_period", {
         start: startISO,
@@ -207,6 +211,11 @@ async function loadReport() {
       chunks.push(...batch);
       if (batch.length < pageSize) break;
       offset += pageSize;
+      if (page === maxPages - 1) truncated = true;
+    }
+
+    if (truncated) {
+      showToast("⚠️ Freigetränke-Report wurde begrenzt geladen – bitte Zeitraum einschränken");
     }
 
     rows.value = chunks
@@ -232,7 +241,12 @@ async function loadReport() {
 }
 
 async function exportPdf() {
-  await exportReportAsPdf("admin-complimentary-report", "Freigetraenke-Report");
+  try {
+    await exportReportAsPdf("admin-complimentary-report", "Freigetraenke-Report");
+  } catch (err) {
+    console.error("[AdminComplimentaryReport.exportPdf]", err);
+    showToast("⚠️ PDF-Export fehlgeschlagen");
+  }
 }
 
 onMounted(loadReport);

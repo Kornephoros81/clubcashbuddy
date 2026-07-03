@@ -19,6 +19,7 @@ const lastRefillDate = ref<string | null>(null);
 const refillerSearch = ref("");
 const refillerId = ref<string | null>(null);
 const refillerValidationError = ref("");
+const saving = ref(false);
 
 const refillMembers = computed(() =>
   catalog.members
@@ -120,6 +121,8 @@ async function loadStockInfo() {
 }
 
 async function saveRefills() {
+  // Doppel-Submit-Schutz: zwei parallele Requests würden den Bestand doppelt erhöhen.
+  if (saving.value) return;
   const items = Object.entries(quantities.value)
     .filter(([_, q]) => q && q > 0)
     .map(([product_id, quantity]) => ({ product_id, quantity }));
@@ -140,6 +143,7 @@ async function saveRefills() {
   }
   refillerValidationError.value = "";
 
+  saving.value = true;
   try {
     const res = await fetch("/api/adjust-stock-batch", {
       method: "POST",
@@ -159,6 +163,8 @@ async function saveRefills() {
     await loadStockInfo();
   } catch {
     toast?.value?.show("Fehler beim Speichern");
+  } finally {
+    saving.value = false;
   }
 }
 </script>
@@ -301,10 +307,11 @@ async function saveRefills() {
       class="sticky bottom-0 bg-white border-t border-gray-200 p-4 flex justify-end"
     >
       <button
-        class="h-12 px-6 bg-blue-600 text-white rounded-xl shadow font-semibold"
+        class="h-12 px-6 bg-blue-600 text-white rounded-xl shadow font-semibold disabled:opacity-60"
+        :disabled="saving"
         @click="saveRefills"
       >
-        Speichern
+        {{ saving ? "Speichere …" : "Speichern" }}
       </button>
     </div>
   </div>

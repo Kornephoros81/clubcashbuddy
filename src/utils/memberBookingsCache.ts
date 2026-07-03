@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
+
 const BOOKING_CACHE_TTL_MS = 30 * 1000;
 
 type BookingCacheEntry = {
@@ -6,6 +8,14 @@ type BookingCacheEntry = {
 };
 
 const cache = new Map<string, BookingCacheEntry>();
+
+// Abgelaufene Einträge aufräumen: die Map lebt auf einem dauerlaufenden
+// Kiosk-Gerät sonst unbegrenzt weiter (jeder neue Key bleibt für immer).
+function pruneExpired(now: number) {
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+}
 
 function buildKey(memberId: string, start: string, end: string, excludeSettled: boolean) {
   return JSON.stringify({
@@ -48,13 +58,14 @@ export async function fetchMemberBookingsCached(params: {
 
   const key = buildKey(memberId, start, end, excludeSettled);
   const now = Date.now();
+  pruneExpired(now);
   const cached = cache.get(key);
 
   if (!force && cached && cached.expiresAt > now) {
     return cached.data;
   }
 
-  const res = await fetch("/api/get-member-bookings", {
+  const res = await fetchWithTimeout("/api/get-member-bookings", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

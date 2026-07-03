@@ -100,7 +100,9 @@ async function loadAllBookings() {
 
     // nutzt denselben API-Weg wie MemberBookings.vue
     const start = "1970-01-01T00:00:00.000Z";
-    const end = new Date().toISOString();
+    // Stabiler Zeitraum (bis morgen 0 Uhr) statt new Date(): sonst entsteht bei
+    // jedem Öffnen ein neuer Cache-Key → nie ein Treffer im Bookings-Cache.
+    const end = new Date(new Date().setHours(24, 0, 0, 0)).toISOString();
 
     const result = await fetchMemberBookingsCached({
       token: deviceToken,

@@ -17,13 +17,14 @@ onMounted(async () => {
   try {
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
-    const type = url.searchParams.get("type");
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const accessToken = hashParams.get("access_token");
     const refreshToken = hashParams.get("refresh_token");
 
-    // Supabase Recovery-Link (PKCE): ?code=...&type=recovery
-    if (code && type === "recovery") {
+    // Supabase Recovery-Link (PKCE): ?code=... — der type-Query-Param wird
+    // von Supabase beim Code-Redirect nicht immer mitgesendet, daher nur
+    // auf den Code prüfen (ungültige Codes scheitern ohnehin beim Exchange).
+    if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
         errorMsg.value = "Reset-Link ungültig oder abgelaufen.";

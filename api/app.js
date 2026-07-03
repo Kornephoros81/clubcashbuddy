@@ -243,18 +243,12 @@ async function markComplimentaryProductTransactions(supabase, memberId, transact
 
   const balanceAdjustment = -oldAmountSum;
   if (balanceAdjustment !== 0) {
-    const { data: member, error: memberError } = await supabase
-      .from("members")
-      .select("balance")
-      .eq("id", memberId)
-      .maybeSingle();
-    if (memberError) throw memberError;
-
-    const nextBalance = Number(member?.balance ?? 0) + balanceAdjustment;
-    const { error: balanceError } = await supabase
-      .from("members")
-      .update({ balance: nextBalance })
-      .eq("id", memberId);
+    // Atomar relativ anpassen: paralleles Buchen/Stornieren desselben Mitglieds
+    // darf zwischen Lesen und Schreiben nicht verloren gehen.
+    const { error: balanceError } = await supabase.rpc("adjust_member_balance", {
+      p_member_id: memberId,
+      p_delta: balanceAdjustment,
+    });
     if (balanceError) throw balanceError;
   }
 
@@ -1367,13 +1361,20 @@ async function handleRoute(route, req, res) {
 
   if (route === "cancel-transaction") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
-    const { data, error } = await supabase.rpc("cancel_transaction", {
+    const cancelParams = {
       cancel_tx_id: body.cancel_tx_id ?? null,
       member_id: body.member_id ?? null,
       product_id: body.product_id ?? null,
       note: body.note ?? null,
       p_device_id: v.deviceId ?? null,
-    });
+      p_client_cancel_id: compactText(body.client_tx_id, 120) || null,
+    };
+    let { data, error } = await supabase.rpc("cancel_transaction", cancelParams);
+    if (error && error.code === "PGRST202") {
+      // DB noch ohne Idempotenz-Parameter (Migration nicht angewendet): Fallback.
+      const { p_client_cancel_id: _ignored, ...legacyParams } = cancelParams;
+      ({ data, error } = await supabase.rpc("cancel_transaction", legacyParams));
+    }
     if (error) return json(res, 400, { error: error.message || "Cancellation failed" });
     return json(res, 200, { success: true, cancelled: data ?? body.cancel_tx_id ?? null });
   }
