@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { syncQueue } from "@/pwa/offlineSync";
 import { useDeviceAuthStore } from "@/stores/useDeviceAuthStore";
 import {
+  deleteQueueEntry,
   getCachedMembers,
   getCachedProducts,
   getQueueEntries,
@@ -104,6 +105,28 @@ async function resetOne(entry: QueueRow) {
   } catch (err) {
     console.error("[AdminSyncQueue.resetOne]", err);
     message.value = "⚠️ Retry-Freigabe fehlgeschlagen";
+  }
+}
+
+async function deleteOne(entry: QueueRow) {
+  const ok = window.confirm(
+    `Queue-Eintrag ${entry.id} wirklich löschen?\n\n` +
+      "Diese lokale Buchung wird danach nicht mehr synchronisiert."
+  );
+  if (!ok) return;
+
+  try {
+    await deleteQueueEntry(entry.id);
+    message.value = `Queue-Eintrag ${entry.id} gelöscht`;
+    await loadQueue();
+    window.dispatchEvent(
+      new CustomEvent("queue-synced", {
+        detail: { deleted_queue_id: entry.id },
+      })
+    );
+  } catch (err) {
+    console.error("[AdminSyncQueue.deleteOne]", err);
+    message.value = "⚠️ Queue-Eintrag konnte nicht gelöscht werden";
   }
 }
 
@@ -262,13 +285,22 @@ onMounted(async () => {
                 </div>
               </td>
               <td class="px-4 py-3 text-right">
-                <button
-                  class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  :disabled="syncing"
-                  @click="resetOne(entry)"
-                >
-                  Retry freigeben
-                </button>
+                <div class="flex justify-end gap-2">
+                  <button
+                    class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    :disabled="syncing"
+                    @click="resetOne(entry)"
+                  >
+                    Retry freigeben
+                  </button>
+                  <button
+                    class="rounded-md border border-red-700 bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                    :disabled="syncing"
+                    @click="deleteOne(entry)"
+                  >
+                    Löschen
+                  </button>
+                </div>
               </td>
             </tr>
           </template>
