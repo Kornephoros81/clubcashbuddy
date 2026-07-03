@@ -87,6 +87,47 @@ function normalizeSyncFailurePayload(body, deviceId) {
   };
 }
 
+function normalizeQueueStatus(body = {}) {
+  const source = body?.queue_status && typeof body.queue_status === "object"
+    ? body.queue_status
+    : body;
+  const toCount = (value) => {
+    const n = Math.floor(Number(value ?? 0));
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 1000000) : 0;
+  };
+
+  return {
+    pending_count: toCount(source.pending_count ?? source.pendingCount),
+    failed_count: toCount(source.failed_count ?? source.failedCount),
+    total_count: toCount(source.total_count ?? source.totalCount),
+    fatal_failed_count: toCount(source.fatal_failed_count ?? source.fatalFailedCount),
+    retryable_failed_count: toCount(source.retryable_failed_count ?? source.retryableFailedCount),
+  };
+}
+
+async function upsertDeviceSyncStatus(supabase, deviceId, body = {}, extra = {}) {
+  const nowIso = new Date().toISOString();
+  const status = normalizeQueueStatus(body);
+  const payload = {
+    device_id: deviceId,
+    ...status,
+    last_queue_report_at: nowIso,
+    updated_at: nowIso,
+    ...extra,
+  };
+
+  const { error } = await supabase
+    .from("device_sync_status")
+    .upsert(payload, { onConflict: "device_id" });
+  if (error) throw error;
+
+  const { error: seenError } = await supabase
+    .from("kiosk_devices")
+    .update({ last_seen_at: nowIso })
+    .eq("id", deviceId);
+  if (seenError) throw seenError;
+}
+
 async function stampBookingDeviceTrace(supabase, txId, deviceId) {
   if (!txId || !deviceId) return null;
 
@@ -482,6 +523,28 @@ const ADMIN_RPC_ACTIONS = {
       p_token: token,
       p_device_id: p.device_id,
       p_ttl_minutes: p.ttl_minutes ?? 5,
+    }),
+  },
+  get_performance_metrics: {
+    fn: "api_admin_get_performance_metrics",
+    args: (token) => ({ p_token: token }),
+  },
+  list_device_sync_status: {
+    fn: "api_admin_list_device_sync_status",
+    args: (token) => ({ p_token: token }),
+  },
+  enqueue_device_sync_command: {
+    fn: "api_admin_enqueue_device_sync_command",
+    args: (token, p) => ({
+      p_token: token,
+      p_device_id: p.device_id ?? null,
+    }),
+  },
+  prune_device_sync_errors: {
+    fn: "api_admin_prune_device_sync_errors",
+    args: (token, p) => ({
+      p_token: token,
+      p_days: p.days ?? 180,
     }),
   },
   list_device_sync_errors: {
@@ -1124,6 +1187,119 @@ async function handleRoute(route, req, res) {
     return json(res, 200, { success: true, id: data?.id ?? null });
   }
 
+  if (route === "device-sync-control") {
+    if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+    const action = String(body?.action ?? "").trim();
+
+    if (action === "report_status") {
+      try {
+        await upsertDeviceSyncStatus(supabase, v.deviceId, body);
+        return json(res, 200, { success: true });
+      } catch (error) {
+        return json(res, 500, {
+          error: error instanceof Error ? error.message : "Queue status update failed",
+        });
+      }
+    }
+
+    if (action === "poll") {
+      try {
+        await upsertDeviceSyncStatus(supabase, v.deviceId, body);
+
+        const { data: pendingRows, error: pendingError } = await supabase
+          .from("device_commands")
+          .select("id,command,requested_at")
+          .eq("device_id", v.deviceId)
+          .eq("status", "pending")
+          .order("requested_at", { ascending: true })
+          .limit(5);
+        if (pendingError) throw pendingError;
+
+        let commands = Array.isArray(pendingRows) ? pendingRows : [];
+        const ids = commands.map((row) => row.id).filter(Boolean);
+        if (ids.length) {
+          const nowIso = new Date().toISOString();
+          const { data: claimedRows, error: claimError } = await supabase
+            .from("device_commands")
+            .update({ status: "claimed", claimed_at: nowIso })
+            .in("id", ids)
+            .eq("device_id", v.deviceId)
+            .eq("status", "pending")
+            .select("id,command,requested_at");
+          if (claimError) throw claimError;
+
+          commands = Array.isArray(claimedRows) ? claimedRows : [];
+          if (commands.length) {
+            await upsertDeviceSyncStatus(supabase, v.deviceId, body, {
+              last_sync_started_at: nowIso,
+              last_error: null,
+            });
+          }
+        }
+
+        return json(res, 200, { success: true, commands });
+      } catch (error) {
+        return json(res, 500, {
+          error: error instanceof Error ? error.message : "Command poll failed",
+        });
+      }
+    }
+
+    if (action === "complete") {
+      const commandId = normalizeUuid(body?.command_id);
+      if (!commandId) return json(res, 400, { error: "command_id is required" });
+
+      try {
+        const { data: command, error: commandError } = await supabase
+          .from("device_commands")
+          .select("id,device_id,command")
+          .eq("id", commandId)
+          .eq("device_id", v.deviceId)
+          .maybeSingle();
+        if (commandError) throw commandError;
+        if (!command) return json(res, 404, { error: "Command not found" });
+
+        const success = body?.success !== false;
+        const nowIso = new Date().toISOString();
+        const processedCount = Math.max(0, Math.floor(Number(body?.processed_count ?? 0)) || 0);
+        const releasedFailedCount = Math.max(0, Math.floor(Number(body?.released_failed_count ?? 0)) || 0);
+        const errorText = success ? null : compactText(body?.error, 4000) || "Command failed";
+        const result = {
+          success,
+          processed_count: processedCount,
+          released_failed_count: releasedFailedCount,
+          queue_status: normalizeQueueStatus(body),
+        };
+
+        const { error: updateError } = await supabase
+          .from("device_commands")
+          .update({
+            status: success ? "done" : "failed",
+            completed_at: nowIso,
+            result,
+            error: errorText,
+          })
+          .eq("id", command.id)
+          .eq("device_id", v.deviceId);
+        if (updateError) throw updateError;
+
+        await upsertDeviceSyncStatus(supabase, v.deviceId, body, {
+          last_sync_finished_at: nowIso,
+          last_sync_processed_count: processedCount,
+          last_error: errorText,
+        });
+
+        return json(res, 200, { success: true });
+      } catch (error) {
+        return json(res, 500, {
+          error: error instanceof Error ? error.message : "Command completion failed",
+        });
+      }
+    }
+
+    return json(res, 400, { error: "Unknown action" });
+  }
+
   if (route === "member-pin-status") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
     const memberId = body.member_id;
@@ -1179,66 +1355,110 @@ async function handleRoute(route, req, res) {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
     let members = [];
     let products = [];
-    const { data, error } = await supabase.rpc("get_terminal_snapshot_berlin");
-    if (!error && Array.isArray(data)) {
-      const pinMap = await loadMemberPinMap(supabase, data.map((m) => m.id));
-      members = data.map((m) => {
-        const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
-        return {
-          id: m.id,
-          name: [last, m.firstname].filter(Boolean).join(", "),
-          active: Boolean(m.active),
-          is_guest: Boolean(m.is_guest),
-          settled: Boolean(m.settled),
-          last_booking_at: m.last_booking_at ?? null,
-          has_booked_today: Boolean(m.has_booked_today),
-          has_pin: Boolean(pinMap.get(m.id)),
-        };
-      });
-    } else {
-      const [membersRes, bookedRes] = await Promise.all([
-        supabase.rpc("get_members_with_last_booking"),
-        supabase.rpc("get_booked_today_berlin"),
-      ]);
-      if (membersRes.error) return json(res, 400, { error: membersRes.error.message || "RPC failed" });
-      if (bookedRes.error) return json(res, 400, { error: bookedRes.error.message || "RPC failed" });
-      const bookedSet = new Set(
-        Array.isArray(bookedRes.data) ? bookedRes.data.map((r) => r.member_id) : [],
-      );
-      const rows = Array.isArray(membersRes.data) ? membersRes.data : [];
-      const pinMap = await loadMemberPinMap(supabase, rows.map((m) => m.id));
-      members = rows.map((m) => {
-        const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
-        return {
-          id: m.id,
-          name: [last, m.firstname].filter(Boolean).join(", "),
-          active: Boolean(m.active),
-          is_guest: Boolean(m.is_guest),
-          settled: Boolean(m.settled),
-          last_booking_at: m.last_booking_at ?? null,
-          has_booked_today: bookedSet.has(m.id),
-          has_pin: Boolean(pinMap.get(m.id)),
-        };
-      });
+    let memberActivity = [];
+    let bookedTodayMemberIds = [];
+    let memberCatalogVersion = null;
+    let productCatalogVersion = null;
+
+    const { data: versionRows, error: versionError } = await supabase.rpc("get_terminal_catalog_versions");
+    if (!versionError && Array.isArray(versionRows) && versionRows[0]) {
+      memberCatalogVersion = versionRows[0].member_catalog_version ?? null;
+      productCatalogVersion = versionRows[0].product_catalog_version ?? null;
     }
-    const { data: productRows, error: productError } = await supabase
-      .from("products")
-      .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")
-      .eq("active", true)
-      .order("name", { ascending: true });
-    if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
-    const hydratedProductRows = await migrateLegacyProductImages(supabase, productRows ?? []);
-    products = hydratedProductRows.map((p) => ({
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      guest_price: p.guest_price,
-      category: p.category,
-      active: p.active,
-      inventoried: p.inventoried,
-      image_url: buildProductImageUrl(supabase, p),
-    }));
-    return json(res, 200, { success: true, members, products });
+
+    const includeMembers =
+      !memberCatalogVersion ||
+      String(body.member_catalog_version ?? "") !== String(memberCatalogVersion);
+    const includeProducts =
+      !productCatalogVersion ||
+      String(body.product_catalog_version ?? "") !== String(productCatalogVersion);
+
+    if (includeMembers) {
+      const { data, error } = await supabase.rpc("get_terminal_snapshot_berlin");
+      if (!error && Array.isArray(data)) {
+        const pinMap = await loadMemberPinMap(supabase, data.map((m) => m.id));
+        members = data.map((m) => {
+          const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
+          return {
+            id: m.id,
+            name: [last, m.firstname].filter(Boolean).join(", "),
+            active: Boolean(m.active),
+            is_guest: Boolean(m.is_guest),
+            settled: Boolean(m.settled),
+            last_booking_at: m.last_booking_at ?? null,
+            has_booked_today: Boolean(m.has_booked_today),
+            has_pin: Boolean(pinMap.get(m.id)),
+          };
+        });
+        bookedTodayMemberIds = data.filter((m) => m.has_booked_today).map((m) => m.id);
+      } else {
+        const [membersRes, bookedRes] = await Promise.all([
+          supabase.rpc("get_members_with_last_booking"),
+          supabase.rpc("get_booked_today_berlin"),
+        ]);
+        if (membersRes.error) return json(res, 400, { error: membersRes.error.message || "RPC failed" });
+        if (bookedRes.error) return json(res, 400, { error: bookedRes.error.message || "RPC failed" });
+        bookedTodayMemberIds = Array.isArray(bookedRes.data) ? bookedRes.data.map((r) => r.member_id) : [];
+        const bookedSet = new Set(bookedTodayMemberIds);
+        const rows = Array.isArray(membersRes.data) ? membersRes.data : [];
+        const pinMap = await loadMemberPinMap(supabase, rows.map((m) => m.id));
+        members = rows.map((m) => {
+          const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
+          return {
+            id: m.id,
+            name: [last, m.firstname].filter(Boolean).join(", "),
+            active: Boolean(m.active),
+            is_guest: Boolean(m.is_guest),
+            settled: Boolean(m.settled),
+            last_booking_at: m.last_booking_at ?? null,
+            has_booked_today: bookedSet.has(m.id),
+            has_pin: Boolean(pinMap.get(m.id)),
+          };
+        });
+      }
+    } else {
+      const { data: activityRows, error: activityError } = await supabase.rpc("get_terminal_member_activity_berlin");
+      if (activityError) {
+        const { data: bookedRows, error: bookedError } = await supabase.rpc("get_booked_today_berlin");
+        if (bookedError) return json(res, 400, { error: bookedError.message || "RPC failed" });
+        bookedTodayMemberIds = Array.isArray(bookedRows) ? bookedRows.map((r) => r.member_id) : [];
+      } else {
+        memberActivity = Array.isArray(activityRows) ? activityRows : [];
+        bookedTodayMemberIds = memberActivity
+          .filter((row) => row.has_booked_today)
+          .map((row) => row.id);
+      }
+    }
+
+    if (includeProducts) {
+      const { data: productRows, error: productError } = await supabase
+        .from("products")
+        .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")
+        .eq("active", true)
+        .order("name", { ascending: true });
+      if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
+      const hydratedProductRows = await migrateLegacyProductImages(supabase, productRows ?? []);
+      products = hydratedProductRows.map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        guest_price: p.guest_price,
+        category: p.category,
+        active: p.active,
+        inventoried: p.inventoried,
+        image_url: buildProductImageUrl(supabase, p),
+      }));
+    }
+
+    return json(res, 200, {
+      success: true,
+      members: includeMembers ? members : null,
+      member_activity: includeMembers ? null : memberActivity,
+      products: includeProducts ? products : null,
+      booked_today_member_ids: bookedTodayMemberIds,
+      member_catalog_version: memberCatalogVersion,
+      product_catalog_version: productCatalogVersion,
+    });
   }
 
   if (route === "get-member-bookings") {
@@ -1308,6 +1528,15 @@ async function handleRoute(route, req, res) {
     const maxItems = 100;
     const batch = items.slice(0, maxItems);
     const results = [];
+
+    const { data: batchRows, error: batchError } = await supabase.rpc("book_transactions_batch", {
+      p_items: batch,
+      p_device_id: v.deviceId ?? null,
+    });
+    if (!batchError) {
+      return json(res, 200, { success: true, results: batchRows ?? [] });
+    }
+    console.warn("[book-transactions-batch] DB batch RPC fallback:", batchError.message || batchError);
 
     for (const item of batch) {
       const queueId = Number(item?.queue_id ?? 0);
