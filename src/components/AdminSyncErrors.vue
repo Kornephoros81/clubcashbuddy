@@ -95,7 +95,7 @@ function deleteCommandLabel(row: SyncErrorRow) {
     return "Bereits gelöscht";
   }
   if (row.delete_command_status === "failed") return "Löschung fehlgeschlagen";
-  return "Queue löschen";
+  return "Eintrag löschen";
 }
 
 function deleteCommandHint(row: SyncErrorRow) {
