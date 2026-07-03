@@ -315,16 +315,8 @@ async function onBackToMembers() {
   await refreshTerminalSnapshot();
 }
 
-async function reloadPage() {
-  loading.value = true;
-  try {
-    await refreshTerminalSnapshot();
-    if (selectedMember.value?.id) {
-      await loadBookings(selectedMember.value.id);
-    }
-  } finally {
-    loading.value = false;
-  }
+function reloadPage() {
+  window.location.reload();
 }
 
 // Mitglieds-PIN (UI-only Schutz)
