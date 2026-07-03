@@ -8,8 +8,13 @@ const STORE_QUEUE = "queue";
 const STORE_MEMBERS = "members";
 const STORE_PRODUCTS = "products";
 
+let dbPromise: ReturnType<typeof openDB> | null = null;
+
 export async function getDB() {
-  return openDB(DB_NAME, VERSION, {
+  // Eine Verbindung pro Tab wiederverwenden: sonst öffnet jeder Queue-/Cache-
+  // Zugriff (inkl. 60s-Poller) eine neue IndexedDB-Connection, die nie
+  // geschlossen wird und künftige Versions-Upgrades blockieren kann.
+  dbPromise ??= openDB(DB_NAME, VERSION, {
     upgrade(db, oldVersion, _newVersion, transaction) {
       if (!db.objectStoreNames.contains(STORE_QUEUE)) {
         const queueStore = db.createObjectStore(STORE_QUEUE, {
@@ -31,6 +36,7 @@ export async function getDB() {
       }
     },
   });
+  return dbPromise;
 }
 
 // ----------------------
@@ -106,53 +112,6 @@ export async function resetFailedQueueRetries(): Promise<number> {
 export async function deleteQueueEntry(id: number) {
   const db = await getDB();
   await db.delete(STORE_QUEUE, id);
-}
-
-export async function drainQueue(
-  processor: (payload: any) => Promise<void>
-): Promise<number> {
-  const db = await getDB();
-  const keys = (await db.getAllKeys("queue")).sort(
-    (a: any, b: any) => Number(a) - Number(b)
-  );
-
-  let processed = 0;
-  for (const key of keys) {
-    const entry = await db.get("queue", key);
-    if (!entry) continue;
-
-    try {
-      const status = entry.status ?? "pending";
-      // Nach App-Abbruch/Reload kann "sending" haengenbleiben.
-      // Solche Eintraege erneut versuchen statt dauerhaft zu skippen.
-      if (status === "sending") {
-        entry.status = "pending";
-        await db.put(STORE_QUEUE, entry);
-      }
-
-      entry.status = "sending";
-      entry.attempts = (entry.attempts ?? 0) + 1;
-      await db.put(STORE_QUEUE, entry);
-
-      console.log(`[offlineDB.drainQueue] → Verarbeite Eintrag ${key}`);
-      await processor(entry.payload);
-      await db.delete("queue", key);
-      processed++;
-    } catch (err) {
-      entry.status = "failed";
-      entry.lastError =
-        err instanceof Error ? err.message : String(err ?? "Unbekannter Fehler");
-      await db.put(STORE_QUEUE, entry);
-      console.warn(`[offlineDB.drainQueue] Fehler bei Eintrag ${key}:`, err);
-      continue;
-    }
-  }
-
-  if (processed > 0)
-    console.log(
-      `[offlineDB.drainQueue] ${processed} Einträge erfolgreich synchronisiert`
-    );
-  return processed;
 }
 
 export async function getQueueEntries() {

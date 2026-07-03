@@ -72,6 +72,9 @@ async function loadQueue() {
     membersById.value = Object.fromEntries(
       members.map((member: any) => [member.id, member])
     );
+  } catch (err) {
+    console.error("[AdminSyncQueue.loadQueue]", err);
+    message.value = "⚠️ Queue konnte nicht geladen werden";
   } finally {
     loading.value = false;
   }
@@ -94,15 +97,25 @@ function retryLabel(entry: QueueRow) {
 }
 
 async function resetOne(entry: QueueRow) {
-  await resetQueueEntryRetry(entry.id);
-  message.value = `Queue-Eintrag ${entry.id} fuer Retry freigegeben`;
-  await loadQueue();
+  try {
+    await resetQueueEntryRetry(entry.id);
+    message.value = `Queue-Eintrag ${entry.id} fuer Retry freigegeben`;
+    await loadQueue();
+  } catch (err) {
+    console.error("[AdminSyncQueue.resetOne]", err);
+    message.value = "⚠️ Retry-Freigabe fehlgeschlagen";
+  }
 }
 
 async function resetAllFailed() {
-  const count = await resetFailedQueueRetries();
-  message.value = `${count} fehlgeschlagene Eintraege fuer Retry freigegeben`;
-  await loadQueue();
+  try {
+    const count = await resetFailedQueueRetries();
+    message.value = `${count} fehlgeschlagene Eintraege fuer Retry freigegeben`;
+    await loadQueue();
+  } catch (err) {
+    console.error("[AdminSyncQueue.resetAllFailed]", err);
+    message.value = "⚠️ Retry-Freigabe fehlgeschlagen";
+  }
 }
 
 async function runSyncNow() {
@@ -125,6 +138,9 @@ async function runSyncNow() {
     }
     message.value = `${processed} Eintraege synchronisiert`;
     await loadQueue();
+  } catch (err) {
+    console.error("[AdminSyncQueue.runSyncNow]", err);
+    message.value = "⚠️ Sync fehlgeschlagen";
   } finally {
     syncing.value = false;
   }
@@ -136,7 +152,11 @@ async function resetAllAndSync() {
 }
 
 onMounted(async () => {
-  await deviceAuth.initFromStorage();
+  try {
+    await deviceAuth.initFromStorage();
+  } catch (err) {
+    console.error("[AdminSyncQueue.onMounted]", err);
+  }
   await loadQueue();
 });
 </script>

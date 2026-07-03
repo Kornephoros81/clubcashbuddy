@@ -93,8 +93,12 @@ function onMobileSectionToggle(section: "admin" | "reports") {
 
 async function logout() {
   loading.value = true;
-  await authStore.logoutAdmin();
-  router.push("/");
+  try {
+    await authStore.logoutAdmin();
+  } finally {
+    loading.value = false;
+    router.push("/");
+  }
 }
 
 watch(

@@ -126,7 +126,8 @@ async function loadTransactions() {
       token,
       memberId: props.memberId,
       start: "1970-01-01T00:00:00.000Z",
-      end: new Date().toISOString(),
+      // Stabiler Zeitraum (bis morgen 0 Uhr), damit der Bookings-Cache greift.
+      end: new Date(new Date().setHours(24, 0, 0, 0)).toISOString(),
       excludeSettled: true,
     });
     transactions.value = result.flatMap((g: any) => g.items || []);

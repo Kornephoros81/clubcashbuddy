@@ -1,30 +1,8 @@
 import { defineStore } from "pinia";
-import { useAppAuthStore } from "@/stores/useAppAuthStore";
+import { adminFetch } from "@/lib/adminApi";
 
-async function apiRequest(path: string, method = "GET", body?: unknown) {
-  const auth = useAppAuthStore();
-  auth.ensureHydrated();
-  const token = auth.adminToken;
-  if (!token) throw new Error("Nicht authentifiziert");
-
-  const res = await fetch(path, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (res.status === 204) return null;
-  let payload: Record<string, unknown>;
-  try {
-    payload = await res.json();
-  } catch {
-    throw new Error("Ungültige Server-Antwort");
-  }
-  if (!res.ok) throw new Error((payload?.error as string) || "Anfrage fehlgeschlagen");
-  return payload;
+function apiRequest(path: string, method = "GET", body?: unknown) {
+  return adminFetch(path, { method, body });
 }
 
 export const useAdminMembersStore = defineStore("adminMembers", {

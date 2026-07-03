@@ -12,6 +12,7 @@ import FreeAmountModal from "@/components/Terminal/FreeAmountModal.vue";
 import OfflineStatus from "@/components/Terminal/OfflineStatus.vue";
 import BaseModal from "@/components/BaseModal.vue";
 import { useBranding } from "@/composables/useBranding";
+import { getQueuedBookingsForMember } from "@/utils/offlineDB";
 
 const terminalLogic = useTerminalLogic();
 const {
@@ -51,6 +52,7 @@ const inactiveGuestsLoading = ref(false);
 const inactiveGuestsError = ref("");
 const reactivatingGuestId = ref<string | null>(null);
 let inactiveGuestSearchTimer: ReturnType<typeof setTimeout> | null = null;
+let inactiveGuestsRequestSeq = 0;
 
 type InactiveGuest = {
   id: string;
@@ -114,6 +116,10 @@ async function loadInactiveGuests() {
 
   inactiveGuestsLoading.value = true;
   inactiveGuestsError.value = "";
+  // Stale-Guard: nur die jeweils neueste Anfrage darf Zustand schreiben —
+  // auch im Fehlerfall, sonst überschreibt ein langsamer Fehlschlag
+  // die Ergebnisse einer neueren, erfolgreichen Suche.
+  const seq = ++inactiveGuestsRequestSeq;
   try {
     const res = await fetch("/api/device-inactive-guests", {
       method: "POST",
@@ -126,14 +132,17 @@ async function loadInactiveGuests() {
     if (auth.handleAuthStatus(res.status)) return;
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
-    if (search !== inactiveGuestSearchTerm.value) return;
+    if (seq !== inactiveGuestsRequestSeq) return;
     inactiveGuests.value = Array.isArray(body?.data) ? body.data : [];
   } catch (err) {
     console.error("[loadInactiveGuests]", err);
+    if (seq !== inactiveGuestsRequestSeq) return;
     inactiveGuests.value = [];
     inactiveGuestsError.value = "Deaktivierte Gäste konnten nicht geladen werden";
   } finally {
-    inactiveGuestsLoading.value = false;
+    if (seq === inactiveGuestsRequestSeq) {
+      inactiveGuestsLoading.value = false;
+    }
   }
 }
 
@@ -208,8 +217,6 @@ async function addGuest() {
     const newGuestId = data?.id;
 
     showToast(`Gast ${data.firstname} ${data.lastname} hinzugefügt`);
-    guestFirstname.value = "";
-    guestLastname.value = "";
     closeAddGuestModal();
 
     await refreshTerminalSnapshot();
@@ -270,8 +277,42 @@ const showSettleModal = ref(false);
 const showFreeAmount = ref(false);
 
 // Gäste abrechnen
+// Abrechnung blockieren, solange lokale Buchungen noch nicht auf dem Server
+// sind (z. B. failed-Einträge mit Retry-Backoff): sonst zahlt der Gast zu
+// wenig und die Buchung synct später auf ein bereits abgerechnetes Konto.
+async function ensureGuestQueueSynced(): Promise<boolean> {
+  const id = selectedMember.value?.id;
+  if (!id) return false;
+  try {
+    const queued = await getQueuedBookingsForMember(id);
+    if (queued.length > 0) {
+      showToast(
+        "⏳ Es gibt noch nicht synchronisierte Buchungen für diesen Gast – bitte erst synchronisieren"
+      );
+      return false;
+    }
+  } catch (err) {
+    console.warn("[ensureGuestQueueSynced]", err);
+  }
+  return true;
+}
+
+async function openSettleModal() {
+  if (!(await ensureGuestQueueSynced())) return;
+  showSettleModal.value = true;
+}
+
+async function openPartialModal() {
+  if (!(await ensureGuestQueueSynced())) return;
+  showPartialModal.value = true;
+}
+
 async function settleGuest(complimentaryProducts = false) {
   if (!selectedMember.value?.is_guest) return;
+  if (!(await ensureGuestQueueSynced())) {
+    showSettleModal.value = false;
+    return;
+  }
   try {
     const res = await fetch("/api/device-settle-guest", {
       method: "POST",
@@ -315,16 +356,8 @@ async function onBackToMembers() {
   await refreshTerminalSnapshot();
 }
 
-async function reloadPage() {
-  loading.value = true;
-  try {
-    await refreshTerminalSnapshot();
-    if (selectedMember.value?.id) {
-      await loadBookings(selectedMember.value.id);
-    }
-  } finally {
-    loading.value = false;
-  }
+function reloadPage() {
+  window.location.reload();
 }
 
 // Mitglieds-PIN (UI-only Schutz)
@@ -346,12 +379,8 @@ async function handleMemberSelect(memberId: string) {
     return;
   }
 
-  const known = pinRequiredMap.value[memberId];
-  if (known === false) {
-    await openMember(memberId);
-    return;
-  }
-
+  // Frischer Snapshot-Wert hat Vorrang vor dem gecachten PIN-Status:
+  // sonst würde ein nachträglich gesetzter PIN bis zum Reload ignoriert.
   const member = store.members.find((m) => m.id === memberId);
   if (typeof member?.has_pin === "boolean") {
     pinRequiredMap.value[memberId] = member.has_pin;
@@ -360,6 +389,17 @@ async function handleMemberSelect(memberId: string) {
       return;
     }
 
+    pendingMemberId.value = memberId;
+    showPinModal.value = true;
+    return;
+  }
+
+  const known = pinRequiredMap.value[memberId];
+  if (known === false) {
+    await openMember(memberId);
+    return;
+  }
+  if (known === true) {
     pendingMemberId.value = memberId;
     showPinModal.value = true;
     return;
@@ -428,21 +468,20 @@ async function confirmPin() {
     if (!body?.ok) {
       pinError.value = "PIN ist falsch";
       pinInput.value = "";
-      pinChecking.value = false;
       return;
     }
   } catch (e) {
     console.error("[pin] compare failed:", e);
     pinError.value = "PIN konnte nicht geprüft werden";
     pinInput.value = "";
-    pinChecking.value = false;
     return;
+  } finally {
+    pinChecking.value = false;
   }
 
   pinInput.value = "";
   pinError.value = "";
   showPinModal.value = false;
-  pinChecking.value = false;
   await openMember(memberId);
 }
 
@@ -664,14 +703,14 @@ watch(showPinModal, async (isOpen) => {
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
-              @click="showPartialModal = true"
+              @click="openPartialModal"
               class="button-outline-strong h-12 xl:h-11 rounded-2xl border-amber-700 bg-amber-500 text-white font-semibold text-sm hover:bg-amber-600 transition"
             >
               Teilabrechnung
             </button>
             <button
               v-if="selectedMember?.is_guest && !selectedMember?.settled"
-              @click="showSettleModal = true"
+              @click="openSettleModal"
               class="button-outline-strong h-12 xl:h-11 rounded-2xl border-red-800 bg-red-600 text-white font-semibold text-sm hover:bg-red-700 transition"
             >
               Abrechnung
@@ -695,9 +734,6 @@ watch(showPinModal, async (isOpen) => {
       ></div>
       <MemberBookings
         :member-id="selectedMember.id"
-        :member-name="selectedMember.name"
-        :is-guest="selectedMember.is_guest"
-        :settled="selectedMember.settled"
         @close="showBookings = false"
       />
     </div>

@@ -282,7 +282,7 @@ const drilldownDayToProducts = computed(() => {
 function onQuickDateSelect(start: Date, end: Date) {
   startDate.value = start;
   endDate.value = end;
-  void loadReport();
+  // Kein expliziter loadReport-Aufruf: der watch([startDate, endDate]) lädt bereits.
 }
 
 async function loadReport() {

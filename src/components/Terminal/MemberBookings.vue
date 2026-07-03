@@ -11,6 +11,7 @@ const viewMode = ref<"day" | "month">("day");
 const currentDate = ref(new Date());
 const bookings = ref<any[]>([]);
 const loading = ref(false);
+let loadSeq = 0;
 
 function formatDateLabel() {
   return viewMode.value === "day"
@@ -34,6 +35,9 @@ function changePeriod(delta: number) {
 
 async function loadBookings() {
   loading.value = true;
+  // Stale-Guard: bei schnellem Blättern (‹/›) dürfen langsame, veraltete
+  // Antworten den Zustand der neuesten Anfrage nicht überschreiben.
+  const seq = ++loadSeq;
 
   const start =
     viewMode.value === "day"
@@ -64,6 +68,8 @@ async function loadBookings() {
       end: end.toISOString(),
     });
 
+    if (seq !== loadSeq) return;
+
     // 🔹 Unterschiedliche Struktur je nach Modus
     if (viewMode.value === "day") {
       // Flatten der gruppierten Daten → Einzelbuchungen
@@ -74,9 +80,12 @@ async function loadBookings() {
     }
   } catch (err) {
     console.error("[loadBookings]", err);
+    if (seq !== loadSeq) return;
     bookings.value = [];
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) {
+      loading.value = false;
+    }
   }
 }
 

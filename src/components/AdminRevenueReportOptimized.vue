@@ -299,11 +299,14 @@ function onQuickDateSelect(start: Date, end: Date) {
   suppressDateReload.value = true;
   startDate.value = start;
   endDate.value = end;
-  suppressDateReload.value = false;
+  void nextTick().then(() => { suppressDateReload.value = false; });
   void loadReport();
 }
 
+let loadSeq = 0;
+
 async function loadReport() {
+  const seq = ++loadSeq;
   loading.value = true;
   error.value = null;
   try {
@@ -323,6 +326,8 @@ async function loadReport() {
       recent_events_limit: 100,
     });
 
+    if (seq !== loadSeq) return;
+
     metrics.value = payload.metrics ?? metrics.value;
     memberOptions.value = Array.isArray(payload.memberOptions) ? payload.memberOptions : [];
     categoryOptions.value = Array.isArray(payload.categoryOptions) ? payload.categoryOptions : [];
@@ -338,18 +343,21 @@ async function loadReport() {
     }
   } catch (err: any) {
     console.error("[AdminRevenueReportOptimized]", err);
+    if (seq !== loadSeq) return;
     error.value = err.message || "Fehler beim Laden des Umsatzreports";
     showToast("⚠️ Fehler beim Laden des Umsatzreports");
   } finally {
-    loading.value = false;
-    await renderCharts();
+    if (seq === loadSeq) {
+      loading.value = false;
+      await renderCharts();
+    }
   }
 }
 
 onMounted(async () => {
   suppressDateReload.value = true;
   applyQueryFilters();
-  suppressDateReload.value = false;
+  void nextTick().then(() => { suppressDateReload.value = false; });
   await initChartJs();
   await loadReport();
 });
@@ -359,9 +367,15 @@ watch([startDate, endDate], async () => {
   await loadReport();
 });
 
-watch([selectedMemberId, selectedCategory, selectedTransactionType, heatAggregationModeEffective], async () => {
+watch([selectedMemberId, selectedCategory, selectedTransactionType], async () => {
   await loadReport();
 });
+
+function selectHeatAggregationMode(mode: HeatAggregationMode) {
+  if (heatAggregationMode.value === mode) return;
+  heatAggregationMode.value = mode;
+  void loadReport();
+}
 
 watch(canUseTrimmedAggregation, (enabled) => {
   if (!enabled && heatAggregationMode.value === "trimmed_mean") {
@@ -443,7 +457,7 @@ async function exportPdf() {
             <h3 class="font-semibold text-primary">Aktivitäts-Heatmap</h3>
             <div class="flex flex-wrap items-center justify-end gap-2">
               <div class="inline-flex max-w-full rounded-lg border border-gray-200 overflow-hidden">
-                <button v-for="opt in heatAggregationOptionsVisible" :key="opt.value" type="button" class="px-2 py-1 text-[11px] transition whitespace-nowrap" :class="[heatAggregationMode === opt.value ? 'bg-primary text-white' : 'bg-white text-gray-600 hover:bg-gray-50', opt.value !== heatAggregationOptionsVisible[0].value ? 'border-l border-gray-200' : '']" @click="heatAggregationMode = opt.value">{{ opt.label }}</button>
+                <button v-for="opt in heatAggregationOptionsVisible" :key="opt.value" type="button" class="px-2 py-1 text-[11px] transition whitespace-nowrap" :class="[heatAggregationMode === opt.value ? 'bg-primary text-white' : 'bg-white text-gray-600 hover:bg-gray-50', opt.value !== heatAggregationOptionsVisible[0].value ? 'border-l border-gray-200' : '']" @click="selectHeatAggregationMode(opt.value)">{{ opt.label }}</button>
               </div>
               <span class="text-xs text-gray-500">Montag bis Sonntag, 0-23 Uhr</span>
             </div>

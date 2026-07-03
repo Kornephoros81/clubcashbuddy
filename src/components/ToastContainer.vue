@@ -3,8 +3,10 @@ import { ref } from "vue";
 
 const toasts = ref<{ id: number; message: string }[]>([]);
 
+let seq = 0;
+
 function show(message: string) {
-  const id = Date.now();
+  const id = ++seq;
   toasts.value.push({ id, message });
   setTimeout(() => {
     toasts.value = toasts.value.filter((t) => t.id !== id);

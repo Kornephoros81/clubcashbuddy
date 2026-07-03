@@ -81,21 +81,29 @@ function payloadPreview(row: SyncErrorRow) {
 }
 
 async function loadDevices() {
-  const data = await adminRpc("list_kiosk_devices");
-  devices.value = ((data as any[]) ?? []).map((device: any) => ({
-    id: String(device.id),
-    name: String(device.name ?? ""),
-    active: Boolean(device.active),
-    last_seen_at: device.last_seen_at ?? null,
-  }));
+  try {
+    const data = await adminRpc("list_kiosk_devices");
+    devices.value = ((data as any[]) ?? []).map((device: any) => ({
+      id: String(device.id),
+      name: String(device.name ?? ""),
+      active: Boolean(device.active),
+      last_seen_at: device.last_seen_at ?? null,
+    }));
+  } catch (err: any) {
+    console.error("[AdminSyncErrors.loadDevices]", err);
+    if (!error.value) {
+      error.value = err?.message || "Geräteliste konnte nicht geladen werden";
+    }
+  }
 }
 
 async function loadErrors() {
   loading.value = true;
   error.value = "";
   try {
+    const safeLimit = Math.min(1000, Math.max(1, Number(limit.value) || 200));
     const data = await adminRpc("list_device_sync_errors", {
-      limit: limit.value,
+      limit: safeLimit,
       device_id: selectedDeviceId.value || null,
       since: sinceValue(),
     });

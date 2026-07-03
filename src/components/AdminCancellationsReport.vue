@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import { onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { useToast } from "@/composables/useToast";
@@ -110,7 +110,7 @@ function onQuickDateSelect(start: Date, end: Date) {
   suppressDateReload.value = true;
   startDate.value = start;
   endDate.value = end;
-  suppressDateReload.value = false;
+  void nextTick().then(() => { suppressDateReload.value = false; });
   void loadReport();
 }
 
@@ -161,7 +161,7 @@ async function loadReport() {
 onMounted(async () => {
   suppressDateReload.value = true;
   applyQueryFilters();
-  suppressDateReload.value = false;
+  void nextTick().then(() => { suppressDateReload.value = false; });
   await loadReport();
 });
 

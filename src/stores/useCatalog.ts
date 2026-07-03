@@ -7,7 +7,6 @@ import {
   cacheProducts,
   getCachedProducts,
 } from "@/utils/offlineDB";
-import { markProductsCacheFresh } from "@/utils/productCatalogCache";
 
 export type Member = {
   id: string;
@@ -46,7 +45,6 @@ export const useCatalog = defineStore("catalog", {
     async applyProducts(products: Product[]) {
       this.products.splice(0, this.products.length, ...(Array.isArray(products) ? products : []));
       await cacheProducts(this.products);
-      markProductsCacheFresh();
     },
 
     async loadMembers() {
@@ -81,8 +79,12 @@ export const useCatalog = defineStore("catalog", {
 
     async loadProducts() {
       try {
+        // "no-cache" statt "force-cache": force-cache liefert beliebig alte
+        // HTTP-Cache-Antworten zurück (Preisänderungen kämen nie an, da
+        // invalidateProductsCache() nur IndexedDB/localStorage leert).
+        // Offline greift ohnehin der IndexedDB-Fallback unten.
         const res = await fetch("/api/catalog-products", {
-          cache: "force-cache",
+          cache: "no-cache",
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();

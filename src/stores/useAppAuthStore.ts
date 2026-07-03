@@ -85,6 +85,9 @@ export const useAppAuthStore = defineStore("appAuth", {
             headers: { Authorization: `Bearer ${this.adminToken}` },
           });
         }
+      } catch {
+        // Serverseitiger Logout ist Best-Effort (z. B. offline) –
+        // die lokale Session wird im finally in jedem Fall gelöscht.
       } finally {
         clearAdminSessionValue(ADMIN_TOKEN_KEY);
         clearAdminSessionValue(ADMIN_USER_KEY);

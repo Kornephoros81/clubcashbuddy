@@ -127,6 +127,16 @@ async function applyInventoryCount() {
     return;
   }
 
+  // v-model.number liefert bei leerem Feld "" – solche Werte dürfen nicht als 0 gebucht werden.
+  const hasInvalidCounts = rowsToSave.some((row) => {
+    const c = getCount(row.product_id);
+    return !Number.isFinite(c.ist_warehouse_stock) || !Number.isFinite(c.ist_fridge_stock);
+  });
+  if (hasInvalidCounts) {
+    showToast("⚠️ Bitte alle geänderten Ist-Felder mit gültigen Zahlen ausfüllen");
+    return;
+  }
+
   saving.value = true;
   try {
     const payload = rowsToSave.map((row) => ({
