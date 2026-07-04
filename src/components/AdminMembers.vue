@@ -344,7 +344,7 @@ function archiveErrorMessage(err: unknown) {
   const openMatch = message.match(/ARCHIVE_OPEN_TRANSACTIONS:(\d+)/);
   if (openMatch) {
     const count = Number(openMatch[1] ?? 0);
-    return `Mitglied kann nicht archiviert werden, weil noch ${count} offene Buchung${count === 1 ? "" : "en"} vorhanden ${count === 1 ? "ist" : "sind"}.`;
+    return `Mitglied kann nicht archiviert werden, weil noch ${count} offene Buchung${count === 1 ? "" : "en"} vorhanden ${count === 1 ? "ist" : "sind"}. Bitte zuerst den Monatsabschluss durchführen.`;
   }
 
   const balanceMatch = message.match(/ARCHIVE_BALANCE_NOT_ZERO:([-]?\d+)/);

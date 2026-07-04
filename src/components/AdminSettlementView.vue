@@ -53,11 +53,13 @@ function exportCsv() {
     return;
   }
 
-  const headers = ["Nachname", "Vorname", "Saldo (€)"];
+  const headers = ["Nachname", "Vorname", "Saldo (€)", "Offene Buchungen", "Offener Betrag (€)"];
   const rows = members.value.map((m) => [
     m.lastname ?? "",
     m.firstname ?? "",
     (m.balance / 100).toFixed(2).replace(".", ","),
+    String(m.open_transactions ?? 0),
+    ((m.open_amount ?? 0) / 100).toFixed(2).replace(".", ","),
   ]);
 
   const csvContent = [headers, ...rows].map((r) => r.join(";")).join("\n");
@@ -122,6 +124,8 @@ onMounted(loadMembers);
           <tr>
             <th class="px-4 py-3 text-left">Mitglied</th>
             <th class="px-4 py-3 text-right">Kontostand (€)</th>
+            <th class="px-4 py-3 text-right">Offene Buchungen</th>
+            <th class="px-4 py-3 text-right">Offen (€)</th>
             <th class="px-4 py-3 text-right">Letzte Abrechnung</th>
           </tr>
         </thead>
@@ -143,6 +147,21 @@ onMounted(loadMembers);
               }"
             >
               {{ (m.balance / 100).toFixed(2) }}
+            </td>
+
+            <td class="px-4 py-2 text-right font-mono text-gray-700">
+              {{ m.open_transactions ?? 0 }}
+            </td>
+
+            <td
+              class="px-4 py-2 text-right font-mono"
+              :class="{
+                'text-green-600': (m.open_amount ?? 0) > 0,
+                'text-red-600': (m.open_amount ?? 0) < 0,
+                'text-gray-700': (m.open_amount ?? 0) === 0,
+              }"
+            >
+              {{ ((m.open_amount ?? 0) / 100).toFixed(2) }}
             </td>
 
             <td class="px-4 py-2 text-right text-gray-500">
@@ -169,8 +188,8 @@ onMounted(loadMembers);
     >
       <p>
         Möchtest du wirklich den Monatsabschluss durchführen?<br />
-        Alle negativen Kontostände werden auf <strong>0 €</strong> gesetzt 
-        (Guthaben bleibt bestehen) und der Abschluss wird gespeichert.
+        Alle offenen Buchungen werden abgeschlossen. Negative Kontostände werden auf
+        <strong>0 €</strong> gesetzt, Guthaben bleibt bestehen.
       </p>
     </BaseModal>
   </div>
