@@ -182,7 +182,14 @@ export async function pollAndRunDeviceCommands(token: string): Promise<void> {
       let releasedFailedCount = 0;
       try {
         releasedFailedCount = await resetFailedQueueRetries();
+        const syncStartedAt = typeof performance !== "undefined" && typeof performance.now === "function"
+          ? performance.now()
+          : Date.now();
         const processed = await syncQueue(token);
+        const syncFinishedAt = typeof performance !== "undefined" && typeof performance.now === "function"
+          ? performance.now()
+          : Date.now();
+        const durationMs = Math.max(0, Math.round(syncFinishedAt - syncStartedAt));
         if ((processed > 0 || releasedFailedCount > 0) && typeof window !== "undefined") {
           window.dispatchEvent(
             new CustomEvent("queue-synced", {
@@ -196,6 +203,8 @@ export async function pollAndRunDeviceCommands(token: string): Promise<void> {
           success: true,
           processed_count: processed,
           released_failed_count: releasedFailedCount,
+          duration_ms: durationMs,
+          success_count: processed,
           queue_status: await getLocalQueueStatus(),
         });
       } catch (err) {
