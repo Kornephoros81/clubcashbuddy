@@ -659,7 +659,7 @@ const ADMIN_RPC_ACTIONS = {
     args: (token) => ({ p_token: token }),
   },
   perform_member_settlement: {
-    fn: "api_admin_perform_member_settlement",
+    fn: "api_admin_perform_member_settlement_v2",
     args: (token, p) => ({ p_token: token, p_member_id: p.member_id }),
   },
   list_members_balances: {
