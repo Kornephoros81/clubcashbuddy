@@ -14,7 +14,10 @@ const newProductName = ref("");
 const newProductCategory = ref("Sonstiges");
 const newProductPrice = ref<number | null>(null);
 const newGuestPrice = ref<number | null>(null);
+const newLastPurchasePrice = ref<number | null>(null);
 const newProductInventoried = ref(true);
+const selectedProduct = ref<any | null>(null);
+const productDetailSaving = ref(false);
 const uploadingImageById = ref<Record<string, boolean>>({});
 const brokenPreviewById = ref<Record<string, boolean>>({});
 const sortBy = ref<"name" | "category">("category");
@@ -83,7 +86,14 @@ async function onProductImageSelected(product: any, event: Event) {
   setUploading(product.id, true);
   try {
     const dataUrl = await fileToDataUrl(file);
-    await store.uploadProductImage(product.id, dataUrl);
+    const updated = await store.uploadProductImage(product.id, dataUrl);
+    if (selectedProduct.value?.id === product.id) {
+      selectedProduct.value = {
+        ...selectedProduct.value,
+        ...updated,
+        originalInventoried: selectedProduct.value.originalInventoried,
+      };
+    }
     brokenPreviewById.value = {
       ...brokenPreviewById.value,
       [String(product.id)]: false,
@@ -108,7 +118,14 @@ async function removeProductImage(product: any) {
 
   setUploading(product.id, true);
   try {
-    await store.deleteProductImage(product.id);
+    const updated = await store.deleteProductImage(product.id);
+    if (selectedProduct.value?.id === product.id) {
+      selectedProduct.value = {
+        ...selectedProduct.value,
+        ...updated,
+        originalInventoried: selectedProduct.value.originalInventoried,
+      };
+    }
     brokenPreviewById.value = {
       ...brokenPreviewById.value,
       [String(product.id)]: false,
@@ -182,20 +199,57 @@ function sortIndicator(column: "name" | "category") {
   return sortDir.value === "asc" ? " ▲" : " ▼";
 }
 
-/* 💾 Speichert alle Produkte, die im Store aktuell stehen */
-async function saveAll() {
+function formatEuro(value: unknown) {
+  const cents = Math.round(Number(value ?? 0) * 100);
+  return `${(cents / 100).toFixed(2)} €`;
+}
+
+function openProductDetails(product: any) {
+  selectedProduct.value = {
+    ...product,
+    originalInventoried: Boolean(product.inventoried),
+  };
+}
+
+function closeProductDetails() {
+  selectedProduct.value = null;
+}
+
+async function saveSelectedProduct() {
+  const product = selectedProduct.value;
+  if (!product?.id) return;
+  if (!String(product.name ?? "").trim()) {
+    showToast("⚠️ Bitte Artikelnamen angeben");
+    return;
+  }
+
+  if (product.originalInventoried === true && product.inventoried === false) {
+    const ok = await confirm(
+      "Inventarisierung deaktivieren",
+      "Das ist nur möglich, wenn der aktuelle Bestand 0 ist. Alte Buchungen bleiben historisch inventarisiert. Fortfahren?",
+      { danger: true }
+    );
+    if (!ok) return;
+  }
+
+  productDetailSaving.value = true;
   try {
-    if (!store.products.length) {
-      showToast("⚠️ Keine Artikel vorhanden");
-      return;
-    }
-    showToast("💾 Änderungen werden gespeichert …");
-    await store.updateProductsBatch([...store.products]);
-    await store.initCategories();
-    showToast("✅ Alle Änderungen gespeichert");
+    const updated = await store.updateProduct({
+      ...product,
+      name: String(product.name ?? "").trim(),
+      category: String(product.category ?? "").trim() || "Sonstiges",
+    });
+    showToast("✅ Artikel gespeichert");
+    selectedProduct.value = {
+      ...updated,
+      originalInventoried: Boolean(updated.inventoried),
+    };
+    closeProductDetails();
   } catch (err) {
-    console.error("[saveAll]", err);
-    showToast("⚠️ Fehler beim Speichern der Artikel");
+    console.error("[saveSelectedProduct]", err);
+    showToast(`⚠️ ${String((err as any)?.message ?? "Fehler beim Speichern des Artikels")}`);
+  } finally {
+    productDetailSaving.value = false;
   }
 }
 
@@ -212,6 +266,7 @@ async function confirmAddProduct() {
       category: newProductCategory.value.trim() || "Sonstiges",
       priceEuro: newProductPrice.value ?? 0,
       guestPriceEuro: newGuestPrice.value ?? 0,
+      lastPurchasePriceEuro: newLastPurchasePrice.value ?? 0,
       active: true,
       inventoried: newProductInventoried.value,
     });
@@ -221,6 +276,7 @@ async function confirmAddProduct() {
     newProductCategory.value = activeCategoryOptions.value[0]?.name ?? "Sonstiges";
     newProductPrice.value = null;
     newGuestPrice.value = null;
+    newLastPurchasePrice.value = null;
     newProductInventoried.value = true;
     showNewProductModal.value = false;
   } catch (err) {
@@ -240,6 +296,7 @@ async function deleteProduct(p: any) {
 
   try {
     await store.deleteProduct(p.id, false);
+    if (selectedProduct.value?.id === p.id) closeProductDetails();
     showToast(`🗑️ ${p.name} gelöscht`);
   } catch (err) {
     const message = String((err as any)?.message ?? err ?? "");
@@ -253,6 +310,7 @@ async function deleteProduct(p: any) {
 
       try {
         await store.deleteProduct(p.id, true);
+        if (selectedProduct.value?.id === p.id) closeProductDetails();
         showToast(`🗑️ ${p.name} endgültig gelöscht`);
         return;
       } catch (forceErr) {
@@ -279,12 +337,6 @@ async function deleteProduct(p: any) {
         >
           Kategorien
         </RouterLink>
-        <button
-          @click="saveAll"
-          class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition"
-        >
-          💾 Alle speichern
-        </button>
         <button
           @click="showNewProductModal = true"
           class="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 transition"
@@ -375,95 +427,30 @@ async function deleteProduct(p: any) {
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div class="sm:col-span-2">
-              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Name</label>
-              <input
-                v-model="p.name"
-                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
-              />
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div class="text-xs uppercase text-gray-500">Preis</div>
+              <div class="font-medium text-gray-900">{{ formatEuro(p.priceEuro) }}</div>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Preis (€)</label>
-              <input
-                v-model.number="p.priceEuro"
-                type="number"
-                step="0.01"
-                min="0"
-                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
-              />
+              <div class="text-xs uppercase text-gray-500">Gast</div>
+              <div class="font-medium text-gray-900">{{ formatEuro(p.guestPriceEuro) }}</div>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Gast (€)</label>
-              <input
-                v-model.number="p.guestPriceEuro"
-                type="number"
-                step="0.01"
-                min="0"
-                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
-              />
+              <div class="text-xs uppercase text-gray-500">EK</div>
+              <div class="font-medium text-gray-900">{{ formatEuro(p.lastPurchasePriceEuro) }}</div>
             </div>
-            <div class="sm:col-span-2">
-              <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Kategorie</label>
-              <select
-                v-model="p.category"
-                class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
-              >
-                <option v-for="c in productCategoryOptions" :key="c.id" :value="c.name">
-                  {{ c.name }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                v-model="p.active"
-                class="scale-125 accent-primary"
-              />
-              Aktiv
-            </label>
-            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                v-model="p.inventoried"
-                class="scale-125 accent-primary"
-              />
-              Inventarisiert
-            </label>
-          </div>
-
-          <div>
-            <div class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Bild</div>
-            <div class="flex flex-col gap-2">
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                :disabled="isUploading(p.id)"
-                class="text-xs w-full"
-                @change="onProductImageSelected(p, $event)"
-              />
-              <div class="flex flex-wrap items-center gap-3 text-xs">
-                <button
-                  v-if="p.image_url"
-                  @click="removeProductImage(p)"
-                  :disabled="isUploading(p.id)"
-                  class="text-red-700 hover:text-red-900 text-left disabled:opacity-50"
-                >
-                  Bild entfernen
-                </button>
-                <span v-if="isUploading(p.id)" class="text-gray-500">Upload läuft...</span>
-              </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Kategorie</div>
+              <div class="font-medium text-gray-900 truncate">{{ p.category }}</div>
             </div>
           </div>
 
           <button
-            @click="deleteProduct(p)"
-            class="w-full bg-red-100 text-red-700 px-3 py-2 rounded-md hover:bg-red-200 text-sm font-medium"
+            @click="openProductDetails(p)"
+            class="w-full bg-primary text-white px-3 py-2 rounded-md hover:bg-primary/90 text-sm font-medium"
           >
-            🗑️ Löschen
+            Bearbeiten
           </button>
         </div>
         <div v-if="sortedProducts.length === 0" class="bg-white rounded-2xl shadow border border-gray-200 p-6 text-center text-gray-400 italic">
@@ -486,6 +473,7 @@ async function deleteProduct(p: any) {
             </th>
             <th class="px-4 py-3 text-right">Preis (€)</th>
             <th class="px-4 py-3 text-right">Gast (€)</th>
+            <th class="px-4 py-3 text-right">EK (€)</th>
             <th class="px-4 py-3 text-left">
               <button @click="toggleSort('category')" class="hover:underline normal-case">
                 Kategorie{{ sortIndicator("category") }}
@@ -505,124 +493,244 @@ async function deleteProduct(p: any) {
             class="border-t hover:bg-primary/5 transition-colors"
           >
             <td class="px-4 py-2">
-              <input
-                v-model="p.name"
-                class="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-              />
+              <div class="font-medium text-gray-900">{{ p.name }}</div>
             </td>
 
             <!-- Preis -->
             <td class="px-4 py-2 text-right">
-              <input
-                v-model.number="p.priceEuro"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Mitglied"
-                class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-              />
-              <span class="text-gray-500 ml-1">€</span>
+              {{ formatEuro(p.priceEuro) }}
             </td>
 
             <!-- Gästepreis -->
             <td class="px-4 py-2 text-right">
-              <input
-                v-model.number="p.guestPriceEuro"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Gast"
-                class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-              />
-              <span class="text-gray-500 ml-1">€</span>
+              {{ formatEuro(p.guestPriceEuro) }}
+            </td>
+
+            <!-- Einkaufspreis -->
+            <td class="px-4 py-2 text-right">
+              {{ formatEuro(p.lastPurchasePriceEuro) }}
             </td>
 
             <!-- Kategorie -->
             <td class="px-4 py-2">
-              <select
-                v-model="p.category"
-                class="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-              >
-                <option v-for="c in productCategoryOptions" :key="c.id" :value="c.name">
-                  {{ c.name }}
-                </option>
-              </select>
+              {{ p.category }}
             </td>
 
             <!-- Bild -->
             <td class="px-4 py-2">
-              <div class="flex items-center gap-2">
-                <img
-                  v-if="hasPreviewImage(p)"
-                  :src="p.image_url"
-                  :alt="`Bild ${p.name}`"
-                  class="w-12 h-12 object-contain rounded border bg-white"
-                  @error="onPreviewImageError(p.id)"
-                />
-                <div
-                  v-else
-                  class="w-12 h-12 rounded border bg-gray-100 text-[10px] text-gray-500 flex items-center justify-center text-center leading-tight px-1"
-                >
-                  Kein Bild
-                </div>
-                <div class="flex flex-col gap-1">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                    :disabled="isUploading(p.id)"
-                    class="text-xs w-[180px]"
-                    @change="onProductImageSelected(p, $event)"
-                  />
-                  <button
-                    v-if="p.image_url"
-                    @click="removeProductImage(p)"
-                    :disabled="isUploading(p.id)"
-                    class="text-xs text-red-700 hover:text-red-900 text-left disabled:opacity-50"
-                  >
-                    Bild entfernen
-                  </button>
-                  <span v-if="isUploading(p.id)" class="text-xs text-gray-500">
-                    Upload läuft...
-                  </span>
-                </div>
+              <img
+                v-if="hasPreviewImage(p)"
+                :src="p.image_url"
+                :alt="`Bild ${p.name}`"
+                class="w-12 h-12 object-contain rounded border bg-white"
+                @error="onPreviewImageError(p.id)"
+              />
+              <div
+                v-else
+                class="w-12 h-12 rounded border bg-gray-100 text-[10px] text-gray-500 flex items-center justify-center text-center leading-tight px-1"
+              >
+                Kein Bild
               </div>
             </td>
 
             <!-- Aktiv -->
             <td class="px-4 py-2 text-center">
-              <input
-                type="checkbox"
-                v-model="p.active"
-                class="scale-125 accent-primary"
-              />
+              <span class="rounded-full px-2 py-1 text-xs" :class="p.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'">
+                {{ p.active ? "Aktiv" : "Inaktiv" }}
+              </span>
             </td>
 
             <!-- Inventarisiert -->
             <td class="px-4 py-2 text-center">
-              <input
-                type="checkbox"
-                v-model="p.inventoried"
-                class="scale-125 accent-primary"
-              />
+              <span class="rounded-full px-2 py-1 text-xs" :class="p.inventoried ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
+                {{ p.inventoried ? "Ja" : "Nein" }}
+              </span>
             </td>
 
             <!-- Aktionen -->
             <td class="px-4 py-2 text-center">
               <button
-                @click="deleteProduct(p)"
-                class="bg-red-100 text-red-700 px-3 py-1 rounded-md hover:bg-red-200 text-sm font-medium"
+                @click="openProductDetails(p)"
+                class="bg-primary text-white px-3 py-1 rounded-md hover:bg-primary/90 text-sm font-medium"
               >
-                🗑️ Löschen
+                Bearbeiten
               </button>
             </td>
           </tr>
           <tr v-if="sortedProducts.length === 0">
-            <td colspan="8" class="text-center py-6 text-gray-400 italic">
+            <td colspan="9" class="text-center py-6 text-gray-400 italic">
               Keine Artikel für den gewählten Filter
             </td>
           </tr>
         </tbody>
       </table>
+      </div>
+    </div>
+
+    <div
+      v-if="selectedProduct"
+      class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      @click.self="closeProductDetails"
+    >
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-gray-200">
+        <div class="flex items-start justify-between gap-4 px-5 py-4 border-b">
+          <div class="min-w-0">
+            <h3 class="text-lg font-semibold text-gray-900 truncate">{{ selectedProduct.name || "Artikel" }}</h3>
+            <div class="mt-1 flex flex-wrap gap-2 text-xs">
+              <span class="rounded-full px-2 py-1" :class="selectedProduct.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'">
+                {{ selectedProduct.active ? "Aktiv" : "Inaktiv" }}
+              </span>
+              <span class="rounded-full px-2 py-1" :class="selectedProduct.inventoried ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
+                {{ selectedProduct.inventoried ? "Inventarisiert" : "Nicht inventarisiert" }}
+              </span>
+            </div>
+          </div>
+          <button
+            class="text-gray-500 hover:text-gray-800 text-xl leading-none"
+            @click="closeProductDetails"
+            aria-label="Schließen"
+          >
+            ×
+          </button>
+        </div>
+
+        <div class="p-5 space-y-6">
+          <section class="space-y-3">
+            <h4 class="text-sm font-semibold text-gray-800">Stammdaten</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="md:col-span-2">
+                <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Name</label>
+                <input
+                  v-model="selectedProduct.name"
+                  class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Preis (€)</label>
+                <input
+                  v-model.number="selectedProduct.priceEuro"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Gast (€)</label>
+                <input
+                  v-model.number="selectedProduct.guestPriceEuro"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">EK (€)</label>
+                <input
+                  v-model.number="selectedProduct.lastPurchasePriceEuro"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Kategorie</label>
+                <select
+                  v-model="selectedProduct.category"
+                  class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                >
+                  <option v-for="c in productCategoryOptions" :key="c.id" :value="c.name">
+                    {{ c.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  v-model="selectedProduct.active"
+                  class="scale-125 accent-primary"
+                />
+                Artikel ist aktiv
+              </label>
+              <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  v-model="selectedProduct.inventoried"
+                  class="scale-125 accent-primary"
+                />
+                Artikel wird inventarisiert
+              </label>
+            </div>
+          </section>
+
+          <section class="space-y-3">
+            <h4 class="text-sm font-semibold text-gray-800">Bild</h4>
+            <div class="flex items-center gap-4">
+              <img
+                v-if="hasPreviewImage(selectedProduct)"
+                :src="selectedProduct.image_url"
+                :alt="`Bild ${selectedProduct.name}`"
+                class="w-20 h-20 object-contain rounded border bg-white"
+                @error="onPreviewImageError(selectedProduct.id)"
+              />
+              <div
+                v-else
+                class="w-20 h-20 rounded border bg-gray-100 text-xs text-gray-500 flex items-center justify-center text-center leading-tight px-2"
+              >
+                Kein Bild
+              </div>
+              <div class="space-y-2">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                  :disabled="isUploading(selectedProduct.id)"
+                  class="text-xs w-full"
+                  @change="onProductImageSelected(selectedProduct, $event)"
+                />
+                <button
+                  v-if="selectedProduct.image_url"
+                  @click="removeProductImage(selectedProduct)"
+                  :disabled="isUploading(selectedProduct.id)"
+                  class="text-xs text-red-700 hover:text-red-900 text-left disabled:opacity-50"
+                >
+                  Bild entfernen
+                </button>
+                <div v-if="isUploading(selectedProduct.id)" class="text-xs text-gray-500">
+                  Upload läuft...
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="border-t pt-4 flex flex-col sm:flex-row justify-between gap-3">
+            <button
+              @click="deleteProduct(selectedProduct)"
+              class="bg-red-100 text-red-700 px-4 py-2 rounded-md hover:bg-red-200 text-sm font-medium"
+            >
+              Artikel löschen
+            </button>
+            <div class="flex justify-end gap-2">
+              <button
+                @click="closeProductDetails"
+                class="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 text-sm font-medium"
+              >
+                Abbrechen
+              </button>
+              <button
+                @click="saveSelectedProduct"
+                :disabled="productDetailSaving"
+                class="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 text-sm font-medium disabled:opacity-60"
+              >
+                {{ productDetailSaving ? "Speichern..." : "Speichern" }}
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
 
@@ -653,6 +761,15 @@ async function deleteProduct(p: any) {
           v-model.number="newGuestPrice"
           type="number"
           step="0.01"
+          class="w-full border rounded-md p-2 text-sm"
+        />
+
+        <label class="block text-sm text-gray-600">EK (€)</label>
+        <input
+          v-model.number="newLastPurchasePrice"
+          type="number"
+          step="0.01"
+          min="0"
           class="w-full border rounded-md p-2 text-sm"
         />
 

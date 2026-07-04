@@ -17,6 +17,7 @@ begin
     from public.transactions t
     join public.products p on p.id = t.product_id
     where t.product_id is not null
+      and p.inventoried = true
       and t.amount < 0
       and not exists (
         select 1
@@ -74,7 +75,9 @@ begin
       t.created_at,
       r.unit_cost_cents = 0
     from public.transactions t
+    join public.products p on p.id = t.product_id
     where t.product_id = r.product_id
+      and p.inventoried = true
       and t.amount < 0
       and greatest(0, coalesce(t.product_cost_snapshot_cents, r.unit_cost_cents, 0)) = r.unit_cost_cents
       and not exists (

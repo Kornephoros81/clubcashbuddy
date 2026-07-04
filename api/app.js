@@ -926,6 +926,7 @@ async function handleRoute(route, req, res) {
         p_category: body.category ?? "Sonstiges",
         p_active: body.active ?? true,
         p_inventoried: body.inventoried ?? true,
+        p_last_purchase_price_cents: body.last_purchase_price_cents ?? 0,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 201, data);
@@ -941,6 +942,7 @@ async function handleRoute(route, req, res) {
         p_category: body.category ?? null,
         p_active: body.active ?? null,
         p_inventoried: body.inventoried ?? null,
+        p_last_purchase_price_cents: body.last_purchase_price_cents ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 200, data);
@@ -977,6 +979,7 @@ async function handleRoute(route, req, res) {
         p_category: item.category ?? null,
         p_active: item.active ?? null,
         p_inventoried: item.inventoried ?? null,
+        p_last_purchase_price_cents: item.last_purchase_price_cents ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       updatedItems.push(data);
@@ -1050,7 +1053,7 @@ async function handleRoute(route, req, res) {
         .eq("id", productId);
       const { data: productRow, error: productError } = await supabase
         .from("products")
-        .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")
+        .select("id,name,price,guest_price,category,active,inventoried,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
         .eq("id", productId)
         .maybeSingle();
       if (error) return json(res, 500, { error: error.message || "Delete failed" });
@@ -1065,6 +1068,7 @@ async function handleRoute(route, req, res) {
             category: productRow.category,
             active: productRow.active,
             inventoried: productRow.inventoried,
+            last_purchase_price_cents: productRow.last_purchase_price_cents,
             image_url: buildProductImageUrl(supabase, productRow),
           }
           : {}),
@@ -1074,9 +1078,26 @@ async function handleRoute(route, req, res) {
     try {
       const imageDataUrl = String(body.image_data_url ?? "").trim();
       const saved = await persistProductImageAsset(supabase, productId, imageDataUrl);
+      const { data: productRow, error: productError } = await supabase
+        .from("products")
+        .select("id,name,price,guest_price,category,active,inventoried,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+        .eq("id", productId)
+        .maybeSingle();
+      if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
       return json(res, 200, {
-        success: true,
-        image_url: saved.image_url,
+        ...(productRow
+          ? {
+            id: productRow.id,
+            name: productRow.name,
+            price: productRow.price,
+            guest_price: productRow.guest_price,
+            category: productRow.category,
+            active: productRow.active,
+            inventoried: productRow.inventoried,
+            last_purchase_price_cents: productRow.last_purchase_price_cents,
+            image_url: buildProductImageUrl(supabase, productRow) ?? saved.image_url,
+          }
+          : { id: productId, image_url: saved.image_url }),
       });
     } catch (err) {
       return json(res, 400, { error: err?.message || "Invalid image payload" });
