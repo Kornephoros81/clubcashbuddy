@@ -8,6 +8,8 @@ const { show: showToast } = useToast();
 const loading = ref(false);
 const members = ref<any[]>([]);
 const showConfirmModal = ref(false);
+const settlementTarget = ref<any | null>(null);
+const settlingMemberId = ref<string | null>(null);
 
 // 🧾 Mitglieder laden
 async function loadMembers() {
@@ -29,20 +31,40 @@ async function loadMembers() {
   }
 }
 
+function openSettlementConfirm(member: any | null = null) {
+  settlementTarget.value = member;
+  showConfirmModal.value = true;
+}
+
 // 🔄 Monatsabschluss ausführen
 async function performSettlement() {
+  const target = settlementTarget.value;
   showConfirmModal.value = false;
-  loading.value = true;
+  if (target?.id) {
+    settlingMemberId.value = target.id;
+  } else {
+    loading.value = true;
+  }
   try {
-    await adminRpc("perform_monthly_settlement");
+    if (target?.id) {
+      await adminRpc("perform_member_settlement", { member_id: target.id });
+    } else {
+      await adminRpc("perform_monthly_settlement");
+    }
 
-    showToast("✅ Monatsabschluss erfolgreich durchgeführt");
+    showToast(
+      target?.id
+        ? `✅ ${target.name} erfolgreich abgerechnet`
+        : "✅ Monatsabschluss erfolgreich durchgeführt"
+    );
     await loadMembers();
   } catch (err) {
     console.error(err);
     showToast("⚠️ Fehler beim Monatsabschluss");
   } finally {
     loading.value = false;
+    settlingMemberId.value = null;
+    settlementTarget.value = null;
   }
 }
 
@@ -96,11 +118,11 @@ onMounted(loadMembers);
           CSV exportieren
         </button>
         <button
-          @click="showConfirmModal = true"
+          @click="openSettlementConfirm(null)"
           class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition"
           :disabled="loading"
         >
-          Monatsabschluss durchführen
+          Alle abrechnen
         </button>
       </div>
     </div>
@@ -123,6 +145,7 @@ onMounted(loadMembers);
             <th class="px-4 py-3 text-left">Mitglied</th>
             <th class="px-4 py-3 text-right">Kontostand (€)</th>
             <th class="px-4 py-3 text-right">Letzte Abrechnung</th>
+            <th class="px-4 py-3 text-center">Aktion</th>
           </tr>
         </thead>
         <tbody>
@@ -152,6 +175,16 @@ onMounted(loadMembers);
                   : "—"
               }}
             </td>
+
+            <td class="px-4 py-2 text-center">
+              <button
+                @click="openSettlementConfirm(m)"
+                class="bg-primary/10 text-primary px-3 py-1 rounded-md hover:bg-primary/20 text-sm font-medium disabled:opacity-50"
+                :disabled="loading || settlingMemberId === m.id"
+              >
+                Abrechnen
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -160,17 +193,22 @@ onMounted(loadMembers);
     <!-- 🧩 Bestätigungs-Modal -->
     <BaseModal
       :show="showConfirmModal"
-      title="Monatsabschluss bestätigen"
+      :title="settlementTarget ? 'Mitglied abrechnen' : 'Monatsabschluss bestätigen'"
       confirm-label="Abschließen"
       cancel-label="Abbrechen"
       :danger="true"
       @close="showConfirmModal = false"
       @confirm="performSettlement"
     >
-      <p>
-        Möchtest du wirklich den Monatsabschluss durchführen?<br />
-        Alle negativen Kontostände werden auf <strong>0 €</strong> gesetzt 
-        (Guthaben bleibt bestehen) und der Abschluss wird gespeichert.
+      <p v-if="settlementTarget">
+        Möchtest du <strong>{{ settlementTarget.name }}</strong> abrechnen?<br />
+        Ein negativer Kontostand wird auf <strong>0 €</strong> gesetzt,
+        Guthaben bleibt bestehen.
+      </p>
+      <p v-else>
+        Möchtest du wirklich alle Mitglieder abrechnen?<br />
+        Negative Kontostände werden auf
+        <strong>0 €</strong> gesetzt, Guthaben bleibt bestehen.
       </p>
     </BaseModal>
   </div>
