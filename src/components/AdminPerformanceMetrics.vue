@@ -11,12 +11,37 @@ type MetricRow = {
   detail: Record<string, unknown>;
 };
 
+type SyncSample = {
+  id: string;
+  device_id: string;
+  device_name: string;
+  measured_at: string;
+  duration_ms: number;
+  attempted_count: number;
+  success_count: number;
+  failed_count: number;
+  book_count: number;
+  cancel_count: number;
+  batch_count: number;
+  avg_item_ms: number | null;
+  error_message: string | null;
+};
+
 const loading = ref(false);
 const pruning = ref(false);
 const error = ref("");
 const message = ref("");
 const metrics = ref<MetricRow[]>([]);
+const syncSamples = ref<SyncSample[]>([]);
+const syncChartHours = ref(24);
 const retentionDays = ref(180);
+
+const chartWidth = 760;
+const chartHeight = 260;
+const plotLeft = 56;
+const plotRight = 24;
+const plotTop = 20;
+const plotBottom = 42;
 
 const groups = computed(() => {
   const grouped = new Map<string, MetricRow[]>();
@@ -41,10 +66,104 @@ function groupLabel(group: string) {
   return group;
 }
 
+const syncChartRows = computed(() =>
+  [...syncSamples.value].sort(
+    (a, b) => new Date(a.measured_at).getTime() - new Date(b.measured_at).getTime()
+  )
+);
+
+const syncChartStats = computed(() => {
+  const rows = syncChartRows.value;
+  const maxDuration = Math.max(1, ...rows.map((row) => row.duration_ms));
+  const maxCount = Math.max(1, ...rows.map((row) => row.attempted_count));
+  const avgDuration = rows.length
+    ? Math.round(rows.reduce((sum, row) => sum + row.duration_ms, 0) / rows.length)
+    : 0;
+  return { maxDuration, maxCount, avgDuration };
+});
+
+const syncChartDomain = computed(() => {
+  const rows = syncChartRows.value;
+  const now = Date.now();
+  const fallbackStart = now - syncChartHours.value * 60 * 60 * 1000;
+  const first = rows.length ? new Date(rows[0].measured_at).getTime() : fallbackStart;
+  const last = rows.length ? new Date(rows[rows.length - 1].measured_at).getTime() : now;
+  return {
+    min: Math.min(first, fallbackStart),
+    max: Math.max(last, now),
+  };
+});
+
+const syncDurationPath = computed(() => {
+  const points = syncChartPoints.value;
+  if (!points.length) return "";
+  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+});
+
+const syncChartPoints = computed(() =>
+  syncChartRows.value.map((row) => ({
+    ...row,
+    x: chartX(new Date(row.measured_at).getTime()),
+    y: chartY(row.duration_ms),
+  }))
+);
+
+const syncChartBars = computed(() =>
+  syncChartRows.value.map((row, index) => {
+    const point = syncChartPoints.value[index];
+    const plotHeight = chartHeight - plotTop - plotBottom;
+    const barHeight = Math.max(2, (row.attempted_count / syncChartStats.value.maxCount) * plotHeight);
+    return {
+      ...row,
+      x: point?.x ?? plotLeft,
+      y: chartHeight - plotBottom - barHeight,
+      height: barHeight,
+    };
+  })
+);
+
+const firstSyncLabel = computed(() => {
+  const row = syncChartRows.value[0];
+  return row ? formatShortDateTime(row.measured_at) : "";
+});
+
+const lastSyncLabel = computed(() => {
+  const rows = syncChartRows.value;
+  const row = rows[rows.length - 1];
+  return row ? formatShortDateTime(row.measured_at) : "";
+});
+
+function chartX(timestamp: number) {
+  const domain = syncChartDomain.value;
+  const plotWidth = chartWidth - plotLeft - plotRight;
+  const span = Math.max(1, domain.max - domain.min);
+  return plotLeft + ((timestamp - domain.min) / span) * plotWidth;
+}
+
+function chartY(durationMs: number) {
+  const plotHeight = chartHeight - plotTop - plotBottom;
+  return plotTop + (1 - durationMs / syncChartStats.value.maxDuration) * plotHeight;
+}
+
 function formatValue(metric: MetricRow) {
   if (metric.value_text) return metric.value_text;
   const value = Number(metric.value_numeric ?? 0);
   return new Intl.NumberFormat("de-DE").format(value);
+}
+
+function formatDuration(ms: number | null | undefined) {
+  const value = Number(ms ?? 0);
+  if (value < 1000) return `${new Intl.NumberFormat("de-DE").format(Math.round(value))} ms`;
+  return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value / 1000)} s`;
+}
+
+function formatShortDateTime(value: string) {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function formatDetail(detail: Record<string, unknown>) {
@@ -81,6 +200,30 @@ async function loadMetrics() {
       value_text: row.value_text == null ? null : String(row.value_text),
       detail: row.detail ?? {},
     }));
+    try {
+      const samples = await adminRpc("list_sync_performance_samples", {
+        hours: syncChartHours.value,
+        limit: 300,
+      });
+      syncSamples.value = ((samples as any[]) ?? []).map((row: any) => ({
+        id: String(row.id ?? ""),
+        device_id: String(row.device_id ?? ""),
+        device_name: String(row.device_name ?? "Unbekanntes Gerät"),
+        measured_at: String(row.measured_at ?? ""),
+        duration_ms: Number(row.duration_ms ?? 0),
+        attempted_count: Number(row.attempted_count ?? 0),
+        success_count: Number(row.success_count ?? 0),
+        failed_count: Number(row.failed_count ?? 0),
+        book_count: Number(row.book_count ?? 0),
+        cancel_count: Number(row.cancel_count ?? 0),
+        batch_count: Number(row.batch_count ?? 0),
+        avg_item_ms: row.avg_item_ms == null ? null : Number(row.avg_item_ms),
+        error_message: row.error_message == null ? null : String(row.error_message),
+      }));
+    } catch (sampleErr) {
+      console.warn("[AdminPerformanceMetrics.loadSyncSamples]", sampleErr);
+      syncSamples.value = [];
+    }
   } catch (err: any) {
     console.error("[AdminPerformanceMetrics.loadMetrics]", err);
     error.value = err?.message || "Metriken konnten nicht geladen werden";
@@ -134,6 +277,126 @@ onMounted(loadMetrics);
     <div v-if="message" class="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
       {{ message }}
     </div>
+
+    <section class="rounded-lg border border-gray-200 bg-white">
+      <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 class="text-base font-semibold text-gray-900">Sync-Performance</h3>
+          <p class="mt-1 text-sm text-gray-600">
+            Dauer je Sync-Lauf und Anzahl verarbeiteter Queue-Einträge.
+          </p>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+          Zeitraum
+          <select
+            v-model.number="syncChartHours"
+            class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            :disabled="loading"
+            @change="loadMetrics"
+          >
+            <option :value="24">24 Stunden</option>
+            <option :value="72">3 Tage</option>
+            <option :value="168">7 Tage</option>
+            <option :value="720">30 Tage</option>
+          </select>
+        </label>
+      </div>
+
+      <div v-if="!syncChartRows.length && !loading" class="px-4 py-8 text-center text-sm text-gray-500">
+        Noch keine Sync-Messpunkte vorhanden. Es werden nur Syncs mit verarbeiteten Queue-Einträgen aufgezeichnet.
+      </div>
+
+      <div v-else-if="loading && !syncChartRows.length" class="px-4 py-8 text-center text-sm text-gray-500">
+        Sync-Diagramm wird geladen...
+      </div>
+
+      <div v-else class="p-4">
+        <div class="mb-3 grid gap-3 text-sm md:grid-cols-3">
+          <div class="rounded-md border border-gray-200 px-3 py-2">
+            <div class="text-gray-500">Messpunkte</div>
+            <div class="text-lg font-semibold text-gray-900">{{ syncChartRows.length }}</div>
+          </div>
+          <div class="rounded-md border border-gray-200 px-3 py-2">
+            <div class="text-gray-500">Ø Dauer</div>
+            <div class="text-lg font-semibold text-gray-900">{{ formatDuration(syncChartStats.avgDuration) }}</div>
+          </div>
+          <div class="rounded-md border border-gray-200 px-3 py-2">
+            <div class="text-gray-500">Max. Dauer</div>
+            <div class="text-lg font-semibold text-gray-900">{{ formatDuration(syncChartStats.maxDuration) }}</div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <svg
+            class="min-w-[760px]"
+            :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
+            role="img"
+            aria-label="Sync-Performance-Diagramm"
+          >
+            <line :x1="plotLeft" :y1="plotTop" :x2="plotLeft" :y2="chartHeight - plotBottom" stroke="#d1d5db" />
+            <line :x1="plotLeft" :y1="chartHeight - plotBottom" :x2="chartWidth - plotRight" :y2="chartHeight - plotBottom" stroke="#d1d5db" />
+            <line :x1="plotLeft" :y1="plotTop" :x2="chartWidth - plotRight" :y2="plotTop" stroke="#f3f4f6" />
+            <line :x1="plotLeft" :y1="(chartHeight - plotBottom + plotTop) / 2" :x2="chartWidth - plotRight" :y2="(chartHeight - plotBottom + plotTop) / 2" stroke="#f3f4f6" />
+
+            <text x="8" :y="plotTop + 4" class="fill-gray-500 text-[11px]">{{ formatDuration(syncChartStats.maxDuration) }}</text>
+            <text x="8" :y="chartHeight - plotBottom + 4" class="fill-gray-500 text-[11px]">0 ms</text>
+
+            <rect
+              v-for="bar in syncChartBars"
+              :key="`${bar.id}-bar`"
+              :x="bar.x - 5"
+              :y="bar.y"
+              width="10"
+              :height="bar.height"
+              rx="2"
+              fill="#93c5fd"
+              opacity="0.55"
+            >
+              <title>{{ `${formatShortDateTime(bar.measured_at)} | ${bar.attempted_count} Einträge` }}</title>
+            </rect>
+
+            <path
+              v-if="syncDurationPath"
+              :d="syncDurationPath"
+              fill="none"
+              stroke="#2563eb"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+            <circle
+              v-for="point in syncChartPoints"
+              :key="`${point.id}-point`"
+              :cx="point.x"
+              :cy="point.y"
+              r="4"
+              fill="#1d4ed8"
+              stroke="white"
+              stroke-width="2"
+            >
+              <title>
+                {{ `${formatShortDateTime(point.measured_at)} | ${point.device_name} | ${formatDuration(point.duration_ms)} | ${point.success_count}/${point.attempted_count} erfolgreich` }}
+              </title>
+            </circle>
+
+            <text :x="plotLeft" :y="chartHeight - 14" class="fill-gray-500 text-[11px]">{{ firstSyncLabel }}</text>
+            <text :x="chartWidth - plotRight" :y="chartHeight - 14" text-anchor="end" class="fill-gray-500 text-[11px]">{{ lastSyncLabel }}</text>
+          </svg>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-4 text-xs text-gray-600">
+          <span class="inline-flex items-center gap-1">
+            <span class="h-2 w-5 rounded-full bg-blue-600"></span>
+            Sync-Dauer
+          </span>
+          <span class="inline-flex items-center gap-1">
+            <span class="h-3 w-3 rounded-sm bg-blue-300"></span>
+            Queue-Einträge
+          </span>
+        </div>
+      </div>
+    </section>
 
     <div class="rounded-lg border border-gray-200 bg-white p-4">
       <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
