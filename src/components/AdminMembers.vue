@@ -24,6 +24,13 @@ const showPinPlain = ref<Record<string, boolean>>({});
 const pinSaving = ref<Record<string, boolean>>({});
 const searchTerm = ref("");
 const activeFilter = ref<"all" | "active" | "inactive">("all");
+const memberSort = ref<{
+  key: "lastname" | "firstname";
+  direction: "asc" | "desc";
+}>({
+  key: "lastname",
+  direction: "asc",
+});
 const selectedMember = ref<any | null>(null);
 type DetailTab = "details" | "pin" | "credit" | "archive";
 const detailTab = ref<DetailTab>("details");
@@ -67,6 +74,26 @@ function memberStatus(member: any) {
   return member?.active ? "Aktiv" : "Inaktiv";
 }
 
+function compareMemberNamePart(a: any, b: any, key: "lastname" | "firstname") {
+  return String(a?.[key] ?? "").localeCompare(String(b?.[key] ?? ""), "de-DE", {
+    sensitivity: "base",
+  });
+}
+
+function setMemberSort(key: "lastname" | "firstname") {
+  if (memberSort.value.key === key) {
+    memberSort.value.direction = memberSort.value.direction === "asc" ? "desc" : "asc";
+    return;
+  }
+
+  memberSort.value = { key, direction: "asc" };
+}
+
+function sortIndicator(key: "lastname" | "firstname") {
+  if (memberSort.value.key !== key) return "";
+  return memberSort.value.direction === "asc" ? " ↑" : " ↓";
+}
+
 const filteredMembers = computed(() => {
   const query = searchTerm.value.trim().toLocaleLowerCase("de-DE");
   return store.members
@@ -82,18 +109,11 @@ const filteredMembers = computed(() => {
       return matchesSearch && matchesActive;
     })
     .sort((a, b) => {
-      const byLast = String(a.lastname ?? "").localeCompare(
-        String(b.lastname ?? ""),
-        "de-DE",
-        { sensitivity: "base" }
-      );
-      if (byLast !== 0) return byLast;
-
-      return String(a.firstname ?? "").localeCompare(
-        String(b.firstname ?? ""),
-        "de-DE",
-        { sensitivity: "base" }
-      );
+      const primary = compareMemberNamePart(a, b, memberSort.value.key);
+      const secondaryKey = memberSort.value.key === "lastname" ? "firstname" : "lastname";
+      const secondary = compareMemberNamePart(a, b, secondaryKey);
+      const result = primary || secondary;
+      return memberSort.value.direction === "asc" ? result : -result;
     });
 });
 
@@ -589,7 +609,24 @@ async function restoreArchivedMember(member: any) {
         <table class="min-w-full text-sm text-gray-700">
           <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
             <tr>
-              <th class="px-4 py-3 text-left">Name</th>
+              <th class="px-4 py-3 text-left">
+                <button
+                  type="button"
+                  @click="setMemberSort('lastname')"
+                  class="font-semibold uppercase hover:underline"
+                >
+                  Nachname{{ sortIndicator("lastname") }}
+                </button>
+              </th>
+              <th class="px-4 py-3 text-left">
+                <button
+                  type="button"
+                  @click="setMemberSort('firstname')"
+                  class="font-semibold uppercase hover:underline"
+                >
+                  Vorname{{ sortIndicator("firstname") }}
+                </button>
+              </th>
               <th class="px-4 py-3 text-right">Saldo</th>
               <th class="px-4 py-3 text-left">PIN</th>
               <th class="px-4 py-3 text-center">Status</th>
@@ -603,7 +640,10 @@ async function restoreArchivedMember(member: any) {
               class="border-t hover:bg-primary/5 transition-colors"
             >
               <td class="px-4 py-3 font-medium text-gray-900">
-                {{ memberName(m) }}
+                {{ m.lastname }}
+              </td>
+              <td class="px-4 py-3 text-gray-900">
+                {{ m.firstname }}
               </td>
               <td
                 class="px-4 py-3 text-right font-mono"
@@ -632,7 +672,7 @@ async function restoreArchivedMember(member: any) {
               </td>
             </tr>
             <tr v-if="filteredMembers.length === 0">
-              <td colspan="5" class="text-center py-6 text-gray-400 italic">
+              <td colspan="6" class="text-center py-6 text-gray-400 italic">
                 Keine Mitglieder für den gewählten Filter
               </td>
             </tr>
