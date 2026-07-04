@@ -22,6 +22,20 @@ const QUICK_RETRY_ATTEMPTS = 3;
 let syncInFlight: Promise<number> | null = null;
 let rerunRequested = false;
 
+type SyncRunMetrics = {
+  started_at: string;
+  finished_at?: string;
+  duration_ms?: number;
+  attempted_count: number;
+  success_count: number;
+  failed_count: number;
+  book_count: number;
+  cancel_count: number;
+  batch_count: number;
+  avg_item_ms?: number | null;
+  error_message?: string | null;
+};
+
 function getNextRetryDelayMs(attempts: number): number {
   if (attempts <= QUICK_RETRY_ATTEMPTS) return 0;
   if (attempts === 4) return 5 * 60_000;
@@ -49,6 +63,55 @@ function getQueueOperation(payload: QueuePayload): "book" | "cancel" {
   return Object.prototype.hasOwnProperty.call(payload, "cancel_tx_id")
     ? "cancel"
     : "book";
+}
+
+function getPerformanceNow(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function buildQueueStatus(entries: QueueEntry[]) {
+  const failed = entries.filter((entry) => entry.status === "failed");
+  const fatal = failed.filter((entry) => entry.retryClass === "fatal");
+  const retryable = failed.filter((entry) => entry.retryClass !== "fatal");
+
+  return {
+    pending_count: entries.filter((entry) => entry.status !== "failed").length,
+    failed_count: failed.length,
+    total_count: entries.length,
+    fatal_failed_count: fatal.length,
+    retryable_failed_count: retryable.length,
+  };
+}
+
+async function reportSyncMetrics(token: string, metrics: SyncRunMetrics): Promise<void> {
+  if (!token) return;
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+  const entries = (await getQueueEntries()) as QueueEntry[];
+  const res = await fetchWithTimeout(
+    "/api/device-sync-control",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: "report_status",
+        queue_status: buildQueueStatus(entries),
+        sync_metrics: metrics,
+      }),
+    },
+    10_000
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP ${res.status}`);
+  }
 }
 
 async function reportSyncFailure(
@@ -211,8 +274,21 @@ export async function syncQueue(token: string): Promise<number> {
 
   syncInFlight = (async () => {
     if (!navigator.onLine) return 0;
+    const startedAt = new Date();
+    const startedPerf = getPerformanceNow();
     let successCount = 0;
     const attemptedThisRun = new Set<number>();
+    const metrics: SyncRunMetrics = {
+      started_at: startedAt.toISOString(),
+      attempted_count: 0,
+      success_count: 0,
+      failed_count: 0,
+      book_count: 0,
+      cancel_count: 0,
+      batch_count: 0,
+      avg_item_ms: null,
+      error_message: null,
+    };
 
     function shouldAttemptEntry(entry: QueueEntry) {
       const id = Number(entry?.id ?? 0);
@@ -235,6 +311,7 @@ export async function syncQueue(token: string): Promise<number> {
 
       const payload = (entry?.payload ?? {}) as QueuePayload;
       const attempts = Number(entry?.attempts ?? 0) + 1;
+      metrics.attempted_count += 1;
 
       await updateQueueEntry(id, {
         status: "sending",
@@ -249,6 +326,7 @@ export async function syncQueue(token: string): Promise<number> {
         );
 
         if (isCancel) {
+          metrics.cancel_count += 1;
           await callEF(token, "/api/cancel-transaction", {
             cancel_tx_id: payload.cancel_tx_id ?? null,
             member_id: payload.member_id,
@@ -258,6 +336,7 @@ export async function syncQueue(token: string): Promise<number> {
             client_tx_id: payload.client_tx_id ?? null,
           });
         } else {
+          metrics.book_count += 1;
           await callEF(token, "/api/book-transaction", {
             member_id: payload.member_id,
             product_id: payload.product_id,
@@ -298,6 +377,8 @@ export async function syncQueue(token: string): Promise<number> {
           const payload = (entry?.payload ?? {}) as QueuePayload;
           const attempts = Number(entry?.attempts ?? 0) + 1;
           attemptsById.set(id, attempts);
+          metrics.attempted_count += 1;
+          metrics.book_count += 1;
 
           await updateQueueEntry(id, {
             status: "sending",
@@ -320,6 +401,7 @@ export async function syncQueue(token: string): Promise<number> {
 
         let results: Record<string, unknown>[] = [];
         try {
+          metrics.batch_count += 1;
           const response = await callEF(token, "/api/book-transactions-batch", {
             items: payloadItems,
           }) as Record<string, unknown>;
@@ -396,47 +478,66 @@ export async function syncQueue(token: string): Promise<number> {
       return runSuccess;
     };
 
-    while (navigator.onLine) {
-      const entries = (await getQueueEntries() as QueueEntry[])
-        .filter(shouldAttemptEntry)
-        .sort((a, b) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
+    try {
+      while (navigator.onLine) {
+        const entries = (await getQueueEntries() as QueueEntry[])
+          .filter(shouldAttemptEntry)
+          .sort((a, b) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
 
-      if (!entries.length) break;
+        if (!entries.length) break;
 
-      let i = 0;
-      while (i < entries.length) {
-        const current = entries[i];
-        const payload = (current?.payload ?? {}) as QueuePayload;
-        const isCancel = Object.prototype.hasOwnProperty.call(
-          payload,
-          "cancel_tx_id"
-        );
-
-        if (isCancel) {
-          const ok = await processEntry(current);
-          if (ok) successCount += 1;
-          i += 1;
-          continue;
-        }
-
-        const run: QueueEntry[] = [];
+        let i = 0;
         while (i < entries.length) {
-          const e = entries[i];
-          const p = (e?.payload ?? {}) as QueuePayload;
-          const cancel = Object.prototype.hasOwnProperty.call(p, "cancel_tx_id");
-          if (cancel) break;
-          run.push(e);
-          i += 1;
-        }
+          const current = entries[i];
+          const payload = (current?.payload ?? {}) as QueuePayload;
+          const isCancel = Object.prototype.hasOwnProperty.call(
+            payload,
+            "cancel_tx_id"
+          );
 
-        successCount += await processBookingRun(run);
+          if (isCancel) {
+            const ok = await processEntry(current);
+            if (ok) successCount += 1;
+            i += 1;
+            continue;
+          }
+
+          const run: QueueEntry[] = [];
+          while (i < entries.length) {
+            const e = entries[i];
+            const p = (e?.payload ?? {}) as QueuePayload;
+            const cancel = Object.prototype.hasOwnProperty.call(p, "cancel_tx_id");
+            if (cancel) break;
+            run.push(e);
+            i += 1;
+          }
+
+          successCount += await processBookingRun(run);
+        }
+      }
+
+      if (successCount > 0) {
+        console.log(`[offlineSync] ${successCount} Einträge synchronisiert`);
+      }
+      return successCount;
+    } catch (err) {
+      metrics.error_message = getErrorText(err) || "Sync fehlgeschlagen";
+      throw err;
+    } finally {
+      metrics.finished_at = new Date().toISOString();
+      metrics.duration_ms = Math.max(0, Math.round(getPerformanceNow() - startedPerf));
+      metrics.success_count = successCount;
+      metrics.failed_count = Math.max(0, metrics.attempted_count - successCount);
+      metrics.avg_item_ms = metrics.attempted_count > 0
+        ? Math.round((metrics.duration_ms / metrics.attempted_count) * 10) / 10
+        : null;
+
+      if (metrics.attempted_count > 0 || metrics.error_message) {
+        void reportSyncMetrics(token, metrics).catch((err) => {
+          console.warn("[offlineSync.reportSyncMetrics] Sync-Metriken konnten nicht gemeldet werden", err);
+        });
       }
     }
-
-    if (successCount > 0) {
-      console.log(`[offlineSync] ${successCount} Einträge synchronisiert`);
-    }
-    return successCount;
   })();
 
   try {

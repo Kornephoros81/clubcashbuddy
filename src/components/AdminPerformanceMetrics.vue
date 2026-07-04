@@ -116,7 +116,7 @@ onMounted(loadMetrics);
       <div>
         <h2 class="text-2xl font-semibold text-gray-900">Performance-Metriken</h2>
         <p class="mt-1 text-sm text-gray-600">
-          Überblick über Terminal-Hot-Paths, Sync-Fehler und relevante Tabellengrößen.
+          Überblick über Terminal-Hot-Paths, Buchungs-Sync, Sync-Fehler und relevante Tabellengrößen.
         </p>
       </div>
       <button

@@ -105,12 +105,82 @@ function normalizeQueueStatus(body = {}) {
   };
 }
 
+function normalizeSyncMetrics(body = {}) {
+  const source = getSyncMetricSource(body);
+  const toCount = (value) => {
+    if (value === undefined || value === null || value === "") return null;
+    const n = Math.floor(Number(value));
+    return Number.isFinite(n) && n >= 0 ? Math.min(n, 1000000) : null;
+  };
+  const toDuration = (value) => {
+    if (value === undefined || value === null || value === "") return null;
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) && n >= 0 ? Math.min(n, 24 * 60 * 60 * 1000) : null;
+  };
+  const durationMs = toDuration(source.duration_ms ?? source.durationMs);
+  const successCount = toCount(source.success_count ?? source.successCount ?? source.processed_count ?? source.processedCount);
+  const attemptedCount = toCount(source.attempted_count ?? source.attemptedCount);
+  const failedCount = toCount(source.failed_count ?? source.failedCount);
+  const avgItemMsRaw = source.avg_item_ms ?? source.avgItemMs;
+  const avgItemMs = Number.isFinite(Number(avgItemMsRaw)) && Number(avgItemMsRaw) >= 0
+    ? Math.min(Number(avgItemMsRaw), 24 * 60 * 60 * 1000)
+    : null;
+
+  return {
+    last_sync_duration_ms: durationMs,
+    last_sync_attempted_count: attemptedCount,
+    last_sync_success_count: successCount,
+    last_sync_failed_count: failedCount,
+    last_sync_book_count: toCount(source.book_count ?? source.bookCount),
+    last_sync_cancel_count: toCount(source.cancel_count ?? source.cancelCount),
+    last_sync_batch_count: toCount(source.batch_count ?? source.batchCount),
+    last_sync_avg_item_ms: avgItemMs,
+    last_sync_error_message: compactText(source.error_message ?? source.errorMessage, 4000) || null,
+  };
+}
+
+function getSyncMetricSource(body = {}) {
+  return body?.sync_metrics && typeof body.sync_metrics === "object"
+    ? body.sync_metrics
+    : body;
+}
+
+function normalizeIsoTimestamp(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 async function upsertDeviceSyncStatus(supabase, deviceId, body = {}, extra = {}) {
   const nowIso = new Date().toISOString();
   const status = normalizeQueueStatus(body);
+  const metricSource = getSyncMetricSource(body);
+  const metrics = normalizeSyncMetrics(body);
+  const metricPayload = Object.fromEntries(
+    Object.entries(metrics).filter(([, value]) => value !== null)
+  );
+  const explicitSyncMetrics = body?.sync_metrics && typeof body.sync_metrics === "object";
+  if (
+    explicitSyncMetrics &&
+    (
+      Object.prototype.hasOwnProperty.call(metricSource, "error_message") ||
+      Object.prototype.hasOwnProperty.call(metricSource, "errorMessage")
+    )
+  ) {
+    metricPayload.last_sync_error_message = metrics.last_sync_error_message;
+  }
+  const syncStartedAt = normalizeIsoTimestamp(metricSource.started_at ?? metricSource.startedAt);
+  const syncFinishedAt = normalizeIsoTimestamp(metricSource.finished_at ?? metricSource.finishedAt);
+  if (syncStartedAt) metricPayload.last_sync_started_at = syncStartedAt;
+  if (syncFinishedAt) metricPayload.last_sync_finished_at = syncFinishedAt;
+  if (metrics.last_sync_success_count !== null) {
+    metricPayload.last_sync_processed_count = metrics.last_sync_success_count;
+  }
   const payload = {
     device_id: deviceId,
     ...status,
+    ...metricPayload,
     last_queue_report_at: nowIso,
     updated_at: nowIso,
     ...extra,
@@ -589,7 +659,7 @@ const ADMIN_RPC_ACTIONS = {
     args: (token) => ({ p_token: token }),
   },
   perform_member_settlement: {
-    fn: "api_admin_perform_member_settlement",
+    fn: "api_admin_perform_member_settlement_v2",
     args: (token, p) => ({ p_token: token, p_member_id: p.member_id }),
   },
   list_members_balances: {
@@ -1319,6 +1389,7 @@ async function handleRoute(route, req, res) {
         const queueEntryDeleted = body?.queue_entry_deleted === true;
         const queueEntryAlreadyMissing = body?.queue_entry_already_missing === true;
         const errorText = success ? null : compactText(body?.error, 4000) || "Command failed";
+        const syncMetrics = normalizeSyncMetrics(body);
         const result = {
           success,
           processed_count: processedCount,
@@ -1327,6 +1398,7 @@ async function handleRoute(route, req, res) {
           queue_entry_deleted: queueEntryDeleted,
           queue_entry_already_missing: queueEntryAlreadyMissing,
           queue_status: normalizeQueueStatus(body),
+          sync_metrics: syncMetrics,
         };
 
         const { error: updateError } = await supabase
@@ -1344,6 +1416,8 @@ async function handleRoute(route, req, res) {
         await upsertDeviceSyncStatus(supabase, v.deviceId, body, {
           last_sync_finished_at: nowIso,
           last_sync_processed_count: processedCount,
+          last_sync_success_count: syncMetrics.last_sync_success_count ?? processedCount,
+          last_sync_error_message: errorText,
           last_error: errorText,
         });
 
