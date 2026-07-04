@@ -1,6 +1,6 @@
 <!-- src/components/AdminStorageView.vue -->
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useAdminProductsStore } from "@/stores/useAdminProductsStore";
 import { useToast } from "@/composables/useToast";
 
@@ -8,6 +8,24 @@ const store = useAdminProductsStore();
 const { show: showToast } = useToast();
 const savingLotById = ref<Record<string, boolean>>({});
 const lotState = ref<"active" | "closed" | "all">("active");
+type LotSortKey =
+  | "product_name"
+  | "source_reason"
+  | "status"
+  | "purchased_quantity"
+  | "remaining_quantity"
+  | "unit_cost_cents"
+  | "corrected_from_price_cents"
+  | "pending_allocation_count"
+  | "created_at"
+  | "note";
+const lotSortKey = ref<LotSortKey>("created_at");
+const lotSortDirection = ref<"asc" | "desc">("desc");
+
+const sortedPurchaseLots = computed(() => {
+  const direction = lotSortDirection.value === "asc" ? 1 : -1;
+  return [...store.purchaseLots].sort((a, b) => compareLotValue(a, b, lotSortKey.value) * direction);
+});
 
 onMounted(async () => {
   await store.loadProductsWithStorage();
@@ -75,6 +93,42 @@ function lotSourceLabel(lot: any) {
   if (lot.source_reason === "count_adjustment") return "Inventur";
   if (lot.source_reason === "migration_initial") return "Migration";
   return lot.source_reason ?? "-";
+}
+
+function compareLotValue(a: any, b: any, key: LotSortKey) {
+  const av = lotSortValue(a, key);
+  const bv = lotSortValue(b, key);
+  if (typeof av === "number" && typeof bv === "number") return av - bv;
+  return String(av ?? "").localeCompare(String(bv ?? ""), "de-DE", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function lotSortValue(lot: any, key: LotSortKey) {
+  if (key === "status") return lot.isClosed ? 1 : 0;
+  if (key === "source_reason") return lotSourceLabel(lot);
+  if (key === "created_at") return lot.created_at ? new Date(lot.created_at).getTime() : 0;
+  if (key === "corrected_from_price_cents") return Number(lot.corrected_from_price_cents ?? -1);
+  if (key === "pending_allocation_count") return Number(lot.pendingAllocationCount ?? lot.pending_allocation_count ?? 0);
+  if (["purchased_quantity", "remaining_quantity", "unit_cost_cents"].includes(key)) {
+    return Number(lot[key] ?? 0);
+  }
+  return lot[key] ?? "";
+}
+
+function setLotSort(key: LotSortKey) {
+  if (lotSortKey.value === key) {
+    lotSortDirection.value = lotSortDirection.value === "asc" ? "desc" : "asc";
+    return;
+  }
+  lotSortKey.value = key;
+  lotSortDirection.value = key === "created_at" ? "desc" : "asc";
+}
+
+function lotSortIndicator(key: LotSortKey) {
+  if (lotSortKey.value !== key) return "";
+  return lotSortDirection.value === "asc" ? " ▲" : " ▼";
 }
 </script>
 
@@ -211,16 +265,56 @@ function lotSourceLabel(lot: any) {
       <table class="min-w-full text-sm text-gray-700">
         <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
           <tr>
-            <th class="px-4 py-3 text-left">Produkt</th>
-            <th class="px-4 py-3 text-left">Quelle</th>
-            <th class="px-4 py-3 text-left">Status</th>
-            <th class="px-4 py-3 text-right">Menge</th>
-            <th class="px-4 py-3 text-right">Rest</th>
-            <th class="px-4 py-3 text-right">EK</th>
-            <th class="px-4 py-3 text-right">Vorher</th>
-            <th class="px-4 py-3 text-right">Offen</th>
-            <th class="px-4 py-3 text-left">Datum</th>
-            <th class="px-4 py-3 text-left">Notiz</th>
+            <th class="px-4 py-3 text-left">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('product_name')">
+                Produkt{{ lotSortIndicator("product_name") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-left">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('source_reason')">
+                Quelle{{ lotSortIndicator("source_reason") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-left">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('status')">
+                Status{{ lotSortIndicator("status") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-right">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('purchased_quantity')">
+                Menge{{ lotSortIndicator("purchased_quantity") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-right">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('remaining_quantity')">
+                Rest{{ lotSortIndicator("remaining_quantity") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-right">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('unit_cost_cents')">
+                EK{{ lotSortIndicator("unit_cost_cents") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-right">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('corrected_from_price_cents')">
+                Vorher{{ lotSortIndicator("corrected_from_price_cents") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-right">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('pending_allocation_count')">
+                Offen{{ lotSortIndicator("pending_allocation_count") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-left">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('created_at')">
+                Datum{{ lotSortIndicator("created_at") }}
+              </button>
+            </th>
+            <th class="px-4 py-3 text-left">
+              <button type="button" class="font-semibold uppercase hover:underline" @click="setLotSort('note')">
+                Notiz{{ lotSortIndicator("note") }}
+              </button>
+            </th>
             <th class="px-4 py-3 text-right">Aktion</th>
           </tr>
         </thead>
@@ -233,7 +327,7 @@ function lotSourceLabel(lot: any) {
           </tr>
 
           <tr
-            v-for="lot in store.purchaseLots"
+            v-for="lot in sortedPurchaseLots"
             :key="lot.id"
             class="border-t hover:bg-primary/5 transition-colors"
           >
