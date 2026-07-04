@@ -69,17 +69,32 @@ function memberStatus(member: any) {
 
 const filteredMembers = computed(() => {
   const query = searchTerm.value.trim().toLocaleLowerCase("de-DE");
-  return store.members.filter((member) => {
-    const fullName = memberName(member).toLocaleLowerCase("de-DE");
-    const matchesSearch = !query || fullName.includes(query);
-    const matchesActive =
-      activeFilter.value === "all"
-        ? true
-        : activeFilter.value === "active"
-          ? Boolean(member.active)
-          : !member.active;
-    return matchesSearch && matchesActive;
-  });
+  return store.members
+    .filter((member) => {
+      const fullName = memberName(member).toLocaleLowerCase("de-DE");
+      const matchesSearch = !query || fullName.includes(query);
+      const matchesActive =
+        activeFilter.value === "all"
+          ? true
+          : activeFilter.value === "active"
+            ? Boolean(member.active)
+            : !member.active;
+      return matchesSearch && matchesActive;
+    })
+    .sort((a, b) => {
+      const byLast = String(a.lastname ?? "").localeCompare(
+        String(b.lastname ?? ""),
+        "de-DE",
+        { sensitivity: "base" }
+      );
+      if (byLast !== 0) return byLast;
+
+      return String(a.firstname ?? "").localeCompare(
+        String(b.firstname ?? ""),
+        "de-DE",
+        { sensitivity: "base" }
+      );
+    });
 });
 
 onMounted(async () => {
@@ -226,6 +241,7 @@ async function saveSelectedMember() {
       active: Boolean(updated.active),
     };
     showToast(`💾 Änderungen für ${memberName(updated)} gespeichert`);
+    closeMemberDetails();
   } catch (err) {
     console.error("[saveSelectedMember]", err);
     showToast("⚠️ Fehler beim Speichern");

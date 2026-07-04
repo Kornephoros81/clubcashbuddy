@@ -1,6 +1,9 @@
 -- Monthly settlement must close the transaction rows it settles.
 
-create or replace function public.perform_monthly_settlement(p_user_id uuid)
+create or replace function public.perform_member_settlement(
+  p_user_id uuid,
+  p_member_id uuid default null
+)
 returns void
 language plpgsql
 security definer
@@ -15,6 +18,7 @@ begin
       m.balance
     from public.members m
     where m.is_guest = false
+      and (p_member_id is null or m.id = p_member_id)
       and (
         m.balance <> 0
         or exists (
@@ -41,6 +45,31 @@ begin
       last_settled_at = v_settled_at
     where m.id = r.id;
   end loop;
+end;
+$function$;
+
+create or replace function public.perform_monthly_settlement(p_user_id uuid)
+returns void
+language plpgsql
+security definer
+as $function$
+begin
+  perform public.perform_member_settlement(p_user_id, null);
+end;
+$function$;
+
+create or replace function public.api_admin_perform_member_settlement(
+  p_token text,
+  p_member_id uuid
+)
+returns void
+language plpgsql
+security definer
+as $function$
+begin
+  perform public.app_apply_session(p_token);
+  perform public.assert_admin();
+  perform public.perform_member_settlement(public.app_current_user_id(), p_member_id);
 end;
 $function$;
 
@@ -102,11 +131,14 @@ end;
 $function$;
 
 revoke all on function public.api_admin_list_members_balances(text) from public;
+revoke all on function public.perform_member_settlement(uuid, uuid) from public;
+revoke all on function public.api_admin_perform_member_settlement(text, uuid) from public;
 
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'service_role') then
     execute 'grant execute on function public.api_admin_list_members_balances(text) to service_role';
+    execute 'grant execute on function public.api_admin_perform_member_settlement(text, uuid) to service_role';
   end if;
 end $$;
 
