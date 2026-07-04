@@ -198,6 +198,36 @@ async function upsertDeviceSyncStatus(supabase, deviceId, body = {}, extra = {})
   if (seenError) throw seenError;
 }
 
+async function insertSyncPerformanceSample(supabase, deviceId, body = {}) {
+  if (!(body?.sync_metrics && typeof body.sync_metrics === "object")) return;
+  const metricSource = getSyncMetricSource(body);
+  const metrics = normalizeSyncMetrics(body);
+  if (metrics.last_sync_duration_ms === null) return;
+  const attemptedCount = metrics.last_sync_attempted_count ?? 0;
+  const successCount = metrics.last_sync_success_count ?? 0;
+  const failedCount = metrics.last_sync_failed_count ?? Math.max(0, attemptedCount - successCount);
+  if (attemptedCount <= 0 && successCount <= 0 && failedCount <= 0) return;
+
+  const measuredAt = normalizeIsoTimestamp(metricSource.finished_at ?? metricSource.finishedAt) ?? new Date().toISOString();
+  const { error } = await supabase
+    .from("device_sync_performance_samples")
+    .insert({
+      device_id: deviceId,
+      measured_at: measuredAt,
+      duration_ms: metrics.last_sync_duration_ms,
+      attempted_count: attemptedCount,
+      success_count: successCount,
+      failed_count: failedCount,
+      book_count: metrics.last_sync_book_count ?? 0,
+      cancel_count: metrics.last_sync_cancel_count ?? 0,
+      batch_count: metrics.last_sync_batch_count ?? 0,
+      avg_item_ms: metrics.last_sync_avg_item_ms,
+      error_message: metrics.last_sync_error_message,
+      source: "device",
+    });
+  if (error) throw error;
+}
+
 async function stampBookingDeviceTrace(supabase, txId, deviceId) {
   if (!txId || !deviceId) return null;
 
@@ -598,6 +628,14 @@ const ADMIN_RPC_ACTIONS = {
   get_performance_metrics: {
     fn: "api_admin_get_performance_metrics",
     args: (token) => ({ p_token: token }),
+  },
+  list_sync_performance_samples: {
+    fn: "api_admin_list_sync_performance_samples",
+    args: (token, p) => ({
+      p_token: token,
+      p_hours: p.hours ?? 24,
+      p_limit: p.limit ?? 200,
+    }),
   },
   list_device_sync_status: {
     fn: "api_admin_list_device_sync_status",
@@ -1123,12 +1161,24 @@ async function handleRoute(route, req, res) {
     if (req.method === "GET") {
       const productIdRaw = Array.isArray(req.query.product_id) ? req.query.product_id[0] : req.query.product_id;
       const remainingOnlyRaw = Array.isArray(req.query.remaining_only) ? req.query.remaining_only[0] : req.query.remaining_only;
-      const remainingOnly = remainingOnlyRaw === undefined ? true : String(remainingOnlyRaw).toLowerCase() !== "false";
-      const { data, error } = await supabase.rpc("api_admin_list_purchase_lots", {
+      const lotStateRaw = Array.isArray(req.query.lot_state) ? req.query.lot_state[0] : req.query.lot_state;
+      const lotState = lotStateRaw
+        ? String(lotStateRaw).trim().toLowerCase()
+        : (remainingOnlyRaw === undefined || String(remainingOnlyRaw).toLowerCase() !== "false" ? "active" : "all");
+      let { data, error } = await supabase.rpc("api_admin_list_purchase_lots", {
         p_token: token,
         p_product_id: productIdRaw ? String(productIdRaw) : null,
-        p_remaining_only: remainingOnly,
+        p_lot_state: ["active", "closed", "all"].includes(lotState) ? lotState : "active",
       });
+      if (error && String(error.message || "").includes("p_lot_state")) {
+        const fallback = await supabase.rpc("api_admin_list_purchase_lots", {
+          p_token: token,
+          p_product_id: productIdRaw ? String(productIdRaw) : null,
+          p_remaining_only: lotState !== "closed",
+        });
+        data = fallback.data;
+        error = fallback.error;
+      }
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 200, data ?? []);
     }
@@ -1296,6 +1346,9 @@ async function handleRoute(route, req, res) {
     if (action === "report_status") {
       try {
         await upsertDeviceSyncStatus(supabase, v.deviceId, body);
+        await insertSyncPerformanceSample(supabase, v.deviceId, body).catch((sampleError) => {
+          console.warn("[device-sync-control] Sync performance sample not stored", sampleError);
+        });
         return json(res, 200, { success: true });
       } catch (error) {
         return json(res, 500, {

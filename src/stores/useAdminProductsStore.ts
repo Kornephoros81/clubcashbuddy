@@ -30,6 +30,10 @@ export const useAdminProductsStore = defineStore("adminProducts", {
       return {
         ...lot,
         unitCostEuro: Number(lot.unit_cost_cents ?? 0) / 100,
+        isFallback: lot.source_reason === "sale_fallback",
+        isClosed: Boolean(lot.closed_at) || (Number(lot.remaining_quantity ?? 0) === 0 && lot.source_reason !== "sale_fallback"),
+        costPending: Boolean(lot.cost_pending),
+        pendingAllocationCount: Number(lot.pending_allocation_count ?? 0),
         correctedFromPriceEuro:
           lot.corrected_from_price_cents === null || lot.corrected_from_price_cents === undefined
             ? null
@@ -201,10 +205,10 @@ export const useAdminProductsStore = defineStore("adminProducts", {
       }
     },
 
-    async loadPurchaseLots(productId: string | null = null, remainingOnly = true) {
+    async loadPurchaseLots(productId: string | null = null, lotState: "active" | "closed" | "all" = "active") {
       const params = new URLSearchParams();
       if (productId) params.set("product_id", productId);
-      params.set("remaining_only", remainingOnly ? "true" : "false");
+      params.set("lot_state", lotState);
       const query = params.toString();
       const data = await apiRequest(`/api/admin-product-lots${query ? `?${query}` : ""}`);
       this.purchaseLots = (data ?? []).map((lot: any) => this.normalizePurchaseLot(lot));
@@ -217,7 +221,6 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         note: lot.note ?? null,
       });
       await this.loadProductsWithStorage();
-      await this.loadPurchaseLots(null, true);
       return this.normalizePurchaseLot(data);
     },
 
@@ -246,7 +249,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         })),
       });
       await this.loadProductsWithStorage();
-      await this.loadPurchaseLots(null, true);
+      await this.loadPurchaseLots(null, "active");
     },
   },
 });
