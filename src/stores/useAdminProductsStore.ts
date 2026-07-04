@@ -102,6 +102,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         guest_price: Math.round(p.guestPriceEuro * 100),
         active: p.active,
         inventoried: p.inventoried,
+        last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
       });
       await invalidateProductsCache();
       this.upsertProductInState(created);
@@ -117,6 +118,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         category: p.category,
         active: p.active,
         inventoried: p.inventoried,
+        last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
       });
       await invalidateProductsCache();
       this.upsertProductInState(data);
@@ -133,6 +135,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
             category: p.category,
             active: p.active,
             inventoried: p.inventoried,
+            last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
           }))
         : [];
       const data = await apiRequest("/api/admin-products-batch", "PATCH", {

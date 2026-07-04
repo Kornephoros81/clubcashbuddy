@@ -1,5 +1,6 @@
--- Fallback lots represent one retrospectively priced bucket. When their EK is
--- changed, all allocations from that fallback lot must be repriced.
+-- Lot EK is the authoritative unit cost for all allocations assigned to that
+-- lot. When an admin corrects the lot EK, all dependent cost snapshots must be
+-- recalculated.
 
 create or replace function public.admin_update_purchase_lot_cost(
   p_lot_id uuid,
@@ -61,17 +62,10 @@ begin
   set
     unit_cost_cents = v_lot.unit_cost_cents,
     cost_pending = case
-      when v_lot.source_reason = 'sale_fallback' and v_lot.unit_cost_cents > 0 then false
-      when v_lot.source_reason = 'migration_initial' then false
-      when a.cost_pending = true or a.unit_cost_cents = 0 then false
+      when v_lot.unit_cost_cents > 0 then false
       else a.cost_pending
     end
-  where a.purchase_lot_id = v_lot.id
-    and (
-      v_lot.source_reason in ('migration_initial', 'sale_fallback')
-      or a.cost_pending = true
-      or a.unit_cost_cents = 0
-    );
+  where a.purchase_lot_id = v_lot.id;
 
   update public.transactions t
   set product_cost_snapshot_cents = alloc.total_cost
@@ -130,15 +124,14 @@ begin
 end;
 $function$;
 
--- Repair fallback lots already changed before this migration: the lot EK is the
--- authoritative EK for all allocations assigned to that fallback lot.
+-- Repair lots already changed before this migration: the lot EK is the
+-- authoritative EK for all allocations assigned to that lot.
 update public.product_lot_allocations a
 set
   unit_cost_cents = l.unit_cost_cents,
   cost_pending = case when l.unit_cost_cents > 0 then false else a.cost_pending end
 from public.product_purchase_lots l
 where a.purchase_lot_id = l.id
-  and l.source_reason = 'sale_fallback'
   and (
     a.unit_cost_cents is distinct from l.unit_cost_cents
     or (l.unit_cost_cents > 0 and a.cost_pending = true)
@@ -146,8 +139,7 @@ where a.purchase_lot_id = l.id
 
 update public.product_purchase_lots l
 set cost_pending = false
-where l.source_reason = 'sale_fallback'
-  and l.unit_cost_cents > 0
+where l.unit_cost_cents > 0
   and l.cost_pending = true;
 
 update public.transactions t
@@ -162,7 +154,6 @@ from (
       select 1
       from public.product_purchase_lots l
       where l.id = a.purchase_lot_id
-        and l.source_reason = 'sale_fallback'
     )
   group by a.source_transaction_id
 ) alloc
@@ -181,7 +172,6 @@ from (
       select 1
       from public.product_purchase_lots l
       where l.id = a.purchase_lot_id
-        and l.source_reason = 'sale_fallback'
     )
   group by a.inventory_movement_id
 ) alloc
@@ -201,7 +191,6 @@ from (
       select 1
       from public.product_purchase_lots l
       where l.id = a.purchase_lot_id
-        and l.source_reason = 'sale_fallback'
     )
   group by a.source_transaction_id
 ) alloc
