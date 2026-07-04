@@ -1161,12 +1161,24 @@ async function handleRoute(route, req, res) {
     if (req.method === "GET") {
       const productIdRaw = Array.isArray(req.query.product_id) ? req.query.product_id[0] : req.query.product_id;
       const remainingOnlyRaw = Array.isArray(req.query.remaining_only) ? req.query.remaining_only[0] : req.query.remaining_only;
-      const remainingOnly = remainingOnlyRaw === undefined ? true : String(remainingOnlyRaw).toLowerCase() !== "false";
-      const { data, error } = await supabase.rpc("api_admin_list_purchase_lots", {
+      const lotStateRaw = Array.isArray(req.query.lot_state) ? req.query.lot_state[0] : req.query.lot_state;
+      const lotState = lotStateRaw
+        ? String(lotStateRaw).trim().toLowerCase()
+        : (remainingOnlyRaw === undefined || String(remainingOnlyRaw).toLowerCase() !== "false" ? "active" : "all");
+      let { data, error } = await supabase.rpc("api_admin_list_purchase_lots", {
         p_token: token,
         p_product_id: productIdRaw ? String(productIdRaw) : null,
-        p_remaining_only: remainingOnly,
+        p_lot_state: ["active", "closed", "all"].includes(lotState) ? lotState : "active",
       });
+      if (error && String(error.message || "").includes("p_lot_state")) {
+        const fallback = await supabase.rpc("api_admin_list_purchase_lots", {
+          p_token: token,
+          p_product_id: productIdRaw ? String(productIdRaw) : null,
+          p_remaining_only: lotState !== "closed",
+        });
+        data = fallback.data;
+        error = fallback.error;
+      }
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 200, data ?? []);
     }

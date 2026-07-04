@@ -7,10 +7,11 @@ import { useToast } from "@/composables/useToast";
 const store = useAdminProductsStore();
 const { show: showToast } = useToast();
 const savingLotById = ref<Record<string, boolean>>({});
+const lotState = ref<"active" | "closed" | "all">("active");
 
 onMounted(async () => {
   await store.loadProductsWithStorage();
-  await store.loadPurchaseLots(null, true);
+  await store.loadPurchaseLots(null, lotState.value);
 });
 
 async function delay(ms = 800) {
@@ -28,6 +29,7 @@ async function saveAll() {
 
     showToast("💾 Änderungen werden gespeichert …");
     await store.updateStorageChanges();
+    await store.loadPurchaseLots(null, lotState.value);
     showToast("✅ Lagerbestände aktualisiert");
     await delay();
   } catch (err) {
@@ -51,6 +53,7 @@ async function saveLot(lot: any) {
   try {
     setLotSaving(lot.id, true);
     await store.updatePurchaseLot(lot);
+    await store.loadPurchaseLots(null, lotState.value);
     showToast(`✅ EK für ${lot.product_name} aktualisiert`);
   } catch (err) {
     console.error("[savePurchaseLot]", err);
@@ -58,6 +61,20 @@ async function saveLot(lot: any) {
   } finally {
     setLotSaving(lot.id, false);
   }
+}
+
+async function changeLotState(nextState: "active" | "closed" | "all") {
+  lotState.value = nextState;
+  await store.loadPurchaseLots(null, lotState.value);
+}
+
+function lotSourceLabel(lot: any) {
+  if (lot.source_reason === "sale_fallback") return "Fallback";
+  if (lot.source_reason === "purchase") return "Einlagerung";
+  if (lot.source_reason === "opening_balance") return "Startbestand";
+  if (lot.source_reason === "count_adjustment") return "Inventur";
+  if (lot.source_reason === "migration_initial") return "Migration";
+  return lot.source_reason ?? "-";
 }
 </script>
 
@@ -156,11 +173,39 @@ async function saveLot(lot: any) {
     </div>
 
     <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
-      <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-primary">Aktive Einlagerungen / Lots</h3>
-        <span class="text-xs text-gray-500">
-          EK-Korrekturen wirken nur auf Restbestand und zukünftige Verkäufe.
-        </span>
+      <div class="px-4 py-3 border-b border-gray-200 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-primary">Einlagerungen / Lots</h3>
+          <p class="mt-1 text-xs text-gray-500">
+            Fallback-Lots sammeln Verkäufe ohne gepflegtes Einkaufslos. EK-Korrekturen pflegen offene Kosten nach.
+          </p>
+        </div>
+        <div class="inline-flex max-w-full rounded-lg border border-gray-200 overflow-hidden">
+          <button
+            type="button"
+            class="px-3 py-1.5 text-sm font-medium"
+            :class="lotState === 'active' ? 'bg-primary text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+            @click="changeLotState('active')"
+          >
+            Aktiv
+          </button>
+          <button
+            type="button"
+            class="border-l border-gray-200 px-3 py-1.5 text-sm font-medium"
+            :class="lotState === 'closed' ? 'bg-primary text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+            @click="changeLotState('closed')"
+          >
+            Geschlossen
+          </button>
+          <button
+            type="button"
+            class="border-l border-gray-200 px-3 py-1.5 text-sm font-medium"
+            :class="lotState === 'all' ? 'bg-primary text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+            @click="changeLotState('all')"
+          >
+            Alle
+          </button>
+        </div>
       </div>
 
       <table class="min-w-full text-sm text-gray-700">
@@ -168,10 +213,12 @@ async function saveLot(lot: any) {
           <tr>
             <th class="px-4 py-3 text-left">Produkt</th>
             <th class="px-4 py-3 text-left">Quelle</th>
+            <th class="px-4 py-3 text-left">Status</th>
             <th class="px-4 py-3 text-right">Menge</th>
             <th class="px-4 py-3 text-right">Rest</th>
             <th class="px-4 py-3 text-right">EK</th>
             <th class="px-4 py-3 text-right">Vorher</th>
+            <th class="px-4 py-3 text-right">Offen</th>
             <th class="px-4 py-3 text-left">Datum</th>
             <th class="px-4 py-3 text-left">Notiz</th>
             <th class="px-4 py-3 text-right">Aktion</th>
@@ -180,8 +227,8 @@ async function saveLot(lot: any) {
 
         <tbody>
           <tr v-if="!store.purchaseLots.length">
-            <td colspan="9" class="px-4 py-6 text-center text-gray-500">
-              Keine aktiven Lots vorhanden.
+            <td colspan="11" class="px-4 py-6 text-center text-gray-500">
+              Keine Lots für diesen Filter vorhanden.
             </td>
           </tr>
 
@@ -191,7 +238,22 @@ async function saveLot(lot: any) {
             class="border-t hover:bg-primary/5 transition-colors"
           >
             <td class="px-4 py-2">{{ lot.product_name }}</td>
-            <td class="px-4 py-2">{{ lot.source_reason }}</td>
+            <td class="px-4 py-2">
+              <span
+                class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                :class="lot.isFallback ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700'"
+              >
+                {{ lotSourceLabel(lot) }}
+              </span>
+            </td>
+            <td class="px-4 py-2">
+              <span
+                class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                :class="lot.isClosed ? 'bg-gray-100 text-gray-700' : 'bg-emerald-100 text-emerald-800'"
+              >
+                {{ lot.isClosed ? "Geschlossen" : "Aktiv" }}
+              </span>
+            </td>
             <td class="px-4 py-2 text-right">{{ lot.purchased_quantity ?? 0 }}</td>
             <td class="px-4 py-2 text-right">{{ lot.remaining_quantity ?? 0 }}</td>
             <td class="px-4 py-2 text-right">
@@ -207,11 +269,20 @@ async function saveLot(lot: any) {
               {{
                 lot.correctedFromPriceEuro === null || lot.correctedFromPriceEuro === undefined
                   ? "-"
-                  : `${Number(lot.correctedFromPriceEuro).toFixed(2)} €`
+                : `${Number(lot.correctedFromPriceEuro).toFixed(2)} €`
               }}
             </td>
+            <td class="px-4 py-2 text-right">
+              <span v-if="lot.costPending || lot.pendingAllocationCount > 0" class="font-medium text-amber-700">
+                {{ lot.pendingAllocationCount ?? 0 }}
+              </span>
+              <span v-else class="text-gray-400">-</span>
+            </td>
             <td class="px-4 py-2">
-              {{ lot.created_at ? new Date(lot.created_at).toLocaleString() : "-" }}
+              <div>{{ lot.created_at ? new Date(lot.created_at).toLocaleString() : "-" }}</div>
+              <div v-if="lot.closed_at" class="text-xs text-gray-500">
+                geschlossen {{ new Date(lot.closed_at).toLocaleString() }}
+              </div>
             </td>
             <td class="px-4 py-2">
               <input
