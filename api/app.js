@@ -592,6 +592,26 @@ const ADMIN_RPC_ACTIONS = {
     fn: "api_admin_list_members_balances",
     args: (token) => ({ p_token: token }),
   },
+  list_archived_members: {
+    fn: "api_admin_list_archived_members",
+    args: (token) => ({ p_token: token }),
+  },
+  find_archived_member_candidates: {
+    fn: "api_admin_find_archived_member_candidates",
+    args: (token, p) => ({
+      p_token: token,
+      p_firstname: p.firstname ?? "",
+      p_lastname: p.lastname ?? "",
+    }),
+  },
+  archive_member: {
+    fn: "api_admin_archive_member",
+    args: (token, p) => ({ p_token: token, p_member_id: p.member_id }),
+  },
+  restore_archived_member: {
+    fn: "api_admin_restore_archived_member",
+    args: (token, p) => ({ p_token: token, p_member_id: p.member_id }),
+  },
   list_member_pins: {
     fn: "api_admin_list_member_pins",
     args: (token) => ({ p_token: token }),
@@ -750,13 +770,12 @@ async function handleRoute(route, req, res) {
     }
     if (req.method === "DELETE") {
       if (!body.id) return json(res, 400, { error: "Missing id" });
-      const { error } = await supabase.rpc("api_admin_delete_member", {
+      const { data, error } = await supabase.rpc("api_admin_archive_member", {
         p_token: token,
         p_member_id: body.id,
-        p_force: body.force ?? false,
       });
-      if (error) return json(res, 403, { error: error.message || "Forbidden" });
-      return res.status(204).end();
+      if (error) return json(res, 400, { error: error.message || "Archivieren fehlgeschlagen" });
+      return json(res, 200, data ?? { success: true });
     }
     return json(res, 405, { error: "Method not allowed" });
   }
@@ -1086,12 +1105,12 @@ async function handleRoute(route, req, res) {
 
   if (route === "admin-rpc") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
-    const token = extractBearerToken(req);
-    if (!token) return json(res, 401, { error: "Unauthorized" });
+    const v = await verifyAdminSession(req);
+    if (!v.ok) return json(res, v.status, { error: v.error });
     const spec = ADMIN_RPC_ACTIONS[body.action];
     if (!spec) return json(res, 400, { error: "Unknown action" });
-    const { data, error } = await supabase.rpc(spec.fn, spec.args(token, body.payload || {}));
-    if (error) return json(res, 403, { error: error.message || "Forbidden" });
+    const { data, error } = await supabase.rpc(spec.fn, spec.args(v.token, body.payload || {}));
+    if (error) return json(res, 400, { error: error.message || "Anfrage fehlgeschlagen" });
     return json(res, 200, { data: data ?? null });
   }
 

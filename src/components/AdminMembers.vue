@@ -18,12 +18,31 @@ const modalAmount = ref<number>(0);
 const modalComment = ref("");
 const newFirstname = ref("");
 const newLastname = ref("");
+const showArchivedMembers = ref(false);
+const archivedCandidates = ref<any[]>([]);
+const showArchivedCandidateModal = ref(false);
+const creatingNewDespiteCandidates = ref(false);
 const pinDrafts = ref<Record<string, string>>({});
 const storedPins = ref<Record<string, string>>({});
 const showPinPlain = ref<Record<string, boolean>>({});
 const pinSaving = ref<Record<string, boolean>>({});
 const searchTerm = ref("");
 const activeFilter = ref<"all" | "active" | "inactive">("all");
+
+function formatEuro(cents: number | null | undefined) {
+  return `${((Number(cents ?? 0) || 0) / 100).toFixed(2)} €`;
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const filteredMembers = computed(() => {
   const query = searchTerm.value.trim().toLocaleLowerCase("de-DE");
@@ -139,21 +158,66 @@ async function savePin(member: any) {
 }
 
 // --- Mitglied hinzufügen ---
+async function createNewMember() {
+  await store.addMember(newFirstname.value, newLastname.value);
+  await loadMemberPins();
+  showToast("✅ Mitglied erfolgreich angelegt");
+  newFirstname.value = "";
+  newLastname.value = "";
+  showNewMemberModal.value = false;
+  showArchivedCandidateModal.value = false;
+  archivedCandidates.value = [];
+}
+
 async function confirmAddMember() {
   try {
     if (!newFirstname.value.trim() || !newLastname.value.trim()) {
       showToast("⚠️ Vor- und Nachname sind erforderlich");
       return;
     }
-    await store.addMember(newFirstname.value, newLastname.value);
-    await loadMemberPins();
-    showToast("✅ Mitglied erfolgreich angelegt");
-    newFirstname.value = "";
-    newLastname.value = "";
-    showNewMemberModal.value = false;
+
+    const candidates = await store.findArchivedCandidates(
+      newFirstname.value,
+      newLastname.value
+    );
+    if (candidates.length > 0) {
+      archivedCandidates.value = candidates;
+      showArchivedCandidateModal.value = true;
+      return;
+    }
+
+    await createNewMember();
   } catch (err) {
     console.error("[add]", err);
     showToast("⚠️ Fehler beim Anlegen des Mitglieds");
+  }
+}
+
+async function createDespiteArchivedCandidates() {
+  creatingNewDespiteCandidates.value = true;
+  try {
+    await createNewMember();
+  } catch (err) {
+    console.error("[add.despiteCandidates]", err);
+    showToast("⚠️ Fehler beim Anlegen des Mitglieds");
+  } finally {
+    creatingNewDespiteCandidates.value = false;
+  }
+}
+
+async function reactivateArchivedMember(member: any) {
+  try {
+    await store.restoreArchivedMember(member.id);
+    await loadMemberPins();
+    showToast(`✅ ${member.firstname} ${member.lastname} reaktiviert`);
+    newFirstname.value = "";
+    newLastname.value = "";
+    showNewMemberModal.value = false;
+    showArchivedCandidateModal.value = false;
+    archivedCandidates.value = [];
+  } catch (err) {
+    console.error("[reactivateArchivedMember]", err);
+    showToast("⚠️ Fehler beim Reaktivieren des Mitglieds");
   }
 }
 
@@ -168,39 +232,67 @@ async function save(m: any) {
   }
 }
 
-// --- Mitglied löschen ---
-async function deleteMember(m: any) {
+function archiveErrorMessage(err: unknown) {
+  const message = String((err as any)?.message ?? err ?? "");
+  const openMatch = message.match(/ARCHIVE_OPEN_TRANSACTIONS:(\d+)/);
+  if (openMatch) {
+    const count = Number(openMatch[1] ?? 0);
+    return `Mitglied kann nicht archiviert werden, weil noch ${count} offene Buchung${count === 1 ? "" : "en"} vorhanden ${count === 1 ? "ist" : "sind"}.`;
+  }
+
+  const balanceMatch = message.match(/ARCHIVE_BALANCE_NOT_ZERO:([-]?\d+)/);
+  if (balanceMatch) {
+    return `Mitglied kann nicht archiviert werden, weil der Saldo noch ${formatEuro(Number(balanceMatch[1]))} beträgt.`;
+  }
+
+  return message || "Fehler beim Archivieren des Mitglieds";
+}
+
+// --- Mitglied archivieren ---
+async function archiveMember(m: any) {
   const ok = await confirm(
-    "Mitglied löschen",
-    `Soll das Mitglied "${m.firstname} ${m.lastname}" wirklich gelöscht werden?`,
+    "Mitglied archivieren",
+    `Soll das Mitglied "${m.firstname} ${m.lastname}" archiviert werden? Es verschwindet aus der normalen Mitgliederliste, bleibt aber in Berichten erhalten.`,
     { danger: true }
   );
   if (!ok) return;
 
   try {
-    await store.deleteMember(m.id, false);
-    showToast(`🗑️ ${m.firstname} ${m.lastname} gelöscht`);
+    await store.archiveMember(m.id);
+    showToast(`🗄️ ${m.firstname} ${m.lastname} archiviert`);
   } catch (err) {
-    const message = String((err as any)?.message ?? err ?? "");
-    if (message.includes("p_force=true")) {
-      const force = await confirm(
-        "Hart löschen",
-        `Bei "${m.firstname} ${m.lastname}" besteht noch Saldo oder offene Buchungen. Wirklich endgültig löschen?`,
-        { danger: true }
-      );
-      if (!force) return;
+    console.error("[archiveMember]", err);
+    showToast(`⚠️ ${archiveErrorMessage(err)}`);
+  }
+}
 
-      try {
-        await store.deleteMember(m.id, true);
-        showToast(`🗑️ ${m.firstname} ${m.lastname} endgültig gelöscht`);
-        return;
-      } catch (forceErr) {
-        console.error("[deleteMember.force]", forceErr);
-      }
+async function toggleArchivedMembers() {
+  showArchivedMembers.value = !showArchivedMembers.value;
+  if (showArchivedMembers.value) {
+    try {
+      await store.loadArchivedMembers();
+    } catch (err) {
+      console.error("[loadArchivedMembers]", err);
+      showToast("⚠️ Archivierte Mitglieder konnten nicht geladen werden");
     }
+  }
+}
 
-    console.error("[deleteMember]", err);
-    showToast("⚠️ Fehler beim Löschen des Mitglieds");
+async function restoreArchivedMember(member: any) {
+  const ok = await confirm(
+    "Archivierung aufheben",
+    `Soll "${member.firstname} ${member.lastname}" wieder in die Mitgliederliste aufgenommen werden? Das Mitglied bleibt danach zunächst inaktiv.`,
+    { danger: false }
+  );
+  if (!ok) return;
+
+  try {
+    await store.restoreArchivedMember(member.id);
+    await loadMemberPins();
+    showToast(`✅ ${member.firstname} ${member.lastname} wiederhergestellt`);
+  } catch (err) {
+    console.error("[restoreArchivedMember]", err);
+    showToast("⚠️ Fehler beim Wiederherstellen des Mitglieds");
   }
 }
 
@@ -261,12 +353,20 @@ async function confirmCredit() {
     <!-- Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">Mitgliederverwaltung</h2>
-      <button
-        @click="showNewMemberModal = true"
-        class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition w-full sm:w-auto"
-      >
-        + Mitglied
-      </button>
+      <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <button
+          @click="toggleArchivedMembers"
+          class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-200 transition w-full sm:w-auto"
+        >
+          {{ showArchivedMembers ? "Archiv ausblenden" : "Archivierte Mitglieder" }}
+        </button>
+        <button
+          @click="showNewMemberModal = true"
+          class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition w-full sm:w-auto"
+        >
+          + Mitglied
+        </button>
+      </div>
     </div>
 
     <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
@@ -294,6 +394,70 @@ async function confirmCredit() {
       </div>
       <div class="mt-3 text-xs text-gray-500">
         {{ filteredMembers.length }} von {{ store.members.length }} Mitgliedern sichtbar
+      </div>
+    </div>
+
+    <div
+      v-if="showArchivedMembers"
+      class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3"
+    >
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="font-semibold text-gray-900">Archivierte Mitglieder</h3>
+        <button
+          @click="store.loadArchivedMembers()"
+          class="text-sm px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700"
+          :disabled="store.archivedLoading"
+        >
+          Aktualisieren
+        </button>
+      </div>
+
+      <div v-if="store.archivedLoading" class="text-sm text-gray-500 py-4">
+        Archiv wird geladen...
+      </div>
+      <div
+        v-else-if="store.archivedMembers.length === 0"
+        class="text-sm text-gray-500 py-4"
+      >
+        Keine archivierten Mitglieder vorhanden
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="min-w-full text-sm text-gray-700">
+          <thead class="bg-gray-50 text-gray-500 uppercase text-xs font-semibold">
+            <tr>
+              <th class="px-3 py-2 text-left">Name</th>
+              <th class="px-3 py-2 text-right">Saldo</th>
+              <th class="px-3 py-2 text-left">Archiviert</th>
+              <th class="px-3 py-2 text-left">Letzte Buchung</th>
+              <th class="px-3 py-2 text-center">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="m in store.archivedMembers"
+              :key="m.id"
+              class="border-t"
+            >
+              <td class="px-3 py-2 font-medium">{{ m.firstname }} {{ m.lastname }}</td>
+              <td
+                class="px-3 py-2 text-right font-mono"
+                :class="m.balance < 0 ? 'text-red-600' : 'text-green-700'"
+              >
+                {{ formatEuro(m.balance) }}
+              </td>
+              <td class="px-3 py-2">{{ formatDateTime(m.archived_at) }}</td>
+              <td class="px-3 py-2">{{ formatDateTime(m.last_booking_at) }}</td>
+              <td class="px-3 py-2 text-center">
+                <button
+                  @click="restoreArchivedMember(m)"
+                  class="bg-primary/10 text-primary px-3 py-1 rounded-md hover:bg-primary/20 text-sm font-medium"
+                >
+                  Reaktivieren
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -394,10 +558,10 @@ async function confirmCredit() {
               ➕ Guthaben
             </button>
             <button
-              @click="deleteMember(m)"
-              class="bg-red-100 text-red-700 px-3 py-2 rounded-md hover:bg-red-200 text-sm font-medium"
+              @click="archiveMember(m)"
+              class="bg-amber-100 text-amber-800 px-3 py-2 rounded-md hover:bg-amber-200 text-sm font-medium"
             >
-              🗑️ Löschen
+              🗄️ Archivieren
             </button>
           </div>
         </div>
@@ -493,10 +657,10 @@ async function confirmCredit() {
                 ➕ Guthaben
               </button>
               <button
-                @click="deleteMember(m)"
-                class="bg-red-100 text-red-700 px-3 py-1 rounded-md hover:bg-red-200 text-sm font-medium"
+                @click="archiveMember(m)"
+                class="bg-amber-100 text-amber-800 px-3 py-1 rounded-md hover:bg-amber-200 text-sm font-medium"
               >
-                🗑️ Löschen
+                🗄️ Archivieren
               </button>
             </td>
           </tr>
@@ -533,6 +697,47 @@ async function confirmCredit() {
           class="w-full border rounded-md p-2 text-sm focus:ring-1 focus:ring-primary"
           placeholder="Nachname"
         />
+      </div>
+    </BaseModal>
+
+    <BaseModal
+      :show="showArchivedCandidateModal"
+      title="Archivierte Treffer gefunden"
+      confirmLabel="Trotzdem neu anlegen"
+      cancelLabel="Zurück"
+      @close="showArchivedCandidateModal = false"
+      @confirm="createDespiteArchivedCandidates"
+    >
+      <div class="space-y-4">
+        <p>
+          Es gibt archivierte Mitglieder mit diesem Namen. Wähle ein Mitglied zum Reaktivieren
+          oder lege bewusst ein neues Mitglied an.
+        </p>
+        <div class="space-y-2 max-h-72 overflow-y-auto">
+          <div
+            v-for="m in archivedCandidates"
+            :key="m.id"
+            class="border rounded-lg p-3 space-y-2"
+          >
+            <div class="font-semibold text-gray-900">
+              {{ m.firstname }} {{ m.lastname }}
+            </div>
+            <div class="text-xs text-gray-500 space-y-1">
+              <div>Archiviert: {{ formatDateTime(m.archived_at) }}</div>
+              <div>Letzte Buchung: {{ formatDateTime(m.last_booking_at) }}</div>
+              <div>Saldo: {{ formatEuro(m.balance) }}</div>
+            </div>
+            <button
+              @click="reactivateArchivedMember(m)"
+              class="w-full bg-primary/10 text-primary px-3 py-2 rounded-md hover:bg-primary/20 text-sm font-medium"
+            >
+              Dieses Mitglied reaktivieren
+            </button>
+          </div>
+        </div>
+        <div v-if="creatingNewDespiteCandidates" class="text-xs text-gray-500">
+          Mitglied wird angelegt...
+        </div>
       </div>
     </BaseModal>
 
