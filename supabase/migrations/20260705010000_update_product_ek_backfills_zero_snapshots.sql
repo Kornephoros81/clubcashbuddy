@@ -21,6 +21,7 @@ declare
   v_current public.products;
   v_row public.products;
   v_stock record;
+  v_lot record;
   v_next_inventoried boolean;
 begin
   perform public.assert_admin();
@@ -60,6 +61,25 @@ begin
   returning * into v_row;
 
   if p_last_purchase_price_cents is not null and greatest(0, p_last_purchase_price_cents) > 0 then
+    if v_next_inventoried = true then
+      for v_lot in
+        select l.id, l.note
+        from public.product_purchase_lots l
+        where l.product_id = p_id
+          and (
+            coalesce(l.unit_cost_cents, 0) = 0
+            or coalesce(l.cost_pending, false) = true
+          )
+        order by l.created_at asc, l.id asc
+      loop
+        perform public.admin_update_purchase_lot_cost(
+          v_lot.id,
+          greatest(0, p_last_purchase_price_cents),
+          v_lot.note
+        );
+      end loop;
+    end if;
+
     update public.transactions t
     set
       product_cost_snapshot_cents = greatest(0, p_last_purchase_price_cents),
