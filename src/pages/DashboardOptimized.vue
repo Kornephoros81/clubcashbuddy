@@ -9,7 +9,7 @@ import { fmt } from "@/utils/currency";
 type HeatAggregationMode = "trimmed_mean" | "mean" | "max";
 type TrendBucketMode = "day" | "week" | "month";
 type DailySummaryRow = { day: string; revenue: number; canceled: number };
-type TrendSummaryRow = DailySummaryRow & { label: string };
+type TrendSummaryRow = { day: string; label: string; revenue: number };
 type MetricBundle = {
   revenueCents: number;
   canceledCents: number;
@@ -265,10 +265,8 @@ function buildTrendSummary(rows: DailySummaryRow[]): TrendSummaryRow[] {
       day: key,
       label: trendLabel(mode, bucketStart),
       revenue: 0,
-      canceled: 0,
     };
     current.revenue += Number(row.revenue ?? 0);
-    current.canceled += Number(row.canceled ?? 0);
     buckets.set(key, current);
   }
 
