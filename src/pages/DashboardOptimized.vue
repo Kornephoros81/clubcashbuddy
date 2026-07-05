@@ -433,12 +433,12 @@ onBeforeUnmount(destroyCharts);
 
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div class="bg-white p-6 rounded-2xl shadow border border-gray-200">
-          <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-semibold">🥇 Top-Produkte nach Netto-Menge</h2><button class="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50" @click="goToRevenue()">Details</button></div>
+          <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-semibold">🥇 Top-Produkte nach Buchungen</h2><button class="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50" @click="goToRevenue()">Details</button></div>
           <div class="space-y-3">
             <div v-for="(row, idx) in topProducts" :key="row.product_key ?? row.product_name ?? row.product ?? idx" class="rounded-xl border border-gray-200 p-3 bg-gradient-to-r from-white to-gray-50/80">
-              <div class="flex items-center justify-between gap-3 mb-2"><div class="flex items-center gap-2 min-w-0"><span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">{{ idx + 1 }}</span><span class="font-medium text-gray-800 truncate">{{ row.product_name || row.product }}</span></div><div class="text-sm font-semibold whitespace-nowrap" :class="row.net_quantity >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ row.net_quantity }} netto</div></div>
+              <div class="flex items-center justify-between gap-3 mb-2"><div class="flex items-center gap-2 min-w-0"><span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">{{ idx + 1 }}</span><span class="font-medium text-gray-800 truncate">{{ row.product_name || row.product }}</span></div><div class="text-sm font-semibold whitespace-nowrap text-emerald-700">{{ row.net_quantity }} gebucht</div></div>
               <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full transition-all duration-500" :style="productBarStyle(row.net_quantity)"></div></div>
-              <div class="mt-2 flex items-center justify-between text-xs text-gray-500"><span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos · {{ euro(row.gross_profit ?? (row.revenue - row.canceled)) }} Rohgewinn</span><span>{{ productSharePercent(row.net_quantity).toFixed(1) }}% Anteil</span></div>
+              <div class="mt-2 flex items-center justify-between text-xs text-gray-500"><span>{{ row.bookings }} Buchungen · {{ row.cancellations }} Stornos · {{ euro(row.gross_profit ?? row.revenue) }} Rohgewinn</span><span>{{ productSharePercent(row.net_quantity).toFixed(1) }}% Anteil</span></div>
             </div>
             <div v-if="topProducts.length === 0" class="text-sm text-gray-400 italic py-8 text-center">Keine Produktdaten im Zeitraum</div>
           </div>
