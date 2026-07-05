@@ -1,5 +1,17 @@
 const REVENUE_TRANSACTION_TYPES = new Set(["sale_product", "sale_free_amount"]);
 const HEAT_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const REPORT_TIME_ZONE = "Europe/Berlin";
+const BERLIN_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: REPORT_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const BERLIN_HOUR_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: REPORT_TIME_ZONE,
+  hour: "2-digit",
+  hourCycle: "h23",
+});
 
 function normalizeRevenueRow(row) {
   return {
@@ -28,10 +40,31 @@ function normalizeRevenueRow(row) {
   };
 }
 
-function localDateKey(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+function getFormattedPart(formatter, date, type) {
+  return formatter.formatToParts(date).find((part) => part.type === type)?.value ?? "";
+}
+
+function berlinDateKey(date) {
+  const y = getFormattedPart(BERLIN_DATE_FORMATTER, date, "year");
+  const m = getFormattedPart(BERLIN_DATE_FORMATTER, date, "month");
+  const d = getFormattedPart(BERLIN_DATE_FORMATTER, date, "day");
+  return y && m && d ? `${y}-${m}-${d}` : "";
+}
+
+function berlinHour(date) {
+  return Number(getFormattedPart(BERLIN_HOUR_FORMATTER, date, "hour") || 0);
+}
+
+function weekdayFromDateKey(dateKey) {
+  return new Date(`${dateKey}T12:00:00Z`).getUTCDay();
+}
+
+function nextDateKey(dateKey) {
+  const [year, month, day] = dateKey.split("-").map((part) => Number(part));
+  const date = new Date(Date.UTC(year, month - 1, day + 1, 12));
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
@@ -40,15 +73,13 @@ function normalizeDateKey(value) {
 }
 
 function listDateKeysInRange(start, end) {
-  const current = new Date(start);
-  current.setHours(0, 0, 0, 0);
-  const last = new Date(end);
-  last.setHours(0, 0, 0, 0);
+  const startKey = berlinDateKey(new Date(start));
+  const endKey = berlinDateKey(new Date(new Date(end).getTime() - 1));
+  if (!startKey || !endKey || startKey > endKey) return [];
 
   const keys = [];
-  while (current.getTime() <= last.getTime()) {
-    keys.push(localDateKey(current));
-    current.setDate(current.getDate() + 1);
+  for (let currentKey = startKey; currentKey <= endKey; currentKey = nextDateKey(currentKey)) {
+    keys.push(currentKey);
   }
   return keys;
 }
@@ -125,7 +156,7 @@ function buildHeatData(rows, start, end, mode) {
   const weekdayDates = new Map();
 
   for (const dateKey of dateKeys) {
-    const day = new Date(`${dateKey}T12:00:00`).getDay();
+    const day = weekdayFromDateKey(dateKey);
     const list = weekdayDates.get(day) ?? [];
     list.push(dateKey);
     weekdayDates.set(day, list);
@@ -134,8 +165,8 @@ function buildHeatData(rows, start, end, mode) {
   const dateHourCounts = new Map();
   for (const row of rows) {
     const dt = new Date(row.event_at);
-    const hour = dt.getHours();
-    const dateKey = normalizeDateKey(row.local_day) || localDateKey(dt);
+    const hour = berlinHour(dt);
+    const dateKey = normalizeDateKey(row.local_day) || berlinDateKey(dt);
     const key = `${dateKey}-${hour}`;
     dateHourCounts.set(key, (dateHourCounts.get(key) ?? 0) + 1);
   }
