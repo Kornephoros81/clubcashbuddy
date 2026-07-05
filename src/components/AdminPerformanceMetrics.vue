@@ -86,11 +86,26 @@ const syncChartDomain = computed(() => {
   const rows = syncChartRows.value;
   const now = Date.now();
   const fallbackStart = now - syncChartHours.value * 60 * 60 * 1000;
-  const first = rows.length ? new Date(rows[0].measured_at).getTime() : fallbackStart;
-  const last = rows.length ? new Date(rows[rows.length - 1].measured_at).getTime() : now;
+  if (!rows.length) return { min: fallbackStart, max: now };
+
+  const first = new Date(rows[0].measured_at).getTime();
+  const last = new Date(rows[rows.length - 1].measured_at).getTime();
+  const rawSpan = Math.max(0, last - first);
+  const minVisibleSpan = 10 * 60 * 1000;
+  const span = Math.max(rawSpan, minVisibleSpan);
+  const padding = Math.max(span * 0.04, 60 * 1000);
+  const midpoint = first + rawSpan / 2;
+
+  if (rawSpan < minVisibleSpan) {
+    return {
+      min: midpoint - minVisibleSpan / 2 - padding,
+      max: midpoint + minVisibleSpan / 2 + padding,
+    };
+  }
+
   return {
-    min: Math.min(first, fallbackStart),
-    max: Math.max(last, now),
+    min: first - padding,
+    max: last + padding,
   };
 });
 
@@ -328,7 +343,7 @@ onMounted(loadMetrics);
 
         <div class="overflow-x-auto">
           <svg
-            class="min-w-[760px]"
+            class="min-w-[760px] w-full"
             :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
             role="img"
             aria-label="Sync-Performance-Diagramm"
