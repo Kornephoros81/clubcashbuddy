@@ -267,6 +267,10 @@ function formatEuroFromCents(cents: number) {
   return fmt(cents / 100);
 }
 
+function productGrossMarginPercent(row: { revenue: number; gross_profit: number }) {
+  return row.revenue > 0 ? (row.gross_profit / row.revenue) * 100 : 0;
+}
+
 function transactionTypeLabel(v: string) {
   if (v === "complimentary_product") return "Freigetränk";
   if (v === "cash_withdrawal") return "Bar-Entnahme";
@@ -560,10 +564,10 @@ async function exportPdf() {
       <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200 print-table-card">
         <h3 class="font-semibold text-primary px-4 pt-4">Produktübersicht</h3>
         <table class="min-w-full text-sm text-gray-700">
-          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold"><tr><th class="px-4 py-3 text-left">Kategorie</th><th class="px-4 py-3 text-left">Produkt</th><th class="px-4 py-3 text-right">Buchungen</th><th class="px-4 py-3 text-right">Stornos</th><th class="px-4 py-3 text-right">Menge</th><th class="px-4 py-3 text-right">Umsatz</th><th class="px-4 py-3 text-right">Wareneinsatz</th><th class="px-4 py-3 text-right">Rohgewinn</th></tr></thead>
+          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold"><tr><th class="px-4 py-3 text-left">Kategorie</th><th class="px-4 py-3 text-left">Produkt</th><th class="px-4 py-3 text-right">Buchungen</th><th class="px-4 py-3 text-right">Stornos</th><th class="px-4 py-3 text-right">Menge</th><th class="px-4 py-3 text-right">Umsatz</th><th class="px-4 py-3 text-right">Wareneinsatz</th><th class="px-4 py-3 text-right">Rohgewinn</th><th class="px-4 py-3 text-right">Marge</th></tr></thead>
           <tbody>
-            <tr v-for="row in productSummary" :key="row.product_key" class="border-t hover:bg-primary/5 transition-colors"><td class="px-4 py-2">{{ row.product_category }}</td><td class="px-4 py-2">{{ row.product_name }}</td><td class="px-4 py-2 text-right">{{ row.bookings }}</td><td class="px-4 py-2 text-right">{{ row.cancellations }}</td><td class="px-4 py-2 text-right font-semibold">{{ row.net_quantity }}</td><td class="px-4 py-2 text-right">{{ formatEuroFromCents(row.revenue) }}</td><td class="px-4 py-2 text-right text-amber-700">{{ formatEuroFromCents(row.goods_cost) }}</td><td class="px-4 py-2 text-right font-semibold" :class="row.gross_profit >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ formatEuroFromCents(row.gross_profit) }}</td></tr>
-            <tr v-if="productSummary.length === 0"><td colspan="8" class="text-center py-6 text-gray-400 italic">Keine Umsätze im gewählten Zeitraum</td></tr>
+            <tr v-for="row in productSummary" :key="row.product_key" class="border-t hover:bg-primary/5 transition-colors"><td class="px-4 py-2">{{ row.product_category }}</td><td class="px-4 py-2">{{ row.product_name }}</td><td class="px-4 py-2 text-right">{{ row.bookings }}</td><td class="px-4 py-2 text-right">{{ row.cancellations }}</td><td class="px-4 py-2 text-right font-semibold">{{ row.net_quantity }}</td><td class="px-4 py-2 text-right">{{ formatEuroFromCents(row.revenue) }}</td><td class="px-4 py-2 text-right text-amber-700">{{ formatEuroFromCents(row.goods_cost) }}</td><td class="px-4 py-2 text-right font-semibold" :class="row.gross_profit >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ formatEuroFromCents(row.gross_profit) }}</td><td class="px-4 py-2 text-right font-semibold" :class="row.gross_profit >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ productGrossMarginPercent(row).toFixed(1) }}%</td></tr>
+            <tr v-if="productSummary.length === 0"><td colspan="9" class="text-center py-6 text-gray-400 italic">Keine Umsätze im gewählten Zeitraum</td></tr>
           </tbody>
         </table>
       </div>
