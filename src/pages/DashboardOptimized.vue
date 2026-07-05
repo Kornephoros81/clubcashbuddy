@@ -7,6 +7,9 @@ import { fetchAdminReportSummary } from "@/lib/adminApi";
 import { fmt } from "@/utils/currency";
 
 type HeatAggregationMode = "trimmed_mean" | "mean" | "max";
+type TrendBucketMode = "day" | "week" | "month";
+type DailySummaryRow = { day: string; revenue: number; canceled: number };
+type TrendSummaryRow = DailySummaryRow & { label: string };
 type MetricBundle = {
   revenueCents: number;
   canceledCents: number;
@@ -65,7 +68,7 @@ const metrics = ref<MetricBundle>({
   freeAmountSummary: { count: 0, cents: 0, share: 0 },
   nonRevenueSummary: { count: 0, cents: 0, canceledCount: 0, canceledCents: 0 },
 });
-const dailySummary = ref<Array<{ day: string; revenue: number; canceled: number }>>([]);
+const dailySummary = ref<DailySummaryRow[]>([]);
 const categorySummary = ref<Array<{ category: string; revenue: number; canceled: number }>>([]);
 const topProducts = ref<Array<{ product_key?: string; product_name?: string; product?: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number; gross_profit?: number }>>([]);
 const heatGrid = ref<Array<{ day: number; label: string; cells: Array<{ day: number; hour: number; count: number }> }>>([]);
@@ -194,6 +197,84 @@ function formatDayKey(day: string) {
   return `${d}.${m}.${y}`;
 }
 
+function parseDayKey(day: string) {
+  const [y, m, d] = day.split("-").map((part) => Number(part));
+  if (!y || !m || !d) return null;
+  const date = new Date(y, m - 1, d);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function daySpan() {
+  const start = new Date(startDate.value);
+  const end = new Date(endDate.value);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function trendBucketMode(): TrendBucketMode {
+  const days = daySpan();
+  if (days <= 60) return "day";
+  if (days <= 180) return "week";
+  return "month";
+}
+
+function isoDateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function weekStart(date: Date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function trendLabel(mode: TrendBucketMode, bucketStart: Date) {
+  if (mode === "month") {
+    return bucketStart.toLocaleDateString("de-DE", { month: "short", year: "numeric" });
+  }
+  if (mode === "week") {
+    const end = new Date(bucketStart);
+    end.setDate(bucketStart.getDate() + 6);
+    return `${bucketStart.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}. - ${end.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}.`;
+  }
+  return formatDayKey(isoDateKey(bucketStart));
+}
+
+function buildTrendSummary(rows: DailySummaryRow[]): TrendSummaryRow[] {
+  const mode = trendBucketMode();
+  const buckets = new Map<string, TrendSummaryRow>();
+
+  for (const row of rows) {
+    const day = parseDayKey(row.day);
+    if (!day) continue;
+
+    const bucketStart = mode === "month"
+      ? new Date(day.getFullYear(), day.getMonth(), 1)
+      : mode === "week"
+        ? weekStart(day)
+        : day;
+    const key = isoDateKey(bucketStart);
+    const current = buckets.get(key) ?? {
+      day: key,
+      label: trendLabel(mode, bucketStart),
+      revenue: 0,
+      canceled: 0,
+    };
+    current.revenue += Number(row.revenue ?? 0);
+    current.canceled += Number(row.canceled ?? 0);
+    buckets.set(key, current);
+  }
+
+  return [...buckets.values()].sort((a, b) => a.day.localeCompare(b.day));
+}
+
 function dayLabel(day: number) {
   return ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][day] ?? "-";
 }
@@ -286,16 +367,24 @@ async function renderCharts() {
   if (!Chart) return;
 
   if (trendCanvas.value) {
+    const trendSummary = buildTrendSummary(dailySummary.value);
     trendChart = new Chart(trendCanvas.value, {
       type: "line",
       data: {
-        labels: dailySummary.value.map((row) => formatDayKey(row.day)),
+        labels: trendSummary.map((row) => row.label),
         datasets: [
-          { label: "Umsatz", data: dailySummary.value.map((row) => row.revenue / 100), borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.15)", fill: true, tension: 0.2 },
-          { label: "Storno", data: dailySummary.value.map((row) => row.canceled / 100), borderColor: "#dc2626", backgroundColor: "rgba(220,38,38,0.12)", fill: true, tension: 0.2 },
+          { label: "Umsatz", data: trendSummary.map((row) => row.revenue / 100), borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.15)", fill: true, tension: 0.2 },
         ],
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} €` } } }, scales: { y: { beginAtZero: true, ticks: { callback: (value: any) => `${value} €` } }, x: { grid: { display: false } } } },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} €` } } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (value: any) => `${value} €` } },
+          x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+        },
+      },
     });
   }
 
@@ -426,13 +515,13 @@ onBeforeUnmount(destroyCharts);
         <div class="bg-white rounded-xl border border-gray-200 p-4"><div class="text-xs uppercase text-gray-500">Peak-Wochentag</div><div class="text-2xl font-semibold text-primary">{{ peakWeekday ? dayLabel(peakWeekday.day) : "-" }}</div><div class="text-xs text-gray-500">{{ peakWeekday ? `${heatAggregationLabel(heatAggregationModeEffective)} ${fmtHeatValue(peakWeekday.count)} Buchungen` : "Keine Daten" }}</div></div>
       </div>
 
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="bg-white p-6 rounded-2xl shadow border border-gray-200 h-[360px]"><h2 class="text-lg font-semibold mb-2">📈 Umsatztrend (Umsatz/Storno)</h2><canvas ref="trendCanvas" class="h-[290px]"></canvas></div>
-        <div class="bg-white p-6 rounded-2xl shadow border border-gray-200 h-[360px]"><h2 class="text-lg font-semibold mb-2">🧩 Kategorien-Anteil (Umsatz)</h2><canvas ref="categoryCanvas" class="h-[290px]"></canvas></div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 print-section">
+        <div class="bg-white p-6 rounded-2xl shadow border border-gray-200 h-[360px] print-card"><h2 class="text-lg font-semibold mb-2">📈 Umsatztrend</h2><canvas ref="trendCanvas" class="h-[290px]"></canvas></div>
+        <div class="bg-white p-6 rounded-2xl shadow border border-gray-200 h-[360px] print-card"><h2 class="text-lg font-semibold mb-2">🧩 Kategorien-Anteil (Umsatz)</h2><canvas ref="categoryCanvas" class="h-[290px]"></canvas></div>
       </div>
 
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="bg-white p-6 rounded-2xl shadow border border-gray-200">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 print-section">
+        <div class="bg-white p-6 rounded-2xl shadow border border-gray-200 print-card">
           <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-semibold">🥇 Top-Produkte nach Buchungen</h2><button class="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50" @click="goToRevenue()">Details</button></div>
           <div class="space-y-3">
             <div v-for="(row, idx) in topProducts" :key="row.product_key ?? row.product_name ?? row.product ?? idx" class="rounded-xl border border-gray-200 p-3 bg-gradient-to-r from-white to-gray-50/80">
@@ -444,7 +533,7 @@ onBeforeUnmount(destroyCharts);
           </div>
         </div>
 
-        <div class="bg-white p-6 rounded-2xl shadow border border-gray-200">
+        <div class="bg-white p-6 rounded-2xl shadow border border-gray-200 print-card print-heatmap">
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-semibold">🕒 Aktivitäts-Heatmap</h2>
             <div class="flex flex-wrap items-center justify-end gap-2">
@@ -454,11 +543,11 @@ onBeforeUnmount(destroyCharts);
               <span class="text-xs text-gray-500">Montag bis Sonntag, 0-23 Uhr</span>
             </div>
           </div>
-          <div class="rounded-xl border border-gray-100 p-2">
+          <div class="rounded-xl border border-gray-100 p-2 print-heatmap-grid">
             <div class="grid grid-cols-[32px_repeat(24,minmax(0,1fr))] gap-0 mb-1"><div></div><div v-for="hour in 24" :key="`hour-${hour - 1}`" class="text-[9px] text-center text-gray-400">{{ (hour - 1) % 2 === 0 ? (hour - 1).toString().padStart(2, "0") : "" }}</div></div>
-            <div v-for="row in heatGrid" :key="`day-${row.day}`" class="grid grid-cols-[32px_repeat(24,minmax(0,1fr))] gap-0 mb-[2px] items-center">
+            <div v-for="row in heatGrid" :key="`day-${row.day}`" class="grid grid-cols-[32px_repeat(24,minmax(0,1fr))] gap-0 mb-[2px] items-center print-heatmap-row">
               <div class="text-[11px] font-medium text-gray-600">{{ row.label }}</div>
-              <div v-for="cell in row.cells" :key="`cell-${cell.day}-${cell.hour}`" class="h-5 sm:h-6 rounded-[2px] transition-colors duration-200" :style="heatCellStyle(cell.count)" :title="heatCellTitle(cell.day, cell.hour, cell.count)"></div>
+              <div v-for="cell in row.cells" :key="`cell-${cell.day}-${cell.hour}`" class="h-5 sm:h-6 rounded-[2px] transition-colors duration-200 print-heatmap-cell" :style="heatCellStyle(cell.count)" :title="heatCellTitle(cell.day, cell.hour, cell.count)"></div>
             </div>
             <div class="mt-3 flex items-center gap-2"><span class="text-[11px] text-gray-500">Wenig</span><div class="h-2.5 flex-1 rounded-full bg-gradient-to-r from-gray-200 via-amber-300 to-red-600"></div><span class="text-[11px] text-gray-500">Viel</span></div>
           </div>

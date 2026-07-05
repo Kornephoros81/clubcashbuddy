@@ -10,6 +10,9 @@ import { useToast } from "@/composables/useToast";
 import { exportReportAsPdf } from "@/utils/reportExport";
 
 type HeatAggregationMode = "trimmed_mean" | "mean" | "max";
+type TrendBucketMode = "day" | "week" | "month";
+type DailySummaryRow = { day: string; revenue: number; canceled: number };
+type TrendSummaryRow = DailySummaryRow & { label: string };
 type MetricBundle = {
   revenueCents: number;
   canceledCents: number;
@@ -74,7 +77,7 @@ const metrics = ref<MetricBundle>({
 });
 const memberOptions = ref<Array<{ id: string; name: string }>>([]);
 const categoryOptions = ref<string[]>([]);
-const dailySummary = ref<Array<{ day: string; revenue: number; canceled: number }>>([]);
+const dailySummary = ref<DailySummaryRow[]>([]);
 const categorySummary = ref<Array<{ category: string; revenue: number; canceled: number }>>([]);
 const productSummary = ref<Array<{ product_key: string; product_name: string; product_category: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number; goods_cost: number; canceled_goods_cost: number; gross_profit: number }>>([]);
 const topProducts = ref<Array<{ product_key: string; product_name: string; bookings: number; cancellations: number; net_quantity: number; revenue: number; canceled: number; goods_cost: number; canceled_goods_cost: number; gross_profit: number }>>([]);
@@ -184,6 +187,84 @@ function formatDayKey(day: string) {
   return `${d}.${m}.${y}`;
 }
 
+function parseDayKey(day: string) {
+  const [y, m, d] = day.split("-").map((part) => Number(part));
+  if (!y || !m || !d) return null;
+  const date = new Date(y, m - 1, d);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function daySpan() {
+  const start = new Date(startDate.value);
+  const end = new Date(endDate.value);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function trendBucketMode(): TrendBucketMode {
+  const days = daySpan();
+  if (days <= 60) return "day";
+  if (days <= 180) return "week";
+  return "month";
+}
+
+function isoDateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function weekStart(date: Date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function trendLabel(mode: TrendBucketMode, bucketStart: Date) {
+  if (mode === "month") {
+    return bucketStart.toLocaleDateString("de-DE", { month: "short", year: "numeric" });
+  }
+  if (mode === "week") {
+    const end = new Date(bucketStart);
+    end.setDate(bucketStart.getDate() + 6);
+    return `${bucketStart.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}. - ${end.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}.`;
+  }
+  return formatDayKey(isoDateKey(bucketStart));
+}
+
+function buildTrendSummary(rows: DailySummaryRow[]): TrendSummaryRow[] {
+  const mode = trendBucketMode();
+  const buckets = new Map<string, TrendSummaryRow>();
+
+  for (const row of rows) {
+    const day = parseDayKey(row.day);
+    if (!day) continue;
+
+    const bucketStart = mode === "month"
+      ? new Date(day.getFullYear(), day.getMonth(), 1)
+      : mode === "week"
+        ? weekStart(day)
+        : day;
+    const key = isoDateKey(bucketStart);
+    const current = buckets.get(key) ?? {
+      day: key,
+      label: trendLabel(mode, bucketStart),
+      revenue: 0,
+      canceled: 0,
+    };
+    current.revenue += Number(row.revenue ?? 0);
+    current.canceled += Number(row.canceled ?? 0);
+    buckets.set(key, current);
+  }
+
+  return [...buckets.values()].sort((a, b) => a.day.localeCompare(b.day));
+}
+
 function formatEuroFromCents(cents: number) {
   return fmt(cents / 100);
 }
@@ -270,16 +351,24 @@ async function renderCharts() {
   if (!Chart) return;
 
   if (trendCanvas.value) {
+    const trendSummary = buildTrendSummary(dailySummary.value);
     trendChart = new Chart(trendCanvas.value, {
       type: "line",
       data: {
-        labels: dailySummary.value.map((row) => formatDayKey(row.day)),
+        labels: trendSummary.map((row) => row.label),
         datasets: [
-          { label: "Umsatz", data: dailySummary.value.map((row) => row.revenue / 100), borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.15)", fill: true, tension: 0.2 },
-          { label: "Storno", data: dailySummary.value.map((row) => row.canceled / 100), borderColor: "#dc2626", backgroundColor: "rgba(220,38,38,0.12)", fill: true, tension: 0.2 },
+          { label: "Umsatz", data: trendSummary.map((row) => row.revenue / 100), borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.15)", fill: true, tension: 0.2 },
         ],
       },
-      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { callback: (v: any) => `${v} €` } }, x: { grid: { display: false } } } },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} €` } } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (v: any) => `${v} €` } },
+          x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+        },
+      },
     });
   }
 
@@ -434,13 +523,13 @@ async function exportPdf() {
     <div v-else-if="error" class="text-center py-10 text-red-500">{{ error }}</div>
 
     <div v-else class="space-y-6">
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 h-[340px]"><h3 class="font-semibold text-primary mb-3">Tagesverlauf (Umsatz / Storno)</h3><canvas ref="trendCanvas" class="h-[270px]"></canvas></div>
-        <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 h-[340px]"><h3 class="font-semibold text-primary mb-3">Umsatzanteil nach Kategorie (Umsatz)</h3><canvas ref="categoryCanvas" class="h-[270px]"></canvas></div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 print-section">
+        <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 h-[340px] print-card"><h3 class="font-semibold text-primary mb-3">Umsatzverlauf</h3><canvas ref="trendCanvas" class="h-[270px]"></canvas></div>
+        <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 h-[340px] print-card"><h3 class="font-semibold text-primary mb-3">Umsatzanteil nach Kategorie (Umsatz)</h3><canvas ref="categoryCanvas" class="h-[270px]"></canvas></div>
       </div>
 
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 print-section">
+        <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 print-card">
           <h3 class="font-semibold text-primary mb-3">Top 10 Produkte nach Buchungen</h3>
           <div class="space-y-3">
             <div v-for="(row, idx) in topProducts" :key="row.product_key" class="rounded-xl border border-gray-200 p-3 bg-gradient-to-r from-white to-gray-50/80">
@@ -452,7 +541,7 @@ async function exportPdf() {
           </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+        <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 print-card print-heatmap">
           <div class="flex items-center justify-between mb-3">
             <h3 class="font-semibold text-primary">Aktivitäts-Heatmap</h3>
             <div class="flex flex-wrap items-center justify-end gap-2">
@@ -462,15 +551,15 @@ async function exportPdf() {
               <span class="text-xs text-gray-500">Montag bis Sonntag, 0-23 Uhr</span>
             </div>
           </div>
-          <div class="rounded-xl border border-gray-100 p-2">
+          <div class="rounded-xl border border-gray-100 p-2 print-heatmap-grid">
             <div class="grid grid-cols-[32px_repeat(24,minmax(0,1fr))] gap-0 mb-1"><div></div><div v-for="hour in 24" :key="`hour-${hour - 1}`" class="text-[9px] text-center text-gray-400">{{ (hour - 1) % 2 === 0 ? (hour - 1).toString().padStart(2, "0") : "" }}</div></div>
-            <div v-for="row in heatGrid" :key="`day-${row.day}`" class="grid grid-cols-[32px_repeat(24,minmax(0,1fr))] gap-0 mb-[2px] items-center"><div class="text-[11px] font-medium text-gray-600">{{ row.label }}</div><div v-for="cell in row.cells" :key="`cell-${cell.day}-${cell.hour}`" class="h-5 sm:h-6 rounded-[2px] transition-colors duration-200" :style="heatCellStyle(cell.count)" :title="heatCellTitle(cell.day, cell.hour, cell.count)"></div></div>
+            <div v-for="row in heatGrid" :key="`day-${row.day}`" class="grid grid-cols-[32px_repeat(24,minmax(0,1fr))] gap-0 mb-[2px] items-center print-heatmap-row"><div class="text-[11px] font-medium text-gray-600">{{ row.label }}</div><div v-for="cell in row.cells" :key="`cell-${cell.day}-${cell.hour}`" class="h-5 sm:h-6 rounded-[2px] transition-colors duration-200 print-heatmap-cell" :style="heatCellStyle(cell.count)" :title="heatCellTitle(cell.day, cell.hour, cell.count)"></div></div>
             <div class="mt-3 flex items-center gap-2"><span class="text-[11px] text-gray-500">Wenig</span><div class="h-2.5 flex-1 rounded-full bg-gradient-to-r from-gray-200 via-amber-300 to-red-600"></div><span class="text-[11px] text-gray-500">Viel</span></div>
           </div>
         </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
+      <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200 print-table-card">
         <h3 class="font-semibold text-primary px-4 pt-4">Produktübersicht</h3>
         <table class="min-w-full text-sm text-gray-700">
           <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold"><tr><th class="px-4 py-3 text-left">Kategorie</th><th class="px-4 py-3 text-left">Produkt</th><th class="px-4 py-3 text-right">Buchungen</th><th class="px-4 py-3 text-right">Stornos</th><th class="px-4 py-3 text-right">Menge</th><th class="px-4 py-3 text-right">Umsatz</th><th class="px-4 py-3 text-right">Wareneinsatz</th><th class="px-4 py-3 text-right">Rohgewinn</th><th class="px-4 py-3 text-right">Stornoquote</th></tr></thead>
@@ -481,7 +570,7 @@ async function exportPdf() {
         </table>
       </div>
 
-      <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
+      <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200 print-table-card">
         <h3 class="font-semibold text-primary px-4 pt-4">Letzte Ereignisse (max. 100)</h3>
         <table class="min-w-full text-sm text-gray-700">
           <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold"><tr><th class="px-4 py-3 text-left">Typ</th><th class="px-4 py-3 text-left">Zeitpunkt</th><th class="px-4 py-3 text-left">Tag</th><th class="px-4 py-3 text-left">Mitglied</th><th class="px-4 py-3 text-left">Produkt</th><th class="px-4 py-3 text-left">Kategorie</th><th class="px-4 py-3 text-right">Betrag</th><th class="px-4 py-3 text-left">Notiz</th></tr></thead>

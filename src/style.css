@@ -129,6 +129,11 @@ button {
 
 @media print {
   body.report-print-mode * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.report-print-mode * {
     visibility: hidden !important;
   }
 
@@ -149,5 +154,70 @@ button {
 
   .no-print {
     display: none !important;
+  }
+
+  body.report-print-mode .print-section,
+  body.report-print-mode .print-avoid,
+  body.report-print-mode .print-heatmap,
+  body.report-print-mode .print-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.report-print-mode .print-section {
+    display: block !important;
+    margin-bottom: 14px !important;
+  }
+
+  body.report-print-mode .print-card {
+    width: 100% !important;
+    margin-bottom: 14px !important;
+  }
+
+  body.report-print-mode canvas {
+    max-width: 100% !important;
+  }
+
+  body.report-print-mode .print-table-card {
+    overflow: visible !important;
+    margin-bottom: 14px !important;
+  }
+
+  body.report-print-mode .print-table-card h3,
+  body.report-print-mode .print-table-card thead {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  body.report-print-mode .print-table-card table {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  body.report-print-mode .print-heatmap {
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  body.report-print-mode .print-heatmap-grid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.report-print-mode .print-heatmap-row {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    min-height: 18px !important;
+  }
+
+  body.report-print-mode .print-heatmap-cell {
+    min-height: 16px !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.85) !important;
+  }
+
+  body.report-print-mode tr,
+  body.report-print-mode thead {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }

@@ -41,6 +41,19 @@ function selectThisMonth() {
   const start = new Date(d.getFullYear(), d.getMonth(), 1);
   emit("select", startOf(start), endOf(d));
 }
+
+function selectThisYear() {
+  const d = new Date();
+  const start = new Date(d.getFullYear(), 0, 1);
+  emit("select", startOf(start), endOf(d));
+}
+
+function selectLast12Months() {
+  const d = new Date();
+  const start = new Date(d);
+  start.setFullYear(d.getFullYear() - 1);
+  emit("select", startOf(start), endOf(d));
+}
 </script>
 
 <template>
@@ -72,6 +85,20 @@ function selectThisMonth() {
       class="rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
     >
       Letzter Monat
+    </button>
+    <button
+      type="button"
+      @click="selectThisYear"
+      class="rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+    >
+      Aktuelles Jahr
+    </button>
+    <button
+      type="button"
+      @click="selectLast12Months"
+      class="rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+    >
+      Letzte 12 Monate
     </button>
   </div>
 </template>
