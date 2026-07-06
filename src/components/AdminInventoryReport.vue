@@ -42,9 +42,9 @@ function getDeltaTotal(row: InventorySnapshotRow): number {
 }
 
 function deltaClass(delta: number): string {
-  if (delta === 0) return "text-green-700";
+  if (delta === 0) return "text-gray-700";
   if (delta < 0) return "text-red-700 font-semibold";
-  return "text-amber-700 font-semibold";
+  return "text-green-700 font-semibold";
 }
 
 const changedRows = computed(() =>
