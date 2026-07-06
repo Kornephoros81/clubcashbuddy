@@ -192,8 +192,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         this.products = filtered.map((p: any) => ({
           ...this.normalizeProduct(p),
           warehouse_stock: p.warehouse_stock ?? 0,
-          fridge_stock: p.fridge_stock ?? 0,
-          total_stock: Number(p.warehouse_stock ?? 0) + Number(p.fridge_stock ?? 0),
+          total_stock: Number(p.warehouse_stock ?? 0),
           last_restocked_at: p.last_restocked_at,
           last_purchase_price_cents: Number(p.last_purchase_price_cents ?? 0),
           inventory_value_cents: Number(p.inventory_value_cents ?? 0),
