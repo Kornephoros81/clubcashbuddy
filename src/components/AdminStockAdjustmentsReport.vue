@@ -6,6 +6,7 @@ import DateRangeQuickSelect from "@/components/DateRangeQuickSelect.vue";
 import "@vuepic/vue-datepicker/dist/main.css";
 import { adminRpc } from "@/lib/adminApi";
 import { exportReportAsPdf } from "@/utils/reportExport";
+import { fmt } from "@/utils/currency";
 
 type AdjustmentRow = {
   created_at: string;
@@ -15,6 +16,7 @@ type AdjustmentRow = {
   product_category: string;
   active: boolean;
   delta: number;
+  value_delta_cents: number;
 };
 
 const { show: showToast } = useToast();
@@ -46,8 +48,24 @@ function formatDayKey(day: string) {
 
 function deltaClass(value: number): string {
   if (value < 0) return "text-red-700 font-semibold";
-  if (value > 0) return "text-amber-700 font-semibold";
-  return "text-green-700";
+  if (value > 0) return "text-green-700 font-semibold";
+  return "text-gray-700";
+}
+
+function valueClass(value: number): string {
+  return deltaClass(value);
+}
+
+function formatCents(value: number): string {
+  return fmt((Number(value) || 0) / 100);
+}
+
+function shortageValueCents(value: number): number {
+  return value < 0 ? Math.abs(value) : 0;
+}
+
+function overstockValueCents(value: number): number {
+  return value > 0 ? value : 0;
 }
 
 const groupedByProduct = computed(() => {
@@ -60,6 +78,9 @@ const groupedByProduct = computed(() => {
       fehlbestand: number;
       ueberbestand: number;
       net_delta: number;
+      fehlbestand_value_cents: number;
+      ueberbestand_value_cents: number;
+      net_value_cents: number;
       adjustments_count: number;
       last_adjustment_at: string;
     }
@@ -76,6 +97,9 @@ const groupedByProduct = computed(() => {
         fehlbestand: row.delta < 0 ? Math.abs(row.delta) : 0,
         ueberbestand: row.delta > 0 ? row.delta : 0,
         net_delta: row.delta,
+        fehlbestand_value_cents: shortageValueCents(row.value_delta_cents),
+        ueberbestand_value_cents: overstockValueCents(row.value_delta_cents),
+        net_value_cents: row.value_delta_cents,
         adjustments_count: 1,
         last_adjustment_at: row.created_at,
       });
@@ -84,6 +108,9 @@ const groupedByProduct = computed(() => {
     if (row.delta < 0) existing.fehlbestand += Math.abs(row.delta);
     if (row.delta > 0) existing.ueberbestand += row.delta;
     existing.net_delta += row.delta;
+    existing.fehlbestand_value_cents += shortageValueCents(row.value_delta_cents);
+    existing.ueberbestand_value_cents += overstockValueCents(row.value_delta_cents);
+    existing.net_value_cents += row.value_delta_cents;
     existing.adjustments_count += 1;
     if (new Date(row.created_at).getTime() > new Date(existing.last_adjustment_at).getTime()) {
       existing.last_adjustment_at = row.created_at;
@@ -106,6 +133,9 @@ const groupedByDay = computed(() => {
       fehlbestand: number;
       ueberbestand: number;
       net_delta: number;
+      fehlbestand_value_cents: number;
+      ueberbestand_value_cents: number;
+      net_value_cents: number;
       adjustments_count: number;
       products_count: number;
     }
@@ -124,6 +154,9 @@ const groupedByDay = computed(() => {
         fehlbestand: row.delta < 0 ? Math.abs(row.delta) : 0,
         ueberbestand: row.delta > 0 ? row.delta : 0,
         net_delta: row.delta,
+        fehlbestand_value_cents: shortageValueCents(row.value_delta_cents),
+        ueberbestand_value_cents: overstockValueCents(row.value_delta_cents),
+        net_value_cents: row.value_delta_cents,
         adjustments_count: 1,
         products_count: 0,
       });
@@ -132,6 +165,9 @@ const groupedByDay = computed(() => {
     if (row.delta < 0) existing.fehlbestand += Math.abs(row.delta);
     if (row.delta > 0) existing.ueberbestand += row.delta;
     existing.net_delta += row.delta;
+    existing.fehlbestand_value_cents += shortageValueCents(row.value_delta_cents);
+    existing.ueberbestand_value_cents += overstockValueCents(row.value_delta_cents);
+    existing.net_value_cents += row.value_delta_cents;
     existing.adjustments_count += 1;
   }
 
@@ -150,6 +186,9 @@ const totalsByProduct = computed(() => {
       acc.fehlbestand += row.fehlbestand;
       acc.ueberbestand += row.ueberbestand;
       acc.net_delta += row.net_delta;
+      acc.fehlbestand_value_cents += row.fehlbestand_value_cents;
+      acc.ueberbestand_value_cents += row.ueberbestand_value_cents;
+      acc.net_value_cents += row.net_value_cents;
       return acc;
     },
     {
@@ -157,6 +196,9 @@ const totalsByProduct = computed(() => {
       fehlbestand: 0,
       ueberbestand: 0,
       net_delta: 0,
+      fehlbestand_value_cents: 0,
+      ueberbestand_value_cents: 0,
+      net_value_cents: 0,
     },
   );
 });
@@ -169,6 +211,9 @@ const totalsByDay = computed(() => {
       acc.fehlbestand += row.fehlbestand;
       acc.ueberbestand += row.ueberbestand;
       acc.net_delta += row.net_delta;
+      acc.fehlbestand_value_cents += row.fehlbestand_value_cents;
+      acc.ueberbestand_value_cents += row.ueberbestand_value_cents;
+      acc.net_value_cents += row.net_value_cents;
       return acc;
     },
     {
@@ -177,6 +222,31 @@ const totalsByDay = computed(() => {
       fehlbestand: 0,
       ueberbestand: 0,
       net_delta: 0,
+      fehlbestand_value_cents: 0,
+      ueberbestand_value_cents: 0,
+      net_value_cents: 0,
+    },
+  );
+});
+
+const reportTotals = computed(() => {
+  return rows.value.reduce(
+    (acc, row) => {
+      acc.fehlbestand += row.delta < 0 ? Math.abs(row.delta) : 0;
+      acc.ueberbestand += row.delta > 0 ? row.delta : 0;
+      acc.net_delta += row.delta;
+      acc.fehlbestand_value_cents += shortageValueCents(row.value_delta_cents);
+      acc.ueberbestand_value_cents += overstockValueCents(row.value_delta_cents);
+      acc.net_value_cents += row.value_delta_cents;
+      return acc;
+    },
+    {
+      fehlbestand: 0,
+      ueberbestand: 0,
+      net_delta: 0,
+      fehlbestand_value_cents: 0,
+      ueberbestand_value_cents: 0,
+      net_value_cents: 0,
     },
   );
 });
@@ -184,7 +254,7 @@ const totalsByDay = computed(() => {
 const drilldownProductToDays = computed(() => {
   const root = new Map<
     string,
-    Map<string, { day: string; fehlbestand: number; ueberbestand: number; net_delta: number; adjustments_count: number }>
+    Map<string, { day: string; fehlbestand: number; ueberbestand: number; net_delta: number; fehlbestand_value_cents: number; ueberbestand_value_cents: number; net_value_cents: number; adjustments_count: number }>
   >();
 
   for (const row of rows.value) {
@@ -197,6 +267,9 @@ const drilldownProductToDays = computed(() => {
         fehlbestand: row.delta < 0 ? Math.abs(row.delta) : 0,
         ueberbestand: row.delta > 0 ? row.delta : 0,
         net_delta: row.delta,
+        fehlbestand_value_cents: shortageValueCents(row.value_delta_cents),
+        ueberbestand_value_cents: overstockValueCents(row.value_delta_cents),
+        net_value_cents: row.value_delta_cents,
         adjustments_count: 1,
       });
       continue;
@@ -204,10 +277,13 @@ const drilldownProductToDays = computed(() => {
     if (row.delta < 0) existing.fehlbestand += Math.abs(row.delta);
     if (row.delta > 0) existing.ueberbestand += row.delta;
     existing.net_delta += row.delta;
+    existing.fehlbestand_value_cents += shortageValueCents(row.value_delta_cents);
+    existing.ueberbestand_value_cents += overstockValueCents(row.value_delta_cents);
+    existing.net_value_cents += row.value_delta_cents;
     existing.adjustments_count += 1;
   }
 
-  const result: Record<string, { day: string; fehlbestand: number; ueberbestand: number; net_delta: number; adjustments_count: number }[]> = {};
+  const result: Record<string, { day: string; fehlbestand: number; ueberbestand: number; net_delta: number; fehlbestand_value_cents: number; ueberbestand_value_cents: number; net_value_cents: number; adjustments_count: number }[]> = {};
   for (const [productId, dayMap] of root.entries()) {
     result[productId] = [...dayMap.values()].sort((a, b) => b.day.localeCompare(a.day));
   }
@@ -217,7 +293,7 @@ const drilldownProductToDays = computed(() => {
 const drilldownDayToProducts = computed(() => {
   const root = new Map<
     string,
-    Map<string, { product_id: string; product_name: string; fehlbestand: number; ueberbestand: number; net_delta: number; adjustments_count: number }>
+    Map<string, { product_id: string; product_name: string; fehlbestand: number; ueberbestand: number; net_delta: number; fehlbestand_value_cents: number; ueberbestand_value_cents: number; net_value_cents: number; adjustments_count: number }>
   >();
 
   for (const row of rows.value) {
@@ -231,6 +307,9 @@ const drilldownDayToProducts = computed(() => {
         fehlbestand: row.delta < 0 ? Math.abs(row.delta) : 0,
         ueberbestand: row.delta > 0 ? row.delta : 0,
         net_delta: row.delta,
+        fehlbestand_value_cents: shortageValueCents(row.value_delta_cents),
+        ueberbestand_value_cents: overstockValueCents(row.value_delta_cents),
+        net_value_cents: row.value_delta_cents,
         adjustments_count: 1,
       });
       continue;
@@ -238,12 +317,15 @@ const drilldownDayToProducts = computed(() => {
     if (row.delta < 0) existing.fehlbestand += Math.abs(row.delta);
     if (row.delta > 0) existing.ueberbestand += row.delta;
     existing.net_delta += row.delta;
+    existing.fehlbestand_value_cents += shortageValueCents(row.value_delta_cents);
+    existing.ueberbestand_value_cents += overstockValueCents(row.value_delta_cents);
+    existing.net_value_cents += row.value_delta_cents;
     existing.adjustments_count += 1;
   }
 
   const result: Record<
     string,
-    { product_id: string; product_name: string; fehlbestand: number; ueberbestand: number; net_delta: number; adjustments_count: number }[]
+    { product_id: string; product_name: string; fehlbestand: number; ueberbestand: number; net_delta: number; fehlbestand_value_cents: number; ueberbestand_value_cents: number; net_value_cents: number; adjustments_count: number }[]
   > = {};
   for (const [day, productMap] of root.entries()) {
     result[day] = [...productMap.values()].sort((a, b) => {
@@ -289,6 +371,7 @@ async function loadReport() {
       product_category: row.product_category,
       active: Boolean(row.active),
       delta: Number(row.delta ?? 0),
+      value_delta_cents: Number(row.value_delta_cents ?? 0),
     }));
     showToast("✅ Bericht erfolgreich geladen");
   } catch (err) {
@@ -385,6 +468,27 @@ async function exportPdf() {
       </div>
     </div>
 
+    <div v-if="!loading && !error" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+        <div class="text-xs uppercase text-gray-500">Fehlbestand</div>
+        <div class="mt-1 text-xl font-semibold text-red-700">{{ reportTotals.fehlbestand }}</div>
+      </div>
+      <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+        <div class="text-xs uppercase text-gray-500">Fehlbestand Wert</div>
+        <div class="mt-1 text-xl font-semibold text-red-700">{{ formatCents(reportTotals.fehlbestand_value_cents) }}</div>
+      </div>
+      <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+        <div class="text-xs uppercase text-gray-500">Überbestand</div>
+        <div class="mt-1 text-xl font-semibold text-green-700">{{ reportTotals.ueberbestand }}</div>
+      </div>
+      <div class="bg-white rounded-2xl shadow border border-gray-200 p-4">
+        <div class="text-xs uppercase text-gray-500">Gesamt-Saldo</div>
+        <div class="mt-1 text-xl font-semibold" :class="valueClass(reportTotals.net_value_cents)">
+          {{ formatCents(reportTotals.net_value_cents) }}
+        </div>
+      </div>
+    </div>
+
     <div v-if="loading" class="text-center py-10 text-gray-500">
       ⏳ Bericht wird geladen...
     </div>
@@ -416,11 +520,19 @@ async function exportPdf() {
             </div>
             <div>
               <div class="text-xs uppercase text-gray-500">Überbestand</div>
-              <div class="text-amber-700 font-semibold">{{ row.ueberbestand }}</div>
+              <div class="text-green-700 font-semibold">{{ row.ueberbestand }}</div>
             </div>
             <div>
               <div class="text-xs uppercase text-gray-500">Netto</div>
               <div :class="deltaClass(row.net_delta)">{{ row.net_delta }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Fehlbestand Wert</div>
+              <div class="text-red-700 font-semibold">{{ formatCents(row.fehlbestand_value_cents) }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Saldo Wert</div>
+              <div :class="valueClass(row.net_value_cents)">{{ formatCents(row.net_value_cents) }}</div>
             </div>
             <div>
               <div class="text-xs uppercase text-gray-500">Letzte Anpassung</div>
@@ -439,7 +551,7 @@ async function exportPdf() {
               >
                 <span>{{ formatDayKey(dayRow.day) }}</span>
                 <span class="text-right">
-                  F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} | Netto: {{ dayRow.net_delta }}
+                  F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} | Netto: {{ dayRow.net_delta }} | Saldo: {{ formatCents(dayRow.net_value_cents) }}
                 </span>
               </div>
             </div>
@@ -480,11 +592,19 @@ async function exportPdf() {
             </div>
             <div>
               <div class="text-xs uppercase text-gray-500">Überbestand</div>
-              <div class="text-amber-700 font-semibold">{{ row.ueberbestand }}</div>
+              <div class="text-green-700 font-semibold">{{ row.ueberbestand }}</div>
             </div>
             <div>
               <div class="text-xs uppercase text-gray-500">Netto</div>
               <div :class="deltaClass(row.net_delta)">{{ row.net_delta }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Fehlbestand Wert</div>
+              <div class="text-red-700 font-semibold">{{ formatCents(row.fehlbestand_value_cents) }}</div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Saldo Wert</div>
+              <div :class="valueClass(row.net_value_cents)">{{ formatCents(row.net_value_cents) }}</div>
             </div>
           </div>
           <details class="rounded-xl bg-gray-50 p-3">
@@ -499,7 +619,7 @@ async function exportPdf() {
               >
                 <span>{{ productRow.product_name }}</span>
                 <span class="text-right">
-                  F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} | Netto: {{ productRow.net_delta }}
+                  F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} | Netto: {{ productRow.net_delta }} | Saldo: {{ formatCents(productRow.net_value_cents) }}
                 </span>
               </div>
             </div>
@@ -521,8 +641,10 @@ async function exportPdf() {
               <th class="px-4 py-3 text-left">Produkt</th>
               <th class="px-4 py-3 text-right">Anpassungen</th>
               <th class="px-4 py-3 text-right">Fehlbestand</th>
+              <th class="px-4 py-3 text-right">Fehlbestand Wert</th>
               <th class="px-4 py-3 text-right">Überbestand</th>
               <th class="px-4 py-3 text-right">Netto-Abweichung</th>
+              <th class="px-4 py-3 text-right">Wert-Saldo</th>
               <th class="px-4 py-3 text-left">Letzte Anpassung</th>
               <th class="px-4 py-3 text-left">Drilldown (Tage)</th>
             </tr>
@@ -538,9 +660,13 @@ async function exportPdf() {
                 <td class="px-4 py-2">{{ row.product_name }}</td>
                 <td class="px-4 py-2 text-right">{{ row.adjustments_count }}</td>
                 <td class="px-4 py-2 text-right text-red-700 font-semibold">{{ row.fehlbestand }}</td>
-                <td class="px-4 py-2 text-right text-amber-700 font-semibold">{{ row.ueberbestand }}</td>
+                <td class="px-4 py-2 text-right text-red-700 font-semibold">{{ formatCents(row.fehlbestand_value_cents) }}</td>
+                <td class="px-4 py-2 text-right text-green-700 font-semibold">{{ row.ueberbestand }}</td>
                 <td class="px-4 py-2 text-right" :class="deltaClass(row.net_delta)">
                   {{ row.net_delta }}
+                </td>
+                <td class="px-4 py-2 text-right" :class="valueClass(row.net_value_cents)">
+                  {{ formatCents(row.net_value_cents) }}
                 </td>
                 <td class="px-4 py-2">{{ new Date(row.last_adjustment_at).toLocaleString("de-DE") }}</td>
                 <td class="px-4 py-2">
@@ -555,7 +681,7 @@ async function exportPdf() {
                         class="flex justify-between gap-4"
                       >
                         <span>{{ formatDayKey(dayRow.day) }}</span>
-                        <span>F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} | Netto: {{ dayRow.net_delta }}</span>
+                        <span>F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} | Netto: {{ dayRow.net_delta }} | Saldo: {{ formatCents(dayRow.net_value_cents) }}</span>
                       </div>
                     </div>
                   </details>
@@ -563,7 +689,7 @@ async function exportPdf() {
               </tr>
             </template>
             <tr v-else>
-              <td colspan="8" class="text-center py-6 text-gray-400 italic">
+              <td colspan="10" class="text-center py-6 text-gray-400 italic">
                 Keine Anpassungen im gewählten Zeitraum
               </td>
             </tr>
@@ -573,8 +699,10 @@ async function exportPdf() {
               <td class="px-4 py-3" colspan="2">Gesamt</td>
               <td class="px-4 py-3 text-right">{{ totalsByProduct.adjustments_count }}</td>
               <td class="px-4 py-3 text-right text-red-700">{{ totalsByProduct.fehlbestand }}</td>
-              <td class="px-4 py-3 text-right text-amber-700">{{ totalsByProduct.ueberbestand }}</td>
+              <td class="px-4 py-3 text-right text-red-700">{{ formatCents(totalsByProduct.fehlbestand_value_cents) }}</td>
+              <td class="px-4 py-3 text-right text-green-700">{{ totalsByProduct.ueberbestand }}</td>
               <td class="px-4 py-3 text-right" :class="deltaClass(totalsByProduct.net_delta)">{{ totalsByProduct.net_delta }}</td>
+              <td class="px-4 py-3 text-right" :class="valueClass(totalsByProduct.net_value_cents)">{{ formatCents(totalsByProduct.net_value_cents) }}</td>
               <td colspan="2"></td>
             </tr>
           </tfoot>
@@ -587,8 +715,10 @@ async function exportPdf() {
               <th class="px-4 py-3 text-right">Produkte</th>
               <th class="px-4 py-3 text-right">Anpassungen</th>
               <th class="px-4 py-3 text-right">Fehlbestand</th>
+              <th class="px-4 py-3 text-right">Fehlbestand Wert</th>
               <th class="px-4 py-3 text-right">Überbestand</th>
               <th class="px-4 py-3 text-right">Netto-Abweichung</th>
+              <th class="px-4 py-3 text-right">Wert-Saldo</th>
               <th class="px-4 py-3 text-left">Drilldown (Produkte)</th>
             </tr>
           </thead>
@@ -603,8 +733,10 @@ async function exportPdf() {
                 <td class="px-4 py-2 text-right">{{ row.products_count }}</td>
                 <td class="px-4 py-2 text-right">{{ row.adjustments_count }}</td>
                 <td class="px-4 py-2 text-right text-red-700 font-semibold">{{ row.fehlbestand }}</td>
-                <td class="px-4 py-2 text-right text-amber-700 font-semibold">{{ row.ueberbestand }}</td>
+                <td class="px-4 py-2 text-right text-red-700 font-semibold">{{ formatCents(row.fehlbestand_value_cents) }}</td>
+                <td class="px-4 py-2 text-right text-green-700 font-semibold">{{ row.ueberbestand }}</td>
                 <td class="px-4 py-2 text-right" :class="deltaClass(row.net_delta)">{{ row.net_delta }}</td>
+                <td class="px-4 py-2 text-right" :class="valueClass(row.net_value_cents)">{{ formatCents(row.net_value_cents) }}</td>
                 <td class="px-4 py-2">
                   <details>
                     <summary class="cursor-pointer text-primary">
@@ -617,7 +749,7 @@ async function exportPdf() {
                         class="flex justify-between gap-4"
                       >
                         <span>{{ productRow.product_name }}</span>
-                        <span>F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} | Netto: {{ productRow.net_delta }}</span>
+                        <span>F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} | Netto: {{ productRow.net_delta }} | Saldo: {{ formatCents(productRow.net_value_cents) }}</span>
                       </div>
                     </div>
                   </details>
@@ -625,7 +757,7 @@ async function exportPdf() {
               </tr>
             </template>
             <tr v-else>
-              <td colspan="7" class="text-center py-6 text-gray-400 italic">
+              <td colspan="9" class="text-center py-6 text-gray-400 italic">
                 Keine Anpassungen im gewählten Zeitraum
               </td>
             </tr>
@@ -636,8 +768,10 @@ async function exportPdf() {
               <td class="px-4 py-3 text-right">{{ totalsByDay.products_count }}</td>
               <td class="px-4 py-3 text-right">{{ totalsByDay.adjustments_count }}</td>
               <td class="px-4 py-3 text-right text-red-700">{{ totalsByDay.fehlbestand }}</td>
-              <td class="px-4 py-3 text-right text-amber-700">{{ totalsByDay.ueberbestand }}</td>
+              <td class="px-4 py-3 text-right text-red-700">{{ formatCents(totalsByDay.fehlbestand_value_cents) }}</td>
+              <td class="px-4 py-3 text-right text-green-700">{{ totalsByDay.ueberbestand }}</td>
               <td class="px-4 py-3 text-right" :class="deltaClass(totalsByDay.net_delta)">{{ totalsByDay.net_delta }}</td>
+              <td class="px-4 py-3 text-right" :class="valueClass(totalsByDay.net_value_cents)">{{ formatCents(totalsByDay.net_value_cents) }}</td>
               <td></td>
             </tr>
           </tfoot>
