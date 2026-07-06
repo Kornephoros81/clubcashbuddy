@@ -183,7 +183,7 @@ function lotSortIndicator(key: LotSortKey) {
               {{ Number(p.lastPurchasePriceEuro ?? 0).toFixed(2) }} €
             </td>
             <td class="px-4 py-2 text-right">
-              {{ p.total_stock ?? ((p.warehouse_stock ?? 0) + (p.fridge_stock ?? 0)) }}
+              {{ p.total_stock ?? (p.warehouse_stock ?? 0) }}
             </td>
 
             <td class="px-4 py-2 text-right">
