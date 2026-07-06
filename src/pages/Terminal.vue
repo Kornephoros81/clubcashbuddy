@@ -551,13 +551,6 @@ watch(showPinModal, async (isOpen) => {
           >
             Gast anlegen
           </button>
-          <RouterLink
-            v-if="auth.authenticated"
-            to="/stock-refill"
-            class="button-outline-strong rounded-2xl border-blue-800 bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800"
-          >
-            Nachfüllen
-          </RouterLink>
           </div>
         </div>
 

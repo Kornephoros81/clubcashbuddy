@@ -15,8 +15,7 @@ type InventorySnapshotRow = {
 };
 
 type CountInput = {
-  ist_warehouse_stock: number;
-  ist_fridge_stock: number;
+  ist_total_stock: number;
 };
 
 const { show: showToast } = useToast();
@@ -37,19 +36,11 @@ const filteredReport = computed(() => {
 function getCount(productId: string): CountInput {
   const existing = counts.value[productId];
   if (existing) return existing;
-  return { ist_warehouse_stock: 0, ist_fridge_stock: 0 };
-}
-
-function getDeltaWarehouse(row: InventorySnapshotRow): number {
-  return getCount(row.product_id).ist_warehouse_stock - Number(row.soll_warehouse_stock ?? 0);
-}
-
-function getDeltaFridge(row: InventorySnapshotRow): number {
-  return getCount(row.product_id).ist_fridge_stock - Number(row.soll_fridge_stock ?? 0);
+  return { ist_total_stock: 0 };
 }
 
 function getDeltaTotal(row: InventorySnapshotRow): number {
-  return getDeltaWarehouse(row) + getDeltaFridge(row);
+  return getCount(row.product_id).ist_total_stock - Number(row.soll_total_stock ?? 0);
 }
 
 function deltaClass(delta: number): string {
@@ -58,29 +49,35 @@ function deltaClass(delta: number): string {
   return "text-amber-700 font-semibold";
 }
 
+function getInventoryTargets(row: InventorySnapshotRow) {
+  const delta = getDeltaTotal(row);
+  const warehouse = Number(row.soll_warehouse_stock ?? 0);
+  const fridge = Number(row.soll_fridge_stock ?? 0);
+
+  if (delta >= 0) {
+    return { ist_warehouse_stock: warehouse + delta, ist_fridge_stock: fridge };
+  }
+
+  const shortage = Math.abs(delta);
+  const warehouseReduction = Math.min(warehouse, shortage);
+  const remainingShortage = shortage - warehouseReduction;
+  return {
+    ist_warehouse_stock: warehouse - warehouseReduction,
+    ist_fridge_stock: Math.max(0, fridge - remainingShortage),
+  };
+}
+
 const changedRows = computed(() =>
-  filteredReport.value.filter((row) => {
-    const c = getCount(row.product_id);
-    return (
-      c.ist_warehouse_stock !== Number(row.soll_warehouse_stock ?? 0) ||
-      c.ist_fridge_stock !== Number(row.soll_fridge_stock ?? 0)
-    );
-  }),
+  filteredReport.value.filter((row) => getCount(row.product_id).ist_total_stock !== Number(row.soll_total_stock ?? 0)),
 );
 
 const inventoryTotals = computed(() => {
   return filteredReport.value.reduce(
     (acc, row) => {
-      acc.deltaWarehouse += getDeltaWarehouse(row);
-      acc.deltaFridge += getDeltaFridge(row);
       acc.deltaTotal += getDeltaTotal(row);
       return acc;
     },
-    {
-      deltaWarehouse: 0,
-      deltaFridge: 0,
-      deltaTotal: 0,
-    },
+    { deltaTotal: 0 },
   );
 });
 
@@ -88,8 +85,7 @@ function resetCountsToSoll() {
   const next: Record<string, CountInput> = {};
   for (const row of report.value) {
     next[row.product_id] = {
-      ist_warehouse_stock: Number(row.soll_warehouse_stock ?? 0),
-      ist_fridge_stock: Number(row.soll_fridge_stock ?? 0),
+      ist_total_stock: Number(row.soll_total_stock ?? 0),
     };
   }
   counts.value = next;
@@ -127,11 +123,7 @@ async function applyInventoryCount() {
     return;
   }
 
-  // v-model.number liefert bei leerem Feld "" – solche Werte dürfen nicht als 0 gebucht werden.
-  const hasInvalidCounts = rowsToSave.some((row) => {
-    const c = getCount(row.product_id);
-    return !Number.isFinite(c.ist_warehouse_stock) || !Number.isFinite(c.ist_fridge_stock);
-  });
+  const hasInvalidCounts = rowsToSave.some((row) => !Number.isFinite(getCount(row.product_id).ist_total_stock));
   if (hasInvalidCounts) {
     showToast("⚠️ Bitte alle geänderten Ist-Felder mit gültigen Zahlen ausfüllen");
     return;
@@ -141,8 +133,7 @@ async function applyInventoryCount() {
   try {
     const payload = rowsToSave.map((row) => ({
       product_id: row.product_id,
-      ist_warehouse_stock: getCount(row.product_id).ist_warehouse_stock,
-      ist_fridge_stock: getCount(row.product_id).ist_fridge_stock,
+      ...getInventoryTargets(row),
     }));
 
     await adminRpc("apply_inventory_count", {
@@ -256,45 +247,22 @@ async function exportPdf() {
               {{ p.active ? "Aktiv" : "Inaktiv" }}
             </span>
           </div>
-          <div class="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <div class="text-xs uppercase text-gray-500">Soll Lager</div>
-              <div>{{ p.soll_warehouse_stock }}</div>
-            </div>
-            <div>
-              <div class="text-xs uppercase text-gray-500">Ist Lager</div>
-              <input
-                v-model.number="counts[p.product_id].ist_warehouse_stock"
-                type="number"
-                min="0"
-                class="w-full text-right border rounded-md px-2 py-1 text-sm"
-              />
-            </div>
-            <div>
-              <div class="text-xs uppercase text-gray-500">Soll Kühlschrank</div>
-              <div>{{ p.soll_fridge_stock }}</div>
-            </div>
-            <div>
-              <div class="text-xs uppercase text-gray-500">Ist Kühlschrank</div>
-              <input
-                v-model.number="counts[p.product_id].ist_fridge_stock"
-                type="number"
-                min="0"
-                class="w-full text-right border rounded-md px-2 py-1 text-sm"
-              />
-            </div>
-          </div>
           <div class="grid grid-cols-3 gap-3 text-sm">
             <div>
-              <div class="text-xs uppercase text-gray-500">Abw. Lager</div>
-              <div :class="deltaClass(getDeltaWarehouse(p))">{{ getDeltaWarehouse(p) }}</div>
+              <div class="text-xs uppercase text-gray-500">Soll Bestand</div>
+              <div>{{ p.soll_total_stock }}</div>
             </div>
             <div>
-              <div class="text-xs uppercase text-gray-500">Abw. Kühlschrank</div>
-              <div :class="deltaClass(getDeltaFridge(p))">{{ getDeltaFridge(p) }}</div>
+              <div class="text-xs uppercase text-gray-500">Ist Bestand</div>
+              <input
+                v-model.number="counts[p.product_id].ist_total_stock"
+                type="number"
+                min="0"
+                class="w-full text-right border rounded-md px-2 py-1 text-sm"
+              />
             </div>
             <div>
-              <div class="text-xs uppercase text-gray-500">Abw. gesamt</div>
+              <div class="text-xs uppercase text-gray-500">Abweichung</div>
               <div :class="deltaClass(getDeltaTotal(p))">{{ getDeltaTotal(p) }}</div>
             </div>
           </div>
@@ -307,97 +275,65 @@ async function exportPdf() {
         </div>
       </div>
 
-      <div
-        class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200"
-      >
-      <table class="min-w-full text-sm text-gray-700">
-        <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
-          <tr>
-            <th class="px-4 py-3 text-left">Kategorie</th>
-            <th class="px-4 py-3 text-left">Produkt</th>
-            <th class="px-4 py-3 text-center">Status</th>
-            <th class="px-4 py-3 text-right">Soll Lager</th>
-            <th class="px-4 py-3 text-right">Ist Lager</th>
-            <th class="px-4 py-3 text-right">Abw. Lager</th>
-            <th class="px-4 py-3 text-right">Soll Kühlschrank</th>
-            <th class="px-4 py-3 text-right">Ist Kühlschrank</th>
-            <th class="px-4 py-3 text-right">Abw. Kühlschrank</th>
-            <th class="px-4 py-3 text-right">Soll gesamt</th>
-            <th class="px-4 py-3 text-right">Abw. gesamt</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-if="filteredReport.length">
-            <tr
-              v-for="p in filteredReport"
-              :key="p.product_id"
-              class="border-t transition-colors"
-              :class="p.active ? 'hover:bg-primary/5' : 'bg-gray-50 text-gray-500'"
-            >
-              <td class="px-4 py-2">{{ p.category }}</td>
-              <td class="px-4 py-2">{{ p.name }}</td>
-              <td class="px-4 py-2 text-center">
-                <span
-                  class="px-2 py-1 rounded-full text-xs font-semibold"
-                  :class="p.active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'"
-                >
-                  {{ p.active ? "Aktiv" : "Inaktiv" }}
-                </span>
-              </td>
-              <td class="px-4 py-2 text-right">{{ p.soll_warehouse_stock }}</td>
-              <td class="px-4 py-2 text-right">
-                <input
-                  v-model.number="counts[p.product_id].ist_warehouse_stock"
-                  type="number"
-                  min="0"
-                  class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                />
-              </td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(getDeltaWarehouse(p))">
-                {{ getDeltaWarehouse(p) }}
-              </td>
-              <td class="px-4 py-2 text-right">{{ p.soll_fridge_stock }}</td>
-              <td class="px-4 py-2 text-right">
-                <input
-                  v-model.number="counts[p.product_id].ist_fridge_stock"
-                  type="number"
-                  min="0"
-                  class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                />
-              </td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(getDeltaFridge(p))">
-                {{ getDeltaFridge(p) }}
-              </td>
-              <td class="px-4 py-2 text-right">{{ p.soll_total_stock }}</td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(getDeltaTotal(p))">
-                {{ getDeltaTotal(p) }}
+      <div class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
+        <table class="min-w-full text-sm text-gray-700">
+          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
+            <tr>
+              <th class="px-4 py-3 text-left">Kategorie</th>
+              <th class="px-4 py-3 text-left">Produkt</th>
+              <th class="px-4 py-3 text-center">Status</th>
+              <th class="px-4 py-3 text-right">Soll Bestand</th>
+              <th class="px-4 py-3 text-right">Ist Bestand</th>
+              <th class="px-4 py-3 text-right">Abweichung</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-if="filteredReport.length">
+              <tr
+                v-for="p in filteredReport"
+                :key="p.product_id"
+                class="border-t transition-colors"
+                :class="p.active ? 'hover:bg-primary/5' : 'bg-gray-50 text-gray-500'"
+              >
+                <td class="px-4 py-2">{{ p.category }}</td>
+                <td class="px-4 py-2">{{ p.name }}</td>
+                <td class="px-4 py-2 text-center">
+                  <span
+                    class="px-2 py-1 rounded-full text-xs font-semibold"
+                    :class="p.active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'"
+                  >
+                    {{ p.active ? "Aktiv" : "Inaktiv" }}
+                  </span>
+                </td>
+                <td class="px-4 py-2 text-right">{{ p.soll_total_stock }}</td>
+                <td class="px-4 py-2 text-right">
+                  <input
+                    v-model.number="counts[p.product_id].ist_total_stock"
+                    type="number"
+                    min="0"
+                    class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                  />
+                </td>
+                <td class="px-4 py-2 text-right" :class="deltaClass(getDeltaTotal(p))">
+                  {{ getDeltaTotal(p) }}
+                </td>
+              </tr>
+            </template>
+            <tr v-else>
+              <td colspan="6" class="text-center py-6 text-gray-400 italic">
+                Keine inventarisierten Artikel vorhanden
               </td>
             </tr>
-          </template>
-          <tr v-else>
-            <td colspan="11" class="text-center py-6 text-gray-400 italic">
-              Keine inventarisierten Artikel vorhanden
-            </td>
-          </tr>
-        </tbody>
-        <tfoot v-if="filteredReport.length" class="bg-gray-50 border-t-2 border-gray-300">
-          <tr class="font-semibold">
-            <td class="px-4 py-3" colspan="5">Gesamt</td>
-            <td class="px-4 py-3 text-right" :class="deltaClass(inventoryTotals.deltaWarehouse)">
-              {{ inventoryTotals.deltaWarehouse }}
-            </td>
-            <td class="px-4 py-3 text-right">-</td>
-            <td class="px-4 py-3 text-right">-</td>
-            <td class="px-4 py-3 text-right" :class="deltaClass(inventoryTotals.deltaFridge)">
-              {{ inventoryTotals.deltaFridge }}
-            </td>
-            <td class="px-4 py-3 text-right">-</td>
-            <td class="px-4 py-3 text-right" :class="deltaClass(inventoryTotals.deltaTotal)">
-              {{ inventoryTotals.deltaTotal }}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+          </tbody>
+          <tfoot v-if="filteredReport.length" class="bg-gray-50 border-t-2 border-gray-300">
+            <tr class="font-semibold">
+              <td class="px-4 py-3" colspan="5">Gesamt</td>
+              <td class="px-4 py-3 text-right" :class="deltaClass(inventoryTotals.deltaTotal)">
+                {{ inventoryTotals.deltaTotal }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   </div>

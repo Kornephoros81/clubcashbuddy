@@ -531,10 +531,6 @@ const ADMIN_RPC_ACTIONS = {
     fn: "api_admin_get_inventory_adjustments_period",
     args: (token, p) => ({ p_token: token, p_start: p.start, p_end: p.end }),
   },
-  get_fridge_refills_period: {
-    fn: "api_admin_get_fridge_refills_period",
-    args: (token, p) => ({ p_token: token, p_start: p.start, p_end: p.end }),
-  },
   get_all_bookings_grouped: {
     fn: "api_admin_get_all_bookings_grouped",
     args: (token, p) => ({ p_token: token, p_start: p.start, p_end: p.end }),
@@ -1814,55 +1810,6 @@ async function handleRoute(route, req, res) {
     return json(res, 200, { success: true, cancelled: data ?? body.cancel_tx_id ?? null });
   }
 
-  if (route === "get-stock-info") {
-    if (req.method !== "GET") return json(res, 405, { error: "Method not allowed" });
-    const { data, error } = await supabase
-      .from("products")
-      .select("id, warehouse_stock, fridge_stock, last_restocked_at, inventoried")
-      .eq("inventoried", true);
-    if (error) return json(res, 500, { error: error.message || "Query failed" });
-    const rows = (data ?? []).map((p) => ({
-      product_id: p.id,
-      warehouse_stock: Number(p.warehouse_stock ?? 0),
-      fridge_stock: Number(p.fridge_stock ?? 0),
-      current_stock: Number(p.warehouse_stock ?? 0) + Number(p.fridge_stock ?? 0),
-      last_refill: p.last_restocked_at ?? null,
-    }));
-    return json(res, 200, rows);
-  }
-
-  if (route === "adjust-stock-batch") {
-    if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
-    const items = Array.isArray(body.items) ? body.items : [];
-    const memberId = body.member_id ?? null;
-    if (!memberId) return json(res, 400, { error: "member_id is required" });
-    if (!items.length) return json(res, 400, { error: "Empty items" });
-
-    const { data: member, error: memberError } = await supabase
-      .from("members")
-      .select("id, active, is_guest, firstname, lastname")
-      .eq("id", memberId)
-      .maybeSingle();
-    if (memberError) return json(res, 500, { error: memberError.message || "Member lookup failed" });
-    if (!member || !member.active || member.is_guest) return json(res, 400, { error: "Invalid refiller member" });
-
-    const memberName = `${member.firstname ?? ""} ${member.lastname ?? ""}`.trim() || null;
-    const inserts = items
-      .map((i) => ({
-        product_id: i.product_id,
-        quantity: Number(i.quantity),
-        device_id: v.deviceId,
-        member_id: member.id,
-        member_name_snapshot: memberName,
-      }))
-      .filter((r) => r.product_id && Number.isFinite(r.quantity) && r.quantity > 0);
-
-    if (!inserts.length) return json(res, 400, { error: "No valid items" });
-    const { error: insertError } = await supabase.from("stock_adjustments").insert(inserts);
-    if (insertError) return json(res, 500, { error: insertError.message || "Insert failed" });
-    return json(res, 200, { success: true, count: inserts.length });
-  }
-
   if (route === "device-add-guest") {
     if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
     const firstname = String(body.firstname ?? "").trim();
@@ -2024,4 +1971,3 @@ export default async function handler(req, res) {
     return json(res, 500, { error: "Internal Server Error" });
   }
 }
-
