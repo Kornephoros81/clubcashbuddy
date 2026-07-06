@@ -9,8 +9,6 @@ type InventorySnapshotRow = {
   name: string;
   category: string;
   active: boolean;
-  soll_warehouse_stock: number;
-  soll_fridge_stock: number;
   soll_total_stock: number;
 };
 
@@ -49,24 +47,6 @@ function deltaClass(delta: number): string {
   return "text-amber-700 font-semibold";
 }
 
-function getInventoryTargets(row: InventorySnapshotRow) {
-  const delta = getDeltaTotal(row);
-  const warehouse = Number(row.soll_warehouse_stock ?? 0);
-  const fridge = Number(row.soll_fridge_stock ?? 0);
-
-  if (delta >= 0) {
-    return { ist_warehouse_stock: warehouse + delta, ist_fridge_stock: fridge };
-  }
-
-  const shortage = Math.abs(delta);
-  const warehouseReduction = Math.min(warehouse, shortage);
-  const remainingShortage = shortage - warehouseReduction;
-  return {
-    ist_warehouse_stock: warehouse - warehouseReduction,
-    ist_fridge_stock: Math.max(0, fridge - remainingShortage),
-  };
-}
-
 const changedRows = computed(() =>
   filteredReport.value.filter((row) => getCount(row.product_id).ist_total_stock !== Number(row.soll_total_stock ?? 0)),
 );
@@ -102,8 +82,6 @@ async function loadSnapshot() {
       name: row.name,
       category: row.category,
       active: Boolean(row.active),
-      soll_warehouse_stock: Number(row.soll_warehouse_stock ?? 0),
-      soll_fridge_stock: Number(row.soll_fridge_stock ?? 0),
       soll_total_stock: Number(row.soll_total_stock ?? 0),
     }));
     resetCountsToSoll();
@@ -133,7 +111,7 @@ async function applyInventoryCount() {
   try {
     const payload = rowsToSave.map((row) => ({
       product_id: row.product_id,
-      ...getInventoryTargets(row),
+      ist_total_stock: getCount(row.product_id).ist_total_stock,
     }));
 
     await adminRpc("apply_inventory_count", {
