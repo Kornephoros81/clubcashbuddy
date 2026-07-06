@@ -30,7 +30,6 @@ const actionLinks = [
 
 const reportLinks = [
   { to: "/admin/stock-adjustments-report", label: "Fehlbestände & Anpassungen", icon: "📉" },
-  { to: "/admin/fridge-refills-report", label: "Kühlschrank-Auffüllungen", icon: "🧊" },
   { to: "/admin/cancellations-report", label: "Storno-Report", icon: "↩️" },
   { to: "/admin/revenue-report", label: "Umsatzreport", icon: "💶" },
   { to: "/admin/complimentary-report", label: "Freigetränke", icon: "🎟️" },

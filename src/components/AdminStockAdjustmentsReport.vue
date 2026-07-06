@@ -14,12 +14,7 @@ type AdjustmentRow = {
   product_name: string;
   product_category: string;
   active: boolean;
-  location: "warehouse" | "fridge" | "unknown";
   delta: number;
-  adjustment_kind: "fehlbestand" | "ueberbestand" | "neutral";
-  reason: string;
-  note: string | null;
-  source: string;
 };
 
 const { show: showToast } = useToast();
@@ -48,18 +43,6 @@ function formatDayKey(day: string) {
   return `${d}.${m}.${y}`;
 }
 
-function locationLabel(loc: string): string {
-  if (loc === "warehouse") return "Lager";
-  if (loc === "fridge") return "Kühlschrank";
-  return "Unbekannt";
-}
-
-function reasonLabel(reason: string): string {
-  if (reason === "count_adjustment") return "Inventurabgleich";
-  if (reason === "shrinkage") return "Schwund";
-  if (reason === "waste") return "Abfall";
-  return reason;
-}
 
 function deltaClass(value: number): string {
   if (value < 0) return "text-red-700 font-semibold";
@@ -76,8 +59,7 @@ const groupedByProduct = computed(() => {
       product_category: string;
       fehlbestand: number;
       ueberbestand: number;
-      fridge_delta: number;
-      warehouse_delta: number;
+      net_delta: number;
       adjustments_count: number;
       last_adjustment_at: string;
     }
@@ -93,8 +75,7 @@ const groupedByProduct = computed(() => {
         product_category: row.product_category,
         fehlbestand: row.delta < 0 ? Math.abs(row.delta) : 0,
         ueberbestand: row.delta > 0 ? row.delta : 0,
-        fridge_delta: row.location === "fridge" ? row.delta : 0,
-        warehouse_delta: row.location === "warehouse" ? row.delta : 0,
+        net_delta: row.delta,
         adjustments_count: 1,
         last_adjustment_at: row.created_at,
       });
@@ -102,8 +83,7 @@ const groupedByProduct = computed(() => {
     }
     if (row.delta < 0) existing.fehlbestand += Math.abs(row.delta);
     if (row.delta > 0) existing.ueberbestand += row.delta;
-    if (row.location === "fridge") existing.fridge_delta += row.delta;
-    if (row.location === "warehouse") existing.warehouse_delta += row.delta;
+    existing.net_delta += row.delta;
     existing.adjustments_count += 1;
     if (new Date(row.created_at).getTime() > new Date(existing.last_adjustment_at).getTime()) {
       existing.last_adjustment_at = row.created_at;
@@ -125,8 +105,7 @@ const groupedByDay = computed(() => {
       day: string;
       fehlbestand: number;
       ueberbestand: number;
-      fridge_delta: number;
-      warehouse_delta: number;
+      net_delta: number;
       adjustments_count: number;
       products_count: number;
     }
@@ -144,8 +123,7 @@ const groupedByDay = computed(() => {
         day,
         fehlbestand: row.delta < 0 ? Math.abs(row.delta) : 0,
         ueberbestand: row.delta > 0 ? row.delta : 0,
-        fridge_delta: row.location === "fridge" ? row.delta : 0,
-        warehouse_delta: row.location === "warehouse" ? row.delta : 0,
+        net_delta: row.delta,
         adjustments_count: 1,
         products_count: 0,
       });
@@ -153,8 +131,7 @@ const groupedByDay = computed(() => {
     }
     if (row.delta < 0) existing.fehlbestand += Math.abs(row.delta);
     if (row.delta > 0) existing.ueberbestand += row.delta;
-    if (row.location === "fridge") existing.fridge_delta += row.delta;
-    if (row.location === "warehouse") existing.warehouse_delta += row.delta;
+    existing.net_delta += row.delta;
     existing.adjustments_count += 1;
   }
 
@@ -172,16 +149,14 @@ const totalsByProduct = computed(() => {
       acc.adjustments_count += row.adjustments_count;
       acc.fehlbestand += row.fehlbestand;
       acc.ueberbestand += row.ueberbestand;
-      acc.fridge_delta += row.fridge_delta;
-      acc.warehouse_delta += row.warehouse_delta;
+      acc.net_delta += row.net_delta;
       return acc;
     },
     {
       adjustments_count: 0,
       fehlbestand: 0,
       ueberbestand: 0,
-      fridge_delta: 0,
-      warehouse_delta: 0,
+      net_delta: 0,
     },
   );
 });
@@ -193,8 +168,7 @@ const totalsByDay = computed(() => {
       acc.products_count += row.products_count;
       acc.fehlbestand += row.fehlbestand;
       acc.ueberbestand += row.ueberbestand;
-      acc.fridge_delta += row.fridge_delta;
-      acc.warehouse_delta += row.warehouse_delta;
+      acc.net_delta += row.net_delta;
       return acc;
     },
     {
@@ -202,8 +176,7 @@ const totalsByDay = computed(() => {
       products_count: 0,
       fehlbestand: 0,
       ueberbestand: 0,
-      fridge_delta: 0,
-      warehouse_delta: 0,
+      net_delta: 0,
     },
   );
 });
@@ -211,7 +184,7 @@ const totalsByDay = computed(() => {
 const drilldownProductToDays = computed(() => {
   const root = new Map<
     string,
-    Map<string, { day: string; fehlbestand: number; ueberbestand: number; adjustments_count: number }>
+    Map<string, { day: string; fehlbestand: number; ueberbestand: number; net_delta: number; adjustments_count: number }>
   >();
 
   for (const row of rows.value) {
@@ -223,16 +196,18 @@ const drilldownProductToDays = computed(() => {
         day: row.local_day,
         fehlbestand: row.delta < 0 ? Math.abs(row.delta) : 0,
         ueberbestand: row.delta > 0 ? row.delta : 0,
+        net_delta: row.delta,
         adjustments_count: 1,
       });
       continue;
     }
     if (row.delta < 0) existing.fehlbestand += Math.abs(row.delta);
     if (row.delta > 0) existing.ueberbestand += row.delta;
+    existing.net_delta += row.delta;
     existing.adjustments_count += 1;
   }
 
-  const result: Record<string, { day: string; fehlbestand: number; ueberbestand: number; adjustments_count: number }[]> = {};
+  const result: Record<string, { day: string; fehlbestand: number; ueberbestand: number; net_delta: number; adjustments_count: number }[]> = {};
   for (const [productId, dayMap] of root.entries()) {
     result[productId] = [...dayMap.values()].sort((a, b) => b.day.localeCompare(a.day));
   }
@@ -242,7 +217,7 @@ const drilldownProductToDays = computed(() => {
 const drilldownDayToProducts = computed(() => {
   const root = new Map<
     string,
-    Map<string, { product_id: string; product_name: string; fehlbestand: number; ueberbestand: number; adjustments_count: number }>
+    Map<string, { product_id: string; product_name: string; fehlbestand: number; ueberbestand: number; net_delta: number; adjustments_count: number }>
   >();
 
   for (const row of rows.value) {
@@ -255,18 +230,20 @@ const drilldownDayToProducts = computed(() => {
         product_name: row.product_name,
         fehlbestand: row.delta < 0 ? Math.abs(row.delta) : 0,
         ueberbestand: row.delta > 0 ? row.delta : 0,
+        net_delta: row.delta,
         adjustments_count: 1,
       });
       continue;
     }
     if (row.delta < 0) existing.fehlbestand += Math.abs(row.delta);
     if (row.delta > 0) existing.ueberbestand += row.delta;
+    existing.net_delta += row.delta;
     existing.adjustments_count += 1;
   }
 
   const result: Record<
     string,
-    { product_id: string; product_name: string; fehlbestand: number; ueberbestand: number; adjustments_count: number }[]
+    { product_id: string; product_name: string; fehlbestand: number; ueberbestand: number; net_delta: number; adjustments_count: number }[]
   > = {};
   for (const [day, productMap] of root.entries()) {
     result[day] = [...productMap.values()].sort((a, b) => {
@@ -282,7 +259,6 @@ const drilldownDayToProducts = computed(() => {
 function onQuickDateSelect(start: Date, end: Date) {
   startDate.value = start;
   endDate.value = end;
-  // Kein expliziter loadReport-Aufruf: der watch([startDate, endDate]) lädt bereits.
 }
 
 async function loadReport() {
@@ -312,12 +288,7 @@ async function loadReport() {
       product_name: row.product_name,
       product_category: row.product_category,
       active: Boolean(row.active),
-      location: row.location,
       delta: Number(row.delta ?? 0),
-      adjustment_kind: row.adjustment_kind,
-      reason: row.reason,
-      note: row.note ?? null,
-      source: row.source ?? "unknown",
     }));
     showToast("✅ Bericht erfolgreich geladen");
   } catch (err) {
@@ -448,18 +419,8 @@ async function exportPdf() {
               <div class="text-amber-700 font-semibold">{{ row.ueberbestand }}</div>
             </div>
             <div>
-              <div class="text-xs uppercase text-gray-500">Abw. Kühlschrank</div>
-              <div :class="deltaClass(row.fridge_delta)">{{ row.fridge_delta }}</div>
-            </div>
-            <div>
-              <div class="text-xs uppercase text-gray-500">Abw. Lager</div>
-              <div :class="deltaClass(row.warehouse_delta)">{{ row.warehouse_delta }}</div>
-            </div>
-            <div>
               <div class="text-xs uppercase text-gray-500">Netto</div>
-              <div :class="deltaClass(row.fridge_delta + row.warehouse_delta)">
-                {{ row.fridge_delta + row.warehouse_delta }}
-              </div>
+              <div :class="deltaClass(row.net_delta)">{{ row.net_delta }}</div>
             </div>
             <div>
               <div class="text-xs uppercase text-gray-500">Letzte Anpassung</div>
@@ -478,7 +439,7 @@ async function exportPdf() {
               >
                 <span>{{ formatDayKey(dayRow.day) }}</span>
                 <span class="text-right">
-                  F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} ({{ dayRow.adjustments_count }}x)
+                  F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} | Netto: {{ dayRow.net_delta }}
                 </span>
               </div>
             </div>
@@ -522,18 +483,8 @@ async function exportPdf() {
               <div class="text-amber-700 font-semibold">{{ row.ueberbestand }}</div>
             </div>
             <div>
-              <div class="text-xs uppercase text-gray-500">Abw. Kühlschrank</div>
-              <div :class="deltaClass(row.fridge_delta)">{{ row.fridge_delta }}</div>
-            </div>
-            <div>
-              <div class="text-xs uppercase text-gray-500">Abw. Lager</div>
-              <div :class="deltaClass(row.warehouse_delta)">{{ row.warehouse_delta }}</div>
-            </div>
-            <div>
               <div class="text-xs uppercase text-gray-500">Netto</div>
-              <div :class="deltaClass(row.fridge_delta + row.warehouse_delta)">
-                {{ row.fridge_delta + row.warehouse_delta }}
-              </div>
+              <div :class="deltaClass(row.net_delta)">{{ row.net_delta }}</div>
             </div>
           </div>
           <details class="rounded-xl bg-gray-50 p-3">
@@ -548,7 +499,7 @@ async function exportPdf() {
               >
                 <span>{{ productRow.product_name }}</span>
                 <span class="text-right">
-                  F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} ({{ productRow.adjustments_count }}x)
+                  F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} | Netto: {{ productRow.net_delta }}
                 </span>
               </div>
             </div>
@@ -563,254 +514,141 @@ async function exportPdf() {
       </div>
 
       <div class="hidden lg:block bg-white rounded-2xl shadow overflow-x-auto border border-gray-200">
-      <table v-if="groupBy === 'product'" class="min-w-full text-sm text-gray-700">
-        <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
-          <tr>
-            <th class="px-4 py-3 text-left">Kategorie</th>
-            <th class="px-4 py-3 text-left">Produkt</th>
-            <th class="px-4 py-3 text-right">Anpassungen</th>
-            <th class="px-4 py-3 text-right">Fehlbestand</th>
-            <th class="px-4 py-3 text-right">Überbestand</th>
-            <th class="px-4 py-3 text-right">Abw. Kühlschrank</th>
-            <th class="px-4 py-3 text-right">Abw. Lager</th>
-            <th class="px-4 py-3 text-right">Netto-Abweichung</th>
-            <th class="px-4 py-3 text-left">Letzte Anpassung</th>
-            <th class="px-4 py-3 text-left">Drilldown (Tage)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-if="groupedByProduct.length">
-            <tr
-              v-for="row in groupedByProduct"
-              :key="row.product_id"
-              class="border-t hover:bg-primary/5 transition-colors"
-            >
-              <td class="px-4 py-2">{{ row.product_category }}</td>
-              <td class="px-4 py-2">{{ row.product_name }}</td>
-              <td class="px-4 py-2 text-right">{{ row.adjustments_count }}</td>
-              <td class="px-4 py-2 text-right text-red-700 font-semibold">{{ row.fehlbestand }}</td>
-              <td class="px-4 py-2 text-right text-amber-700 font-semibold">{{ row.ueberbestand }}</td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(row.fridge_delta)">{{ row.fridge_delta }}</td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(row.warehouse_delta)">{{ row.warehouse_delta }}</td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(row.fridge_delta + row.warehouse_delta)">
-                {{ row.fridge_delta + row.warehouse_delta }}
-              </td>
-              <td class="px-4 py-2">{{ new Date(row.last_adjustment_at).toLocaleString("de-DE") }}</td>
-              <td class="px-4 py-2">
-                <details>
-                  <summary class="cursor-pointer text-primary">
-                    Tage ({{ drilldownProductToDays[row.product_id]?.length ?? 0 }})
-                  </summary>
-                  <div class="mt-2 space-y-1 text-xs text-gray-600">
-                    <div
-                      v-for="dayRow in drilldownProductToDays[row.product_id] ?? []"
-                      :key="`${row.product_id}-${dayRow.day}`"
-                      class="flex justify-between gap-4"
-                    >
-                      <span>{{ formatDayKey(dayRow.day) }}</span>
-                      <span>
-                        F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} ({{ dayRow.adjustments_count }}x)
-                      </span>
-                    </div>
-                  </div>
-                </details>
-              </td>
+        <table v-if="groupBy === 'product'" class="min-w-full text-sm text-gray-700">
+          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
+            <tr>
+              <th class="px-4 py-3 text-left">Kategorie</th>
+              <th class="px-4 py-3 text-left">Produkt</th>
+              <th class="px-4 py-3 text-right">Anpassungen</th>
+              <th class="px-4 py-3 text-right">Fehlbestand</th>
+              <th class="px-4 py-3 text-right">Überbestand</th>
+              <th class="px-4 py-3 text-right">Netto-Abweichung</th>
+              <th class="px-4 py-3 text-left">Letzte Anpassung</th>
+              <th class="px-4 py-3 text-left">Drilldown (Tage)</th>
             </tr>
-          </template>
-          <tr v-else>
-            <td colspan="10" class="text-center py-6 text-gray-400 italic">
-              Keine Anpassungen im gewählten Zeitraum
-            </td>
-          </tr>
-        </tbody>
-        <tfoot v-if="groupedByProduct.length" class="bg-gray-50 border-t-2 border-gray-300">
-          <tr class="font-semibold">
-            <td class="px-4 py-3" colspan="2">Gesamt</td>
-            <td class="px-4 py-3 text-right">{{ totalsByProduct.adjustments_count }}</td>
-            <td class="px-4 py-3 text-right text-red-700">{{ totalsByProduct.fehlbestand }}</td>
-            <td class="px-4 py-3 text-right text-amber-700">{{ totalsByProduct.ueberbestand }}</td>
-            <td class="px-4 py-3 text-right" :class="deltaClass(totalsByProduct.fridge_delta)">
-              {{ totalsByProduct.fridge_delta }}
-            </td>
-            <td class="px-4 py-3 text-right" :class="deltaClass(totalsByProduct.warehouse_delta)">
-              {{ totalsByProduct.warehouse_delta }}
-            </td>
-            <td
-              class="px-4 py-3 text-right"
-              :class="deltaClass(totalsByProduct.fridge_delta + totalsByProduct.warehouse_delta)"
-            >
-              {{ totalsByProduct.fridge_delta + totalsByProduct.warehouse_delta }}
-            </td>
-            <td class="px-4 py-3 text-left">-</td>
-            <td class="px-4 py-3 text-left">-</td>
-          </tr>
-        </tfoot>
-      </table>
-
-      <table v-else class="min-w-full text-sm text-gray-700">
-        <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
-          <tr>
-            <th class="px-4 py-3 text-left">Tag</th>
-            <th class="px-4 py-3 text-right">Anpassungen</th>
-            <th class="px-4 py-3 text-right">Produkte</th>
-            <th class="px-4 py-3 text-right">Fehlbestand</th>
-            <th class="px-4 py-3 text-right">Überbestand</th>
-            <th class="px-4 py-3 text-right">Abw. Kühlschrank</th>
-            <th class="px-4 py-3 text-right">Abw. Lager</th>
-            <th class="px-4 py-3 text-right">Netto-Abweichung</th>
-            <th class="px-4 py-3 text-left">Drilldown (Produkte)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-if="groupedByDay.length">
-            <tr
-              v-for="row in groupedByDay"
-              :key="row.day"
-              class="border-t hover:bg-primary/5 transition-colors"
-            >
-              <td class="px-4 py-2">{{ formatDayKey(row.day) }}</td>
-              <td class="px-4 py-2 text-right">{{ row.adjustments_count }}</td>
-              <td class="px-4 py-2 text-right">{{ row.products_count }}</td>
-              <td class="px-4 py-2 text-right text-red-700 font-semibold">{{ row.fehlbestand }}</td>
-              <td class="px-4 py-2 text-right text-amber-700 font-semibold">{{ row.ueberbestand }}</td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(row.fridge_delta)">{{ row.fridge_delta }}</td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(row.warehouse_delta)">{{ row.warehouse_delta }}</td>
-              <td class="px-4 py-2 text-right" :class="deltaClass(row.fridge_delta + row.warehouse_delta)">
-                {{ row.fridge_delta + row.warehouse_delta }}
-              </td>
-              <td class="px-4 py-2">
-                <details>
-                  <summary class="cursor-pointer text-primary">
-                    Produkte ({{ drilldownDayToProducts[row.day]?.length ?? 0 }})
-                  </summary>
-                  <div class="mt-2 space-y-1 text-xs text-gray-600">
-                    <div
-                      v-for="productRow in drilldownDayToProducts[row.day] ?? []"
-                      :key="`${row.day}-${productRow.product_id}`"
-                      class="flex justify-between gap-4"
-                    >
-                      <span>{{ productRow.product_name }}</span>
-                      <span>
-                        F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} ({{ productRow.adjustments_count }}x)
-                      </span>
-                    </div>
-                  </div>
-                </details>
-              </td>
-            </tr>
-          </template>
-          <tr v-else>
-            <td colspan="9" class="text-center py-6 text-gray-400 italic">
-              Keine Anpassungen im gewählten Zeitraum
-            </td>
-          </tr>
-        </tbody>
-        <tfoot v-if="groupedByDay.length" class="bg-gray-50 border-t-2 border-gray-300">
-          <tr class="font-semibold">
-            <td class="px-4 py-3">Gesamt</td>
-            <td class="px-4 py-3 text-right">{{ totalsByDay.adjustments_count }}</td>
-            <td class="px-4 py-3 text-right">{{ totalsByDay.products_count }}</td>
-            <td class="px-4 py-3 text-right text-red-700">{{ totalsByDay.fehlbestand }}</td>
-            <td class="px-4 py-3 text-right text-amber-700">{{ totalsByDay.ueberbestand }}</td>
-            <td class="px-4 py-3 text-right" :class="deltaClass(totalsByDay.fridge_delta)">
-              {{ totalsByDay.fridge_delta }}
-            </td>
-            <td class="px-4 py-3 text-right" :class="deltaClass(totalsByDay.warehouse_delta)">
-              {{ totalsByDay.warehouse_delta }}
-            </td>
-            <td
-              class="px-4 py-3 text-right"
-              :class="deltaClass(totalsByDay.fridge_delta + totalsByDay.warehouse_delta)"
-            >
-              {{ totalsByDay.fridge_delta + totalsByDay.warehouse_delta }}
-            </td>
-            <td class="px-4 py-3 text-left">-</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-
-      <div class="lg:hidden space-y-3">
-        <div
-          v-for="row in rows"
-          :key="`${row.created_at}-${row.product_id}-${row.location}-${row.delta}`"
-          class="bg-white rounded-2xl shadow border border-gray-200 p-4 space-y-3"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <div class="text-sm text-gray-500">{{ new Date(row.created_at).toLocaleString("de-DE") }}</div>
-              <div class="text-base font-semibold text-gray-900">{{ row.product_name }}</div>
-            </div>
-            <div class="text-right">
-              <div class="text-xs uppercase text-gray-500">Delta</div>
-              <div
-                class="text-sm font-semibold"
-                :class="row.delta < 0 ? 'text-red-700' : row.delta > 0 ? 'text-amber-700' : 'text-green-700'"
+          </thead>
+          <tbody>
+            <template v-if="groupedByProduct.length">
+              <tr
+                v-for="row in groupedByProduct"
+                :key="row.product_id"
+                class="border-t hover:bg-primary/5 transition-colors"
               >
-                {{ row.delta }}
-              </div>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <div class="text-xs uppercase text-gray-500">Ort</div>
-              <div>{{ locationLabel(row.location) }}</div>
-            </div>
-            <div>
-              <div class="text-xs uppercase text-gray-500">Typ</div>
-              <div>{{ row.adjustment_kind }}</div>
-            </div>
-            <div>
-              <div class="text-xs uppercase text-gray-500">Grund</div>
-              <div>{{ reasonLabel(row.reason) }}</div>
-            </div>
-            <div>
-              <div class="text-xs uppercase text-gray-500">Notiz</div>
-              <div>{{ row.note || "-" }}</div>
-            </div>
-          </div>
-        </div>
-        <div
-          v-if="rows.length === 0"
-          class="bg-white rounded-2xl shadow border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500"
-        >
-          Keine Detaildaten im gewählten Zeitraum
-        </div>
-      </div>
+                <td class="px-4 py-2">{{ row.product_category }}</td>
+                <td class="px-4 py-2">{{ row.product_name }}</td>
+                <td class="px-4 py-2 text-right">{{ row.adjustments_count }}</td>
+                <td class="px-4 py-2 text-right text-red-700 font-semibold">{{ row.fehlbestand }}</td>
+                <td class="px-4 py-2 text-right text-amber-700 font-semibold">{{ row.ueberbestand }}</td>
+                <td class="px-4 py-2 text-right" :class="deltaClass(row.net_delta)">
+                  {{ row.net_delta }}
+                </td>
+                <td class="px-4 py-2">{{ new Date(row.last_adjustment_at).toLocaleString("de-DE") }}</td>
+                <td class="px-4 py-2">
+                  <details>
+                    <summary class="cursor-pointer text-primary">
+                      Tage ({{ drilldownProductToDays[row.product_id]?.length ?? 0 }})
+                    </summary>
+                    <div class="mt-2 space-y-1 text-xs text-gray-600">
+                      <div
+                        v-for="dayRow in drilldownProductToDays[row.product_id] ?? []"
+                        :key="`${row.product_id}-${dayRow.day}`"
+                        class="flex justify-between gap-4"
+                      >
+                        <span>{{ formatDayKey(dayRow.day) }}</span>
+                        <span>F: {{ dayRow.fehlbestand }} | Ü: {{ dayRow.ueberbestand }} | Netto: {{ dayRow.net_delta }}</span>
+                      </div>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            </template>
+            <tr v-else>
+              <td colspan="8" class="text-center py-6 text-gray-400 italic">
+                Keine Anpassungen im gewählten Zeitraum
+              </td>
+            </tr>
+          </tbody>
+          <tfoot v-if="groupedByProduct.length" class="bg-gray-50 border-t-2 border-gray-300 font-semibold">
+            <tr>
+              <td class="px-4 py-3" colspan="2">Gesamt</td>
+              <td class="px-4 py-3 text-right">{{ totalsByProduct.adjustments_count }}</td>
+              <td class="px-4 py-3 text-right text-red-700">{{ totalsByProduct.fehlbestand }}</td>
+              <td class="px-4 py-3 text-right text-amber-700">{{ totalsByProduct.ueberbestand }}</td>
+              <td class="px-4 py-3 text-right" :class="deltaClass(totalsByProduct.net_delta)">{{ totalsByProduct.net_delta }}</td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
 
-      <div class="hidden lg:block bg-white rounded-2xl shadow border border-gray-200 overflow-x-auto">
-      <table class="min-w-full text-sm text-gray-700">
-        <thead class="bg-gray-100 text-gray-700 uppercase text-xs font-semibold">
-          <tr>
-            <th class="px-4 py-3 text-left">Zeitpunkt</th>
-            <th class="px-4 py-3 text-left">Produkt</th>
-            <th class="px-4 py-3 text-left">Ort</th>
-            <th class="px-4 py-3 text-right">Delta</th>
-            <th class="px-4 py-3 text-left">Typ</th>
-            <th class="px-4 py-3 text-left">Grund</th>
-            <th class="px-4 py-3 text-left">Notiz</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in rows" :key="`${row.created_at}-${row.product_id}-${row.location}-${row.delta}`" class="border-t">
-            <td class="px-4 py-2">{{ new Date(row.created_at).toLocaleString("de-DE") }}</td>
-            <td class="px-4 py-2">{{ row.product_name }}</td>
-            <td class="px-4 py-2">{{ locationLabel(row.location) }}</td>
-            <td class="px-4 py-2 text-right" :class="row.delta < 0 ? 'text-red-700 font-semibold' : row.delta > 0 ? 'text-amber-700 font-semibold' : 'text-green-700'">
-              {{ row.delta }}
-            </td>
-            <td class="px-4 py-2">{{ row.adjustment_kind }}</td>
-            <td class="px-4 py-2">{{ reasonLabel(row.reason) }}</td>
-            <td class="px-4 py-2">{{ row.note || "-" }}</td>
-          </tr>
-          <tr v-if="rows.length === 0">
-            <td colspan="7" class="text-center py-6 text-gray-400 italic">
-              Keine Detaildaten im gewählten Zeitraum
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <table v-else class="min-w-full text-sm text-gray-700">
+          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold">
+            <tr>
+              <th class="px-4 py-3 text-left">Tag</th>
+              <th class="px-4 py-3 text-right">Produkte</th>
+              <th class="px-4 py-3 text-right">Anpassungen</th>
+              <th class="px-4 py-3 text-right">Fehlbestand</th>
+              <th class="px-4 py-3 text-right">Überbestand</th>
+              <th class="px-4 py-3 text-right">Netto-Abweichung</th>
+              <th class="px-4 py-3 text-left">Drilldown (Produkte)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-if="groupedByDay.length">
+              <tr
+                v-for="row in groupedByDay"
+                :key="row.day"
+                class="border-t hover:bg-primary/5 transition-colors"
+              >
+                <td class="px-4 py-2 font-medium">{{ formatDayKey(row.day) }}</td>
+                <td class="px-4 py-2 text-right">{{ row.products_count }}</td>
+                <td class="px-4 py-2 text-right">{{ row.adjustments_count }}</td>
+                <td class="px-4 py-2 text-right text-red-700 font-semibold">{{ row.fehlbestand }}</td>
+                <td class="px-4 py-2 text-right text-amber-700 font-semibold">{{ row.ueberbestand }}</td>
+                <td class="px-4 py-2 text-right" :class="deltaClass(row.net_delta)">{{ row.net_delta }}</td>
+                <td class="px-4 py-2">
+                  <details>
+                    <summary class="cursor-pointer text-primary">
+                      Produkte ({{ drilldownDayToProducts[row.day]?.length ?? 0 }})
+                    </summary>
+                    <div class="mt-2 space-y-1 text-xs text-gray-600">
+                      <div
+                        v-for="productRow in drilldownDayToProducts[row.day] ?? []"
+                        :key="`${row.day}-${productRow.product_id}`"
+                        class="flex justify-between gap-4"
+                      >
+                        <span>{{ productRow.product_name }}</span>
+                        <span>F: {{ productRow.fehlbestand }} | Ü: {{ productRow.ueberbestand }} | Netto: {{ productRow.net_delta }}</span>
+                      </div>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            </template>
+            <tr v-else>
+              <td colspan="7" class="text-center py-6 text-gray-400 italic">
+                Keine Anpassungen im gewählten Zeitraum
+              </td>
+            </tr>
+          </tbody>
+          <tfoot v-if="groupedByDay.length" class="bg-gray-50 border-t-2 border-gray-300 font-semibold">
+            <tr>
+              <td class="px-4 py-3">Gesamt</td>
+              <td class="px-4 py-3 text-right">{{ totalsByDay.products_count }}</td>
+              <td class="px-4 py-3 text-right">{{ totalsByDay.adjustments_count }}</td>
+              <td class="px-4 py-3 text-right text-red-700">{{ totalsByDay.fehlbestand }}</td>
+              <td class="px-4 py-3 text-right text-amber-700">{{ totalsByDay.ueberbestand }}</td>
+              <td class="px-4 py-3 text-right" :class="deltaClass(totalsByDay.net_delta)">{{ totalsByDay.net_delta }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+table {
+  border-collapse: collapse;
+}
+</style>

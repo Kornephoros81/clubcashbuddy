@@ -7,13 +7,11 @@ const Login = () => import("@/components/AdminLogin.vue");
 const AdminProducts = () => import("@/components/AdminProducts.vue");
 const AdminProductCategories = () => import("@/components/AdminProductCategories.vue");
 const AdminMembers = () => import("@/components/AdminMembers.vue");
-const StockRefillView = () => import("@/components/Terminal/StockRefillView.vue");
 const AdminInventoryReport = () => import("@/components/AdminInventoryReport.vue");
 const AdminBookingsReport = () => import("@/components/AdminBookingsReport.vue");
 const AdminSettlementView = () => import("@/components/AdminSettlementView.vue");
 const AdminStorageView = () => import("@/components/AdminStorageView.vue");
 const AdminStockAdjustmentsReport = () => import("@/components/AdminStockAdjustmentsReport.vue");
-const AdminFridgeRefillsReport = () => import("@/components/AdminFridgeRefillsReport.vue");
 const AdminCancellationsReport = () => import("@/components/AdminCancellationsReport.vue");
 const AdminRevenueReport = () => import("@/components/AdminRevenueReportOptimized.vue");
 const AdminComplimentaryReport = () => import("@/components/AdminComplimentaryReport.vue");
@@ -29,7 +27,6 @@ const AdminPerformanceMetrics = () => import("@/components/AdminPerformanceMetri
 const routes = [
   { path: "/", component: Terminal },
   { path: "/terminal", component: Terminal },
-  { path: "/stock-refill", component: StockRefillView },
   {
     path: "/admin",
     component: AdminPortal,
@@ -43,7 +40,6 @@ const routes = [
       { path: "inventory-report", component: AdminInventoryReport },
       { path: "bookings-report", component: AdminBookingsReport },
       { path: "stock-adjustments-report", component: AdminStockAdjustmentsReport },
-      { path: "fridge-refills-report", component: AdminFridgeRefillsReport },
       { path: "cancellations-report", component: AdminCancellationsReport },
       { path: "revenue-report", component: AdminRevenueReport },
       { path: "complimentary-report", component: AdminComplimentaryReport },

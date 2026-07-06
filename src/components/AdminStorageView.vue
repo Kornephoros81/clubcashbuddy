@@ -163,9 +163,7 @@ function lotSortIndicator(key: LotSortKey) {
           <tr>
             <th class="px-4 py-3 text-left">Produkt</th>
             <th class="px-4 py-3 text-right">Letzter EK</th>
-            <th class="px-4 py-3 text-right">Lager</th>
-            <th class="px-4 py-3 text-right">Kühlschrank</th>
-            <th class="px-4 py-3 text-right">Gesamt</th>
+            <th class="px-4 py-3 text-right">Bestand</th>
             <th class="px-4 py-3 text-right">Einlagerung</th>
             <th class="px-4 py-3 text-right">EK neu</th>
             <th class="px-4 py-3 text-right">Bestandswert</th>
@@ -184,9 +182,6 @@ function lotSortIndicator(key: LotSortKey) {
             <td class="px-4 py-2 text-right">
               {{ Number(p.lastPurchasePriceEuro ?? 0).toFixed(2) }} €
             </td>
-
-            <td class="px-4 py-2 text-right">{{ p.warehouse_stock ?? 0 }}</td>
-            <td class="px-4 py-2 text-right">{{ p.fridge_stock ?? 0 }}</td>
             <td class="px-4 py-2 text-right">
               {{ p.total_stock ?? ((p.warehouse_stock ?? 0) + (p.fridge_stock ?? 0)) }}
             </td>
