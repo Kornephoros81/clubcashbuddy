@@ -34,6 +34,12 @@ defineEmits(["undo"]);
             >
           </div>
           <div
+            v-if="b.note && b.product_name && b.note !== b.product_name"
+            class="mt-1 text-[0.72rem] xl:text-[0.66rem] font-semibold text-amber-700"
+          >
+            {{ b.note }}
+          </div>
+          <div
             v-if="b.syncStatus === 'pending'"
             class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[0.68rem] xl:text-[0.62rem] text-amber-700 font-semibold"
             title="Noch nicht synchronisiert"

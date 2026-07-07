@@ -1260,7 +1260,7 @@ async function handleRoute(route, req, res) {
     setCacheHeaders(res, "public, s-maxage=300, stale-while-revalidate=3600");
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")
+      .select("id,name,price,guest_price,category,active,inventoried,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
       .eq("active", true)
       .order("name", { ascending: true });
     if (error) return json(res, 500, { error: error.message || "Query failed" });
@@ -1273,6 +1273,7 @@ async function handleRoute(route, req, res) {
       category: p.category,
       active: p.active,
       inventoried: p.inventoried,
+      last_purchase_price_cents: p.last_purchase_price_cents,
       image_url: buildProductImageUrl(supabase, p),
     }));
     return json(res, 200, rows);
@@ -1635,7 +1636,7 @@ async function handleRoute(route, req, res) {
     if (includeProducts) {
       const { data: productRows, error: productError } = await supabase
         .from("products")
-        .select("id,name,price,guest_price,category,active,inventoried,product_image_data_url,product_image_path,product_image_version")
+        .select("id,name,price,guest_price,category,active,inventoried,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
         .eq("active", true)
         .order("name", { ascending: true });
       if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
@@ -1648,6 +1649,7 @@ async function handleRoute(route, req, res) {
         category: p.category,
         active: p.active,
         inventoried: p.inventoried,
+        last_purchase_price_cents: p.last_purchase_price_cents,
         image_url: buildProductImageUrl(supabase, p),
       }));
     }
