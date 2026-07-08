@@ -684,7 +684,7 @@ async function deleteProduct(p: any) {
                   v-model="selectedProduct.mhdSaleEnabled"
                   class="scale-125 accent-primary"
                 />
-                Im MHD-Modal anbieten
+                MHD Verkauf
               </label>
             </div>
           </section>
@@ -818,7 +818,7 @@ async function deleteProduct(p: any) {
             v-model="newProductMhdSaleEnabled"
             class="scale-125 accent-primary"
           />
-          <span>Im MHD-Modal anbieten</span>
+          <span>MHD Verkauf</span>
         </label>
       </div>
     </BaseModal>

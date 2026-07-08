@@ -47,7 +47,6 @@ type TerminalDisplayProduct = Product & {
 };
 
 const showExpiredProductModal = ref(false);
-const expiredProductSearch = ref("");
 const expiredBrokenImagesById = ref<Record<string, boolean>>({});
 
 function hasExpiredProductImage(product: Product) {
@@ -111,13 +110,11 @@ function openExpiredProductModal() {
     showToast("Bitte zuerst ein Mitglied auswählen");
     return;
   }
-  expiredProductSearch.value = "";
   showExpiredProductModal.value = true;
 }
 
 function closeExpiredProductModal() {
   showExpiredProductModal.value = false;
-  expiredProductSearch.value = "";
 }
 
 function handleProductAdd(product: TerminalDisplayProduct) {
@@ -893,16 +890,7 @@ watch(showPinModal, async (isOpen) => {
             Schließen
           </button>
         </div>
-
-        <div class="border-b border-slate-100 px-5 py-3">
-          <input
-            v-model="expiredProductSearch"
-            type="search"
-            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="Artikel suchen"
-          />
-        </div>
-
+`r`n
         <div class="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <div v-if="expiredProductOptions.length" class="grid grid-cols-1 gap-2 md:grid-cols-2">
             <button
