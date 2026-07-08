@@ -48,7 +48,19 @@ type TerminalDisplayProduct = Product & {
 
 const showExpiredProductModal = ref(false);
 const expiredProductSearch = ref("");
+const expiredBrokenImagesById = ref<Record<string, boolean>>({});
 
+function hasExpiredProductImage(product: Product) {
+  const id = String(product?.id ?? "");
+  return Boolean(product?.image_url) && !expiredBrokenImagesById.value[id];
+}
+
+function onExpiredProductImageError(productId: string) {
+  expiredBrokenImagesById.value = {
+    ...expiredBrokenImagesById.value,
+    [String(productId)]: true,
+  };
+}
 function isExpiredPlaceholderProduct(product: Pick<Product, "name">) {
   return product.name.trim().toLocaleLowerCase("de-DE") === "mhd abgelaufen";
 }
@@ -82,7 +94,7 @@ function getExpiredPriceCents(product: Product) {
 const expiredProductOptions = computed(() => {
   const search = expiredProductSearch.value.trim().toLocaleLowerCase("de-DE");
   return store.products
-    .filter((product) => product.active && product.inventoried !== false)
+    .filter((product) => product.active && product.mhd_sale_enabled === true)
     .filter((product) => !isExpiredPlaceholderProduct(product))
     .filter((product) => getExpiredPriceCents(product) > 0)
     .filter((product) => {
@@ -901,13 +913,31 @@ watch(showPinModal, async (isOpen) => {
               @click="bookExpiredProduct(product)"
               class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-amber-300 hover:bg-amber-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:border-slate-200"
             >
-              <span class="flex items-start justify-between gap-3">
-                <span class="min-w-0">
-                  <span class="block truncate font-semibold text-slate-900">
-                    {{ product.name }}
+              <span class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 items-center gap-3">
+                  <span class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                    <img
+                      v-if="hasExpiredProductImage(product)"
+                      :src="product.image_url"
+                      :alt="product.name"
+                      class="block h-full max-h-full w-auto max-w-full object-contain"
+                      loading="lazy"
+                      @error="onExpiredProductImageError(product.id)"
+                    />
+                    <span
+                      v-else
+                      class="px-1 text-center text-[0.62rem] font-semibold leading-tight text-slate-500"
+                    >
+                      {{ product.name }}
+                    </span>
                   </span>
-                  <span class="block truncate text-xs text-slate-500">
-                    {{ product.category || "Allgemein" }}
+                  <span class="min-w-0">
+                    <span class="block truncate font-semibold text-slate-900">
+                      {{ product.name }}
+                    </span>
+                    <span class="block truncate text-xs text-slate-500">
+                      {{ product.category || "Allgemein" }}
+                    </span>
                   </span>
                 </span>
                 <span class="shrink-0 rounded-full bg-amber-600 px-2.5 py-1 text-sm font-semibold text-white tabular-nums">
@@ -920,7 +950,7 @@ watch(showPinModal, async (isOpen) => {
             v-else
             class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500"
           >
-            Keine passenden inventarisierten Artikel gefunden
+            Keine passenden Artikel gefunden
           </div>
         </div>
       </div>

@@ -16,6 +16,7 @@ const newProductPrice = ref<number | null>(null);
 const newGuestPrice = ref<number | null>(null);
 const newLastPurchasePrice = ref<number | null>(null);
 const newProductInventoried = ref(true);
+const newProductMhdSaleEnabled = ref(false);
 const selectedProduct = ref<any | null>(null);
 const productDetailSaving = ref(false);
 const uploadingImageById = ref<Record<string, boolean>>({});
@@ -208,6 +209,7 @@ function openProductDetails(product: any) {
   selectedProduct.value = {
     ...product,
     originalInventoried: Boolean(product.inventoried),
+    mhdSaleEnabled: Boolean(product.mhdSaleEnabled ?? product.mhd_sale_enabled),
   };
 }
 
@@ -269,6 +271,7 @@ async function confirmAddProduct() {
       lastPurchasePriceEuro: newLastPurchasePrice.value ?? 0,
       active: true,
       inventoried: newProductInventoried.value,
+      mhdSaleEnabled: newProductMhdSaleEnabled.value,
     });
 
     showToast("✅ Neuer Artikel angelegt");
@@ -278,6 +281,7 @@ async function confirmAddProduct() {
     newGuestPrice.value = null;
     newLastPurchasePrice.value = null;
     newProductInventoried.value = true;
+    newProductMhdSaleEnabled.value = false;
     showNewProductModal.value = false;
   } catch (err) {
     console.error("[add]", err);
@@ -423,6 +427,7 @@ async function deleteProduct(p: any) {
                 <span class="rounded-full px-2 py-1" :class="p.inventoried ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
                   {{ p.inventoried ? "Inventarisiert" : "Nicht inventarisiert" }}
                 </span>
+                <span v-if="p.mhdSaleEnabled" class="rounded-full bg-amber-100 px-2 py-1 text-amber-700">MHD</span>
               </div>
             </div>
           </div>
@@ -482,6 +487,7 @@ async function deleteProduct(p: any) {
             <th class="px-4 py-3 text-left">Bild</th>
             <th class="px-4 py-3 text-center">Aktiv</th>
             <th class="px-4 py-3 text-center">Inventarisiert</th>
+            <th class="px-4 py-3 text-center">MHD</th>
             <th class="px-4 py-3 text-center">Aktionen</th>
           </tr>
         </thead>
@@ -546,6 +552,12 @@ async function deleteProduct(p: any) {
                 {{ p.inventoried ? "Ja" : "Nein" }}
               </span>
             </td>
+            <!-- MHD -->
+            <td class="px-4 py-2 text-center">
+              <span class="rounded-full px-2 py-1 text-xs" :class="p.mhdSaleEnabled ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'">
+                {{ p.mhdSaleEnabled ? "Ja" : "Nein" }}
+              </span>
+            </td>
 
             <!-- Aktionen -->
             <td class="px-4 py-2 text-center">
@@ -558,7 +570,7 @@ async function deleteProduct(p: any) {
             </td>
           </tr>
           <tr v-if="sortedProducts.length === 0">
-            <td colspan="9" class="text-center py-6 text-gray-400 italic">
+            <td colspan="10" class="text-center py-6 text-gray-400 italic">
               Keine Artikel für den gewählten Filter
             </td>
           </tr>
@@ -583,6 +595,7 @@ async function deleteProduct(p: any) {
               <span class="rounded-full px-2 py-1" :class="selectedProduct.inventoried ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
                 {{ selectedProduct.inventoried ? "Inventarisiert" : "Nicht inventarisiert" }}
               </span>
+              <span v-if="selectedProduct.mhdSaleEnabled" class="rounded-full bg-amber-100 px-2 py-1 text-amber-700">MHD</span>
             </div>
           </div>
           <button
@@ -664,6 +677,14 @@ async function deleteProduct(p: any) {
                   class="scale-125 accent-primary"
                 />
                 Artikel wird inventarisiert
+              </label>
+              <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  v-model="selectedProduct.mhdSaleEnabled"
+                  class="scale-125 accent-primary"
+                />
+                Im MHD-Modal anbieten
               </label>
             </div>
           </section>
@@ -790,6 +811,14 @@ async function deleteProduct(p: any) {
             class="scale-125 accent-primary"
           />
           <span>Produkt wird inventarisiert</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-600 mt-3">
+          <input
+            type="checkbox"
+            v-model="newProductMhdSaleEnabled"
+            class="scale-125 accent-primary"
+          />
+          <span>Im MHD-Modal anbieten</span>
         </label>
       </div>
     </BaseModal>

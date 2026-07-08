@@ -923,6 +923,7 @@ async function handleRoute(route, req, res) {
         p_active: body.active ?? true,
         p_inventoried: body.inventoried ?? true,
         p_last_purchase_price_cents: body.last_purchase_price_cents ?? 0,
+        p_mhd_sale_enabled: body.mhd_sale_enabled ?? false,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 201, data);
@@ -939,6 +940,7 @@ async function handleRoute(route, req, res) {
         p_active: body.active ?? null,
         p_inventoried: body.inventoried ?? null,
         p_last_purchase_price_cents: body.last_purchase_price_cents ?? null,
+        p_mhd_sale_enabled: body.mhd_sale_enabled ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 200, data);
@@ -976,6 +978,7 @@ async function handleRoute(route, req, res) {
         p_active: item.active ?? null,
         p_inventoried: item.inventoried ?? null,
         p_last_purchase_price_cents: item.last_purchase_price_cents ?? null,
+        p_mhd_sale_enabled: item.mhd_sale_enabled ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       updatedItems.push(data);
@@ -1049,7 +1052,7 @@ async function handleRoute(route, req, res) {
         .eq("id", productId);
       const { data: productRow, error: productError } = await supabase
         .from("products")
-        .select("id,name,price,guest_price,category,active,inventoried,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
         .eq("id", productId)
         .maybeSingle();
       if (error) return json(res, 500, { error: error.message || "Delete failed" });
@@ -1064,6 +1067,7 @@ async function handleRoute(route, req, res) {
             category: productRow.category,
             active: productRow.active,
             inventoried: productRow.inventoried,
+            mhd_sale_enabled: productRow.mhd_sale_enabled,
             last_purchase_price_cents: productRow.last_purchase_price_cents,
             image_url: buildProductImageUrl(supabase, productRow),
           }
@@ -1076,7 +1080,7 @@ async function handleRoute(route, req, res) {
       const saved = await persistProductImageAsset(supabase, productId, imageDataUrl);
       const { data: productRow, error: productError } = await supabase
         .from("products")
-        .select("id,name,price,guest_price,category,active,inventoried,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
         .eq("id", productId)
         .maybeSingle();
       if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
@@ -1090,6 +1094,7 @@ async function handleRoute(route, req, res) {
             category: productRow.category,
             active: productRow.active,
             inventoried: productRow.inventoried,
+            mhd_sale_enabled: productRow.mhd_sale_enabled,
             last_purchase_price_cents: productRow.last_purchase_price_cents,
             image_url: buildProductImageUrl(supabase, productRow) ?? saved.image_url,
           }
@@ -1260,7 +1265,7 @@ async function handleRoute(route, req, res) {
     setCacheHeaders(res, "public, s-maxage=300, stale-while-revalidate=3600");
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price,guest_price,category,active,inventoried,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+      .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
       .eq("active", true)
       .order("name", { ascending: true });
     if (error) return json(res, 500, { error: error.message || "Query failed" });
@@ -1273,6 +1278,7 @@ async function handleRoute(route, req, res) {
       category: p.category,
       active: p.active,
       inventoried: p.inventoried,
+      mhd_sale_enabled: p.mhd_sale_enabled,
       last_purchase_price_cents: p.last_purchase_price_cents,
       image_url: buildProductImageUrl(supabase, p),
     }));
@@ -1636,7 +1642,7 @@ async function handleRoute(route, req, res) {
     if (includeProducts) {
       const { data: productRows, error: productError } = await supabase
         .from("products")
-        .select("id,name,price,guest_price,category,active,inventoried,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
         .eq("active", true)
         .order("name", { ascending: true });
       if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
@@ -1649,7 +1655,8 @@ async function handleRoute(route, req, res) {
         category: p.category,
         active: p.active,
         inventoried: p.inventoried,
-        last_purchase_price_cents: p.last_purchase_price_cents,
+        mhd_sale_enabled: p.mhd_sale_enabled,
+      last_purchase_price_cents: p.last_purchase_price_cents,
         image_url: buildProductImageUrl(supabase, p),
       }));
     }
