@@ -90,20 +90,13 @@ function getExpiredPriceCents(product: Product) {
   return Math.ceil(cost / 50) * 50;
 }
 
-const expiredProductOptions = computed(() => {
-  const search = expiredProductSearch.value.trim().toLocaleLowerCase("de-DE");
-  return store.products
+const expiredProductOptions = computed(() =>
+  store.products
     .filter((product) => product.active && product.mhd_sale_enabled === true)
     .filter((product) => !isExpiredPlaceholderProduct(product))
     .filter((product) => getExpiredPriceCents(product) > 0)
-    .filter((product) => {
-      if (!search) return true;
-      return `${product.name} ${product.category ?? ""}`
-        .toLocaleLowerCase("de-DE")
-        .includes(search);
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, "de"));
-});
+    .sort((a, b) => a.name.localeCompare(b.name, "de"))
+);
 
 function openExpiredProductModal() {
   if (!selectedMember.value) {
@@ -890,7 +883,6 @@ watch(showPinModal, async (isOpen) => {
             Schließen
           </button>
         </div>
-`r`n
         <div class="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <div v-if="expiredProductOptions.length" class="grid grid-cols-1 gap-2 md:grid-cols-2">
             <button
