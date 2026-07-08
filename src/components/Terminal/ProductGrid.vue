@@ -72,8 +72,6 @@ const groupedProducts = computed(() => {
             :class="[
               p.stock === 0
                 ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
-                : p.is_terminal_action
-                ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 hover:border-amber-500 shadow-[0_10px_24px_rgba(146,64,14,0.08)] hover:shadow-[0_16px_34px_rgba(146,64,14,0.16)]'
                 : 'bg-white hover:bg-slate-50 border-slate-300 hover:border-blue-400 shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_16px_34px_rgba(30,58,138,0.14)]',
             ]"
           >
@@ -83,8 +81,6 @@ const groupedProducts = computed(() => {
               :class="
                 p.stock === 0
                   ? 'bg-slate-50 border-slate-200'
-                  : p.is_terminal_action
-                  ? 'bg-gradient-to-b from-amber-100 to-white border-amber-200 group-hover:border-amber-300'
                   : 'bg-gradient-to-b from-slate-50 to-white border-slate-200 group-hover:border-blue-200'
               "
             >
@@ -123,7 +119,6 @@ const groupedProducts = computed(() => {
               </span>
               <span
                 class="shrink-0 ml-auto rounded-full bg-blue-600 px-2 py-0.5 xl:px-1.5 xl:py-[0.2rem] text-[0.74rem] xl:text-[0.7rem] font-normal leading-none tracking-tight text-white tabular-nums shadow-sm"
-                :class="p.is_terminal_action ? '!bg-amber-600' : ''"
               >
                 {{ displayPrice(p) }}
               </span>

@@ -87,7 +87,7 @@ function formatCents(cents: number) {
 function getExpiredPriceCents(product: Product) {
   const cost = Number(product.last_purchase_price_cents ?? 0);
   if (!Number.isFinite(cost) || cost <= 0) return 0;
-  return Math.ceil(cost / 50) * 50;
+  return Math.round((cost * 1.2) / 10) * 10;
 }
 
 const expiredProductOptions = computed(() =>
