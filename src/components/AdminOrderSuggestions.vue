@@ -41,7 +41,7 @@ const { show: showToast } = useToast();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
-const horizonDays = ref(14);
+const horizonDays = ref(30);
 const safetyPercent = ref(20);
 const selectedCategory = ref("");
 const showAll = ref(false);
@@ -54,7 +54,6 @@ const metrics = ref<Metrics>({
   totalSuggestedUnits: 0,
   totalEstimatedCostCents: 0,
 });
-const manualUnits = ref<Record<string, number>>({});
 
 const categoryOptions = computed(() =>
   Array.from(new Set(products.value.map((p) => p.category || "Allgemein"))).sort((a, b) => a.localeCompare(b, "de"))
@@ -69,18 +68,11 @@ const visibleProducts = computed(() => {
 });
 
 const acceptedRows = computed(() =>
-  visibleProducts.value
-    .map((p) => ({
-      ...p,
-      effectiveUnits: effectiveUnits(p),
-      effectivePackages: effectivePackages(p),
-      effectiveCostCents: effectiveCostCents(p),
-    }))
-    .filter((p) => p.effectiveUnits > 0)
+  visibleProducts.value.filter((p) => Number(p.suggested_units ?? 0) > 0)
 );
 
-const acceptedUnits = computed(() => acceptedRows.value.reduce((sum, p) => sum + p.effectiveUnits, 0));
-const acceptedCostCents = computed(() => acceptedRows.value.reduce((sum, p) => sum + p.effectiveCostCents, 0));
+const acceptedUnits = computed(() => acceptedRows.value.reduce((sum, p) => sum + Number(p.suggested_units ?? 0), 0));
+const acceptedCostCents = computed(() => acceptedRows.value.reduce((sum, p) => sum + Number(p.estimated_cost_cents ?? 0), 0));
 const acceptedProductCount = computed(() => acceptedRows.value.length);
 
 function euro(cents: number) {
@@ -93,46 +85,22 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
 }
 
 function normalizeParams() {
-  horizonDays.value = clampInteger(horizonDays.value, 1, 60, 14);
+  horizonDays.value = clampInteger(horizonDays.value, 1, 60, 30);
   safetyPercent.value = clampInteger(safetyPercent.value, 0, 100, 20);
 }
 
-function getManualUnits(productId: string) {
-  const value = manualUnits.value[productId];
-  return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : null;
+function packageSize(row: OrderSuggestionRow) {
+  return Math.max(1, Math.trunc(Number(row.package_size ?? 1)));
 }
 
-function effectiveUnits(row: OrderSuggestionRow) {
-  return getManualUnits(row.product_id) ?? Number(row.suggested_units ?? 0);
+function hasPackageSize(row: OrderSuggestionRow) {
+  return packageSize(row) > 1;
 }
 
 function effectivePackages(row: OrderSuggestionRow) {
-  const units = effectiveUnits(row);
-  const packageSize = Math.max(1, Math.trunc(Number(row.package_size ?? 1)));
-  return packageSize > 1 ? Math.ceil(units / packageSize) : units;
-}
-
-function effectiveCostCents(row: OrderSuggestionRow) {
-  return effectiveUnits(row) * Number(row.last_purchase_price_cents ?? 0);
-}
-
-function updateManualUnits(row: OrderSuggestionRow, value: string) {
-  const next = clampInteger(value, 0, 100000, row.suggested_units);
-  manualUnits.value = {
-    ...manualUnits.value,
-    [row.product_id]: next,
-  };
-}
-
-function onManualUnitsInput(row: OrderSuggestionRow, event: Event) {
-  const target = event.target as HTMLInputElement | null;
-  updateManualUnits(row, target?.value ?? "");
-}
-
-function resetManualUnits(row: OrderSuggestionRow) {
-  const next = { ...manualUnits.value };
-  delete next[row.product_id];
-  manualUnits.value = next;
+  const units = Number(row.suggested_units ?? 0);
+  const size = packageSize(row);
+  return size > 1 ? Math.ceil(units / size) : units;
 }
 
 function statusLabel(row: OrderSuggestionRow) {
@@ -165,7 +133,6 @@ async function loadSuggestions() {
     });
     products.value = Array.isArray(data?.products) ? data.products : [];
     metrics.value = { ...metrics.value, ...(data?.metrics ?? {}) };
-    manualUnits.value = {};
   } catch (err) {
     console.error("[AdminOrderSuggestions]", err);
     error.value = err instanceof Error ? err.message : "Bestellvorschlag konnte nicht geladen werden";
@@ -177,8 +144,10 @@ async function loadSuggestions() {
 
 function copyOrderList() {
   const lines = acceptedRows.value.map((p) => {
-    const packageText = p.package_size > 1 ? ` (${p.effectivePackages} x ${p.package_size})` : "";
-    return `${p.name}: ${p.effectiveUnits} Stk.${packageText}`;
+    if (hasPackageSize(p)) {
+      return `${p.name}: ${effectivePackages(p)} Gebinde à ${p.package_size} Stk. (${p.suggested_units} Stk.)`;
+    }
+    return `${p.name}: ${p.suggested_units} Stk.`;
   });
   const text = lines.join("\n");
   void navigator.clipboard?.writeText(text);
@@ -195,7 +164,7 @@ onMounted(loadSuggestions);
         <div>
           <h2 class="text-xl font-semibold text-primary">Bestellliste</h2>
           <p class="mt-1 text-sm text-slate-600">
-            Nachkaufbedarf aus regulärem Absatz, aktuellem Bestand und Packungsgröße.
+            Nachkaufbedarf aus regulärem Absatz, aktuellem Bestand und Gebindegröße.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -273,7 +242,9 @@ onMounted(loadSuggestions);
       <div class="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 class="font-semibold text-primary">Bestellpositionen</h3>
-          <p class="text-xs text-slate-500">0 bedeutet: der aktuelle Bestand reicht für den gewählten Zeitraum.</p>
+          <p class="text-xs text-slate-500">
+            0 bedeutet: der aktuelle Bestand reicht. Bei gepflegter Gebindegröße wird der Vorschlag in Gebinden angezeigt.
+          </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <select v-model="selectedCategory" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
@@ -298,7 +269,6 @@ onMounted(loadSuggestions);
               <th class="px-4 py-3 text-right">Reichweite</th>
               <th class="px-4 py-3 text-right">Sollbestand</th>
               <th class="px-4 py-3 text-right">Vorschlag</th>
-              <th class="px-4 py-3 text-right">Menge</th>
               <th class="px-4 py-3 text-right">Kosten</th>
               <th class="px-4 py-3 text-left">Einschätzung</th>
             </tr>
@@ -323,29 +293,15 @@ onMounted(loadSuggestions);
               <td class="px-4 py-3 text-right tabular-nums">{{ reachLabel(p.reach_days) }} Tage</td>
               <td class="px-4 py-3 text-right tabular-nums">{{ p.target_stock }}</td>
               <td class="px-4 py-3 text-right tabular-nums">
-                {{ p.suggested_units }}
-                <div v-if="p.package_size > 1" class="text-xs text-slate-500">{{ p.suggested_packages }} x {{ p.package_size }}</div>
+                <template v-if="hasPackageSize(p)">
+                  <div class="font-semibold">{{ p.suggested_packages }} Gebinde</div>
+                  <div class="text-xs text-slate-500">{{ p.suggested_packages }} x {{ p.package_size }} = {{ p.suggested_units }} Stk.</div>
+                </template>
+                <template v-else>
+                  <div class="font-semibold">{{ p.suggested_units }} Stk.</div>
+                </template>
               </td>
-              <td class="px-4 py-3 text-right">
-                <div class="flex items-center justify-end gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    class="h-9 w-24 rounded-xl border border-slate-300 px-2 text-right tabular-nums"
-                    :value="effectiveUnits(p)"
-                    @input="onManualUnitsInput(p, $event)"
-                  />
-                  <button
-                    type="button"
-                    class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                    @click="resetManualUnits(p)"
-                  >
-                    Reset
-                  </button>
-                </div>
-                <div v-if="p.package_size > 1" class="mt-1 text-xs text-slate-500">{{ effectivePackages(p) }} Pack.</div>
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums">{{ euro(effectiveCostCents(p)) }}</td>
+              <td class="px-4 py-3 text-right tabular-nums">{{ euro(p.estimated_cost_cents) }}</td>
               <td class="px-4 py-3">
                 <div class="text-xs font-semibold" :class="p.confidence === 'hoch' ? 'text-emerald-700' : p.confidence === 'mittel' ? 'text-amber-700' : 'text-red-700'">
                   Konfidenz {{ p.confidence }}
