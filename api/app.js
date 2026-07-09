@@ -577,7 +577,6 @@ const ADMIN_RPC_ACTIONS = {
       p_token: token,
       p_horizon_days: p.horizon_days ?? 14,
       p_safety_percent: p.safety_percent ?? 20,
-      p_min_reach_days: p.min_reach_days ?? 7,
     }),
   },
   get_branding_settings: {
@@ -1187,6 +1186,7 @@ async function handleRoute(route, req, res) {
     for (const item of items) {
       const amount = Number(item.amount ?? 0);
       if (!item.product_id || !Number.isFinite(amount) || amount === 0) continue;
+      if (amount < 0) return json(res, 400, { error: "Einlagerung muss groesser als 0 sein" });
       const { error } = await supabase.rpc("api_admin_add_storage", {
         p_token: token,
         p_product_id: item.product_id,
@@ -1239,6 +1239,16 @@ async function handleRoute(route, req, res) {
       return json(res, 200, data);
     }
 
+    if (req.method === "DELETE") {
+      if (!body.id) return json(res, 400, { error: "Missing id" });
+      const { data, error } = await supabase.rpc("api_admin_cancel_purchase_lot_remaining", {
+        p_token: token,
+        p_lot_id: body.id,
+        p_note: body.note ?? null,
+      });
+      if (error) return json(res, 403, { error: error.message || "Forbidden" });
+      return json(res, 200, Array.isArray(data) ? data[0] ?? null : data);
+    }
     return json(res, 405, { error: "Method not allowed" });
   }
 

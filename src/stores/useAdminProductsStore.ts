@@ -25,6 +25,12 @@ function getStorageAmount(product: any) {
   return units + packageUnits;
 }
 
+function hasNegativeStorageInput(product: any) {
+  const units = Math.trunc(Number(product.delta ?? 0));
+  const packageCount = Math.trunc(Number(product.packageDelta ?? 0));
+  return units < 0 || packageCount < 0 || getStorageAmount(product) < 0;
+}
+
 export const useAdminProductsStore = defineStore("adminProducts", {
   state: () => ({
     products: [] as any[],
@@ -253,8 +259,21 @@ export const useAdminProductsStore = defineStore("adminProducts", {
       return this.normalizePurchaseLot(data);
     },
 
+    async cancelPurchaseLotRemaining(lot: any) {
+      const data = await apiRequest("/api/admin-product-lots", "DELETE", {
+        id: lot.id,
+        note: "Einlagerung storniert",
+      });
+      await this.loadProductsWithStorage();
+      return data ? this.normalizePurchaseLot(data) : null;
+    },
     async updateStorageChanges() {
-      const changed = this.products.filter((p) => getStorageAmount(p) !== 0);
+      const invalidStorageInput = this.products.find((p) => hasNegativeStorageInput(p));
+      if (invalidStorageInput) {
+        throw new Error(`Einlagerungen muessen positiv sein (${invalidStorageInput.name})`);
+      }
+      const changed = this.products.filter((p) => getStorageAmount(p) > 0);
+      if (!changed.length) return;
       const invalidPurchasePrice = changed.find((p) =>
         getStorageAmount(p) > 0
           && (

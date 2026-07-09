@@ -1,10 +1,11 @@
 drop function if exists public.api_admin_get_order_suggestions(text, integer, numeric, numeric);
+drop function if exists public.api_admin_get_order_suggestions(text, integer, numeric);
 drop function if exists public.admin_get_order_suggestions(integer, numeric, numeric);
+drop function if exists public.admin_get_order_suggestions(integer, numeric);
 
 create or replace function public.admin_get_order_suggestions(
   p_horizon_days integer default 14,
-  p_safety_percent numeric default 20,
-  p_min_reach_days numeric default 7
+  p_safety_percent numeric default 20
 )
 returns jsonb
 language plpgsql
@@ -14,7 +15,6 @@ as $function$
 declare
   v_horizon_days integer := greatest(1, least(60, coalesce(p_horizon_days, 14)));
   v_safety_percent numeric := greatest(0, least(100, coalesce(p_safety_percent, 20)));
-  v_min_reach_days numeric := greatest(0, least(60, coalesce(p_min_reach_days, 7)));
   v_payload jsonb;
 begin
   perform public.assert_admin();
@@ -24,19 +24,31 @@ begin
       p.id,
       p.name,
       coalesce(p.category, 'Allgemein') as category,
-      coalesce(p.package_size, 1)::integer as package_size,
-      greatest(0, coalesce(p.last_purchase_price_cents, 0))::integer as last_purchase_price_cents
+      greatest(1, coalesce(p.package_size, 1))::integer as package_size,
+      greatest(0, coalesce(p.last_purchase_price_cents, 0))::integer as last_purchase_price_cents,
+      greatest(1, least(28, floor(extract(epoch from (now() - p.created_at)) / 86400)::integer)) as demand_age_days
     from public.products p
     where p.active = true
       and p.inventoried = true
   ), sales as (
     select
       t.product_id,
-      count(*) filter (where t.created_at >= now() - interval '14 days')::integer as sold_14,
-      count(*) filter (where t.created_at >= now() - interval '30 days')::integer as sold_30,
-      count(*)::integer as sold_90,
-      count(*) filter (where t.created_at >= now() - interval '14 days' and coalesce(t.sale_kind, 'regular') = 'mhd')::integer as mhd_14,
-      count(*) filter (where t.created_at >= now() - interval '30 days' and coalesce(t.sale_kind, 'regular') = 'mhd')::integer as mhd_30,
+      count(*) filter (
+        where t.created_at >= now() - interval '14 days'
+          and coalesce(t.sale_kind, 'regular') = 'regular'
+      )::integer as sold_14,
+      count(*) filter (
+        where t.created_at >= now() - interval '30 days'
+          and coalesce(t.sale_kind, 'regular') = 'regular'
+      )::integer as sold_30,
+      count(*) filter (
+        where coalesce(t.sale_kind, 'regular') = 'regular'
+      )::integer as sold_90,
+      count(*) filter (
+        where t.created_at >= now() - interval '28 days'
+          and coalesce(t.sale_kind, 'regular') = 'regular'
+      )::integer as sold_28_regular,
+      count(*)::integer as sold_90_total,
       count(*) filter (where coalesce(t.sale_kind, 'regular') = 'mhd')::integer as mhd_90
     from public.transactions t
     where t.product_id is not null
@@ -57,23 +69,20 @@ begin
       ps.id as product_id,
       ps.name,
       ps.category,
-      greatest(1, coalesce(ps.package_size, 1))::integer as package_size,
+      ps.package_size,
       ps.last_purchase_price_cents,
+      ps.demand_age_days,
       coalesce(cs.current_stock, 0)::integer as current_stock,
       coalesce(s.sold_14, 0)::integer as sold_14,
       coalesce(s.sold_30, 0)::integer as sold_30,
       coalesce(s.sold_90, 0)::integer as sold_90,
-      coalesce(s.mhd_14, 0)::integer as mhd_14,
-      coalesce(s.mhd_30, 0)::integer as mhd_30,
+      coalesce(s.sold_28_regular, 0)::integer as sold_28_regular,
+      coalesce(s.sold_90_total, 0)::integer as sold_90_total,
       coalesce(s.mhd_90, 0)::integer as mhd_90,
-      round((
-        (coalesce(s.sold_14, 0)::numeric / 14) * 0.5
-        + (coalesce(s.sold_30, 0)::numeric / 30) * 0.3
-        + (coalesce(s.sold_90, 0)::numeric / 90) * 0.2
-      ), 3) as daily_demand,
+      round((coalesce(s.sold_28_regular, 0)::numeric / ps.demand_age_days::numeric), 3) as daily_demand,
       case
-        when coalesce(s.sold_90, 0) > 0
-          then round((coalesce(s.mhd_90, 0)::numeric / s.sold_90::numeric) * 100, 1)
+        when coalesce(s.sold_90_total, 0) > 0
+          then round((coalesce(s.mhd_90, 0)::numeric / s.sold_90_total::numeric) * 100, 1)
         else 0
       end as mhd_share_percent
     from product_scope ps
@@ -90,11 +99,10 @@ begin
       case
         when c.daily_demand = 0 then 'no_demand'
         when c.current_stock <= 0 then 'out_of_stock'
-        when (c.current_stock::numeric / c.daily_demand) <= v_min_reach_days then 'low'
+        when (c.current_stock::numeric / c.daily_demand) < (v_horizon_days::numeric / 2) then 'low'
         else 'ok'
       end as stock_status,
       case
-        when c.sold_90 = 0 and c.sold_14 > 0 then 'rising'
         when c.sold_90 = 0 then 'stable'
         when (c.sold_14::numeric / 14) > (c.sold_90::numeric / 90) * 1.25 then 'rising'
         when (c.sold_14::numeric / 14) < (c.sold_90::numeric / 90) * 0.75 then 'falling'
@@ -104,10 +112,7 @@ begin
   ), suggested as (
     select
       e.*,
-      greatest(0, e.target_stock - e.current_stock)::integer as raw_suggested_units,
       case
-        when e.daily_demand <= 0 then 0
-        when e.stock_status not in ('out_of_stock', 'low') then 0
         when e.target_stock <= e.current_stock then 0
         else (ceil((e.target_stock - e.current_stock)::numeric / e.package_size) * e.package_size)::integer
       end as suggested_units
@@ -116,22 +121,22 @@ begin
     select
       s.*,
       case
-        when s.package_size > 1 and s.suggested_units > 0 then ceil(s.suggested_units::numeric / s.package_size)::integer
+        when s.package_size > 1 then (s.suggested_units / s.package_size)::integer
         else s.suggested_units
       end as suggested_packages,
       (s.suggested_units * s.last_purchase_price_cents)::integer as estimated_cost_cents,
       case
-        when s.sold_90 = 0 then 'niedrig'
-        when s.sold_90 < 10 then 'niedrig'
+        when s.sold_90_total = 0 then 'niedrig'
+        when s.sold_90_total < 10 then 'niedrig'
         when s.mhd_share_percent >= 30 then 'mittel'
         when s.trend <> 'stable' then 'mittel'
         else 'hoch'
       end as confidence,
       array_remove(array[
-        case when s.sold_90 = 0 then 'Keine Verkäufe in den letzten 90 Tagen' end,
-        case when s.sold_90 > 0 and s.sold_90 < 10 then 'Wenig Datenbasis' end,
+        case when s.sold_90_total = 0 then 'Keine Verkäufe in den letzten 90 Tagen' end,
+        case when s.sold_90_total > 0 and s.sold_90_total < 10 then 'Wenig Datenbasis' end,
         case when s.stock_status = 'out_of_stock' then 'Aktuell kein Bestand' end,
-        case when s.stock_status = 'low' then 'Reichweite unter Grenzwert' end,
+        case when s.stock_status = 'low' then 'Reichweite unter halbem Bestellhorizont' end,
         case when s.mhd_share_percent >= 30 then 'Hoher MHD-Anteil' end,
         case when s.last_purchase_price_cents = 0 then 'Kein Einkaufspreis gepflegt' end
       ], null) as warnings
@@ -147,14 +152,11 @@ begin
         'sold_14', sold_14,
         'sold_30', sold_30,
         'sold_90', sold_90,
-        'mhd_14', mhd_14,
-        'mhd_30', mhd_30,
         'mhd_90', mhd_90,
         'mhd_share_percent', mhd_share_percent,
         'daily_demand', daily_demand,
         'reach_days', reach_days,
         'target_stock', target_stock,
-        'raw_suggested_units', raw_suggested_units,
         'suggested_units', suggested_units,
         'suggested_packages', suggested_packages,
         'estimated_cost_cents', estimated_cost_cents,
@@ -180,8 +182,7 @@ begin
   select jsonb_build_object(
     'parameters', jsonb_build_object(
       'horizonDays', v_horizon_days,
-      'safetyPercent', v_safety_percent,
-      'minReachDays', v_min_reach_days
+      'safetyPercent', v_safety_percent
     ),
     'metrics', jsonb_build_object(
       'productCount', m.product_count,
@@ -198,7 +199,7 @@ begin
   cross join products_json pj;
 
   return coalesce(v_payload, jsonb_build_object(
-    'parameters', jsonb_build_object('horizonDays', v_horizon_days, 'safetyPercent', v_safety_percent, 'minReachDays', v_min_reach_days),
+    'parameters', jsonb_build_object('horizonDays', v_horizon_days, 'safetyPercent', v_safety_percent),
     'metrics', jsonb_build_object(),
     'products', '[]'::jsonb
   ));
@@ -208,8 +209,7 @@ $function$;
 create or replace function public.api_admin_get_order_suggestions(
   p_token text,
   p_horizon_days integer default 14,
-  p_safety_percent numeric default 20,
-  p_min_reach_days numeric default 7
+  p_safety_percent numeric default 20
 )
 returns jsonb
 language plpgsql
@@ -218,19 +218,21 @@ set search_path = public, extensions, pg_temp
 as $function$
 begin
   perform public.app_apply_session(p_token);
-  return public.admin_get_order_suggestions(p_horizon_days, p_safety_percent, p_min_reach_days);
+  return public.admin_get_order_suggestions(p_horizon_days, p_safety_percent);
 end;
 $function$;
 
-revoke all on function public.admin_get_order_suggestions(integer, numeric, numeric) from public;
-revoke all on function public.api_admin_get_order_suggestions(text, integer, numeric, numeric) from public;
+revoke all on function public.admin_get_order_suggestions(integer, numeric) from public;
+revoke all on function public.api_admin_get_order_suggestions(text, integer, numeric) from public;
 
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
-    execute 'grant execute on function public.admin_get_order_suggestions(integer, numeric, numeric) to authenticated';
+    execute 'grant execute on function public.admin_get_order_suggestions(integer, numeric) to authenticated';
   end if;
   if exists (select 1 from pg_roles where rolname = 'service_role') then
-    execute 'grant execute on function public.api_admin_get_order_suggestions(text, integer, numeric, numeric) to service_role';
+    execute 'grant execute on function public.api_admin_get_order_suggestions(text, integer, numeric) to service_role';
   end if;
 end $$;
+
+notify pgrst, 'reload schema';

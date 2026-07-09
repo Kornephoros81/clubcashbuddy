@@ -18,7 +18,6 @@ type OrderSuggestionRow = {
   daily_demand: number;
   reach_days: number | null;
   target_stock: number;
-  raw_suggested_units: number;
   suggested_units: number;
   suggested_packages: number;
   estimated_cost_cents: number;
@@ -44,7 +43,6 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const horizonDays = ref(14);
 const safetyPercent = ref(20);
-const minReachDays = ref(7);
 const selectedCategory = ref("");
 const showAll = ref(false);
 const products = ref<OrderSuggestionRow[]>([]);
@@ -97,7 +95,6 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
 function normalizeParams() {
   horizonDays.value = clampInteger(horizonDays.value, 1, 60, 14);
   safetyPercent.value = clampInteger(safetyPercent.value, 0, 100, 20);
-  minReachDays.value = clampInteger(minReachDays.value, 0, 60, 7);
 }
 
 function getManualUnits(productId: string) {
@@ -165,7 +162,6 @@ async function loadSuggestions() {
     const data = await adminRpc("get_order_suggestions", {
       horizon_days: horizonDays.value,
       safety_percent: safetyPercent.value,
-      min_reach_days: minReachDays.value,
     });
     products.value = Array.isArray(data?.products) ? data.products : [];
     metrics.value = { ...metrics.value, ...(data?.metrics ?? {}) };
@@ -222,7 +218,7 @@ onMounted(loadSuggestions);
         </div>
       </div>
 
-      <div class="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-[1fr_1fr_1fr_auto] xl:items-end">
+      <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto] xl:items-end">
         <label class="block">
           <span class="mb-1 block text-xs font-semibold uppercase text-slate-500">Bestellhorizont</span>
           <div class="flex items-center gap-2">
@@ -235,13 +231,6 @@ onMounted(loadSuggestions);
           <div class="flex items-center gap-2">
             <input v-model.number="safetyPercent" type="number" min="0" max="100" class="h-10 w-full rounded-xl border border-slate-300 px-3 text-sm" />
             <span class="text-sm text-slate-500">%</span>
-          </div>
-        </label>
-        <label class="block">
-          <span class="mb-1 block text-xs font-semibold uppercase text-slate-500">Vorschlag ab Reichweite</span>
-          <div class="flex items-center gap-2">
-            <input v-model.number="minReachDays" type="number" min="0" max="60" class="h-10 w-full rounded-xl border border-slate-300 px-3 text-sm" />
-            <span class="text-sm text-slate-500">Tage</span>
           </div>
         </label>
         <button type="button" class="h-10 rounded-xl border border-primary bg-white px-4 text-sm font-semibold text-primary hover:bg-primary/5" @click="loadSuggestions">

@@ -39,7 +39,13 @@ async function delay(ms = 800) {
 /* 💾 Speichert alle geänderten Lagerbestände */
 async function saveAll() {
   try {
-    const changed = store.products.filter((p) => storageAmount(p) !== 0);
+    const invalid = store.products.find((p) => hasNegativeStorageInput(p));
+    if (invalid) {
+      showToast(`⚠️ Einlagerungen müssen positiv sein (${invalid.name})`);
+      return;
+    }
+
+    const changed = store.products.filter((p) => storageAmount(p) > 0);
     if (!changed.length) {
       showToast("⚠️ Keine Änderungen vorgenommen");
       return;
@@ -56,7 +62,6 @@ async function saveAll() {
     showToast(`⚠️ ${message}`);
   }
 }
-
 function setLotSaving(lotId: string, saving: boolean) {
   savingLotById.value = {
     ...savingLotById.value,
@@ -68,6 +73,31 @@ function isLotSaving(lotId: string) {
   return Boolean(savingLotById.value[lotId]);
 }
 
+function canCancelLot(lot: any) {
+  return lot.source_reason === "purchase" && !lot.isClosed && Number(lot.remaining_quantity ?? 0) > 0;
+}
+
+async function cancelLotRemaining(lot: any) {
+  if (!canCancelLot(lot)) return;
+  const quantity = Math.trunc(Number(lot.remaining_quantity ?? 0));
+  const confirmed = window.confirm(
+    `Offenen Rest von ${quantity} Stück für ${lot.product_name} stornieren?`,
+  );
+  if (!confirmed) return;
+
+  try {
+    setLotSaving(lot.id, true);
+    await store.cancelPurchaseLotRemaining(lot);
+    await store.loadPurchaseLots(null, lotState.value);
+    showToast(`✅ Offener Rest für ${lot.product_name} storniert`);
+  } catch (err) {
+    console.error("[cancelPurchaseLotRemaining]", err);
+    const message = err instanceof Error ? err.message : "Fehler beim Stornieren der Einlagerung";
+    showToast(`⚠️ ${message}`);
+  } finally {
+    setLotSaving(lot.id, false);
+  }
+}
 async function saveLot(lot: any) {
   try {
     setLotSaving(lot.id, true);
@@ -144,6 +174,12 @@ function packageUnits(product: any) {
 function storageAmount(product: any) {
   return Math.trunc(Number(product.delta ?? 0)) + packageUnits(product);
 }
+
+function hasNegativeStorageInput(product: any) {
+  return Math.trunc(Number(product.delta ?? 0)) < 0
+    || Math.trunc(Number(product.packageDelta ?? 0)) < 0
+    || storageAmount(product) < 0;
+}
 </script>
 
 <template>
@@ -207,6 +243,7 @@ function storageAmount(product: any) {
                 <input
                   v-model.number="p.packageDelta"
                   type="number"
+                  min="0"
                   step="1"
                   class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                 />
@@ -221,6 +258,7 @@ function storageAmount(product: any) {
               <input
                 v-model.number="p.delta"
                 type="number"
+                min="0"
                 step="1"
                 class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
               />
@@ -418,13 +456,23 @@ function storageAmount(product: any) {
               />
             </td>
             <td class="px-4 py-2 text-right">
-              <button
-                @click="saveLot(lot)"
-                class="bg-primary text-white px-3 py-1.5 rounded-lg shadow hover:bg-primary/90 transition disabled:opacity-50"
-                :disabled="isLotSaving(lot.id)"
-              >
-                {{ isLotSaving(lot.id) ? "..." : "Speichern" }}
-              </button>
+              <div class="flex justify-end gap-2">
+                <button
+                  v-if="canCancelLot(lot)"
+                  @click="cancelLotRemaining(lot)"
+                  class="bg-white text-red-700 border border-red-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-red-50 transition disabled:opacity-50"
+                  :disabled="isLotSaving(lot.id)"
+                >
+                  Rest stornieren
+                </button>
+                <button
+                  @click="saveLot(lot)"
+                  class="bg-primary text-white px-3 py-1.5 rounded-lg shadow hover:bg-primary/90 transition disabled:opacity-50"
+                  :disabled="isLotSaving(lot.id)"
+                >
+                  {{ isLotSaving(lot.id) ? "..." : "Speichern" }}
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
