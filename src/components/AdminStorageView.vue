@@ -52,7 +52,8 @@ async function saveAll() {
     await delay();
   } catch (err) {
     console.error("[saveAllStorage]", err);
-    showToast("⚠️ Fehler beim Aktualisieren der Lagerbestände");
+    const message = err instanceof Error ? err.message : "Fehler beim Aktualisieren der Lagerbestände";
+    showToast(`⚠️ ${message}`);
   }
 }
 
