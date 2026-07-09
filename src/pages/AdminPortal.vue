@@ -23,6 +23,7 @@ const masterDataLinks = [
 
 const actionLinks = [
   { to: "/admin/storage", label: "Lagerverwaltung", icon: "📦" },
+  { to: "/admin/order-suggestions", label: "Bestellvorschlag", icon: "🛒" },
   { to: "/admin/bookings-report", label: "Buchungsübersicht", icon: "🧾" },
   { to: "/admin/inventory-report", label: "Inventurabgleich", icon: "📦" },
   { to: "/admin/settlement", label: "Monatsabschluss", icon: "📘" },

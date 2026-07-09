@@ -11,6 +11,7 @@ const AdminInventoryReport = () => import("@/components/AdminInventoryReport.vue
 const AdminBookingsReport = () => import("@/components/AdminBookingsReport.vue");
 const AdminSettlementView = () => import("@/components/AdminSettlementView.vue");
 const AdminStorageView = () => import("@/components/AdminStorageView.vue");
+const AdminOrderSuggestions = () => import("@/components/AdminOrderSuggestions.vue");
 const AdminStockAdjustmentsReport = () => import("@/components/AdminStockAdjustmentsReport.vue");
 const AdminCancellationsReport = () => import("@/components/AdminCancellationsReport.vue");
 const AdminRevenueReport = () => import("@/components/AdminRevenueReportOptimized.vue");
@@ -55,6 +56,7 @@ const routes = [
       { path: "performance", component: AdminPerformanceMetrics },
       { path: "settlement", component: AdminSettlementView },
       { path: "storage", component: AdminStorageView },
+      { path: "order-suggestions", component: AdminOrderSuggestions },
     ],
   },
   { path: "/login", component: Login },

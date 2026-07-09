@@ -571,6 +571,15 @@ const ADMIN_RPC_ACTIONS = {
       p_end: p.end,
     }),
   },
+  get_order_suggestions: {
+    fn: "api_admin_get_order_suggestions",
+    args: (token, p) => ({
+      p_token: token,
+      p_horizon_days: p.horizon_days ?? 14,
+      p_safety_percent: p.safety_percent ?? 20,
+      p_min_reach_days: p.min_reach_days ?? 7,
+    }),
+  },
   get_branding_settings: {
     fn: "api_admin_get_branding_settings",
     args: (token) => ({ p_token: token }),
