@@ -7,6 +7,24 @@ function apiRequest(path: string, method = "GET", body?: unknown) {
   return adminFetch(path, { method, body });
 }
 
+function normalizePackageSizeForCreate(value: unknown) {
+  const size = Math.trunc(Number(value ?? 0));
+  return Number.isFinite(size) && size > 0 ? size : null;
+}
+
+function normalizePackageSizeForUpdate(value: unknown) {
+  const size = Math.trunc(Number(value ?? 0));
+  return Number.isFinite(size) && size > 0 ? size : 0;
+}
+
+function getStorageAmount(product: any) {
+  const units = Math.trunc(Number(product.delta ?? 0));
+  const packageCount = Math.trunc(Number(product.packageDelta ?? 0));
+  const packageSize = Math.trunc(Number(product.packageSize ?? 0));
+  const packageUnits = packageCount !== 0 && packageSize > 0 ? packageCount * packageSize : 0;
+  return units + packageUnits;
+}
+
 export const useAdminProductsStore = defineStore("adminProducts", {
   state: () => ({
     products: [] as any[],
@@ -23,6 +41,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         guestPriceEuro: Number(p.guest_price ?? 0) / 100,
         lastPurchasePriceEuro: Number(p.last_purchase_price_cents ?? 0) / 100,
         mhdSaleEnabled: Boolean(p.mhd_sale_enabled),
+        packageSize: p.package_size === null || p.package_size === undefined ? null : Number(p.package_size),
         inventoryValueEuro: Number(p.inventory_value_cents ?? 0) / 100,
       };
     },
@@ -105,6 +124,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         inventoried: p.inventoried,
         last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
         mhd_sale_enabled: Boolean(p.mhdSaleEnabled),
+        package_size: normalizePackageSizeForCreate(p.packageSize),
       });
       await invalidateProductsCache();
       this.upsertProductInState(created);
@@ -122,6 +142,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         inventoried: p.inventoried,
         last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
         mhd_sale_enabled: Boolean(p.mhdSaleEnabled),
+        package_size: normalizePackageSizeForUpdate(p.packageSize),
       });
       await invalidateProductsCache();
       this.upsertProductInState(data);
@@ -140,6 +161,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
             inventoried: p.inventoried,
             last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
             mhd_sale_enabled: Boolean(p.mhdSaleEnabled),
+            package_size: normalizePackageSizeForUpdate(p.packageSize),
           }))
         : [];
       const data = await apiRequest("/api/admin-products-batch", "PATCH", {
@@ -204,6 +226,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
             Number(p.last_purchase_price_cents ?? 0) > 0
               ? Number(p.last_purchase_price_cents ?? 0) / 100
               : null,
+          packageDelta: 0,
           delta: 0,
         }));
       } finally {
@@ -231,9 +254,9 @@ export const useAdminProductsStore = defineStore("adminProducts", {
     },
 
     async updateStorageChanges() {
-      const changed = this.products.filter((p) => p.delta && p.delta !== 0);
+      const changed = this.products.filter((p) => getStorageAmount(p) !== 0);
       const invalidPurchasePrice = changed.find((p) =>
-        Number(p.delta ?? 0) > 0
+        getStorageAmount(p) > 0
           && (
             p.purchasePriceEuro === null
             || p.purchasePriceEuro === undefined
@@ -247,9 +270,9 @@ export const useAdminProductsStore = defineStore("adminProducts", {
       await apiRequest("/api/admin-storage", "POST", {
         items: changed.map((p) => ({
           product_id: p.id,
-          amount: p.delta,
+          amount: getStorageAmount(p),
           purchase_price_cents:
-            Number(p.delta ?? 0) > 0
+            getStorageAmount(p) > 0
               ? Math.round(Number(p.purchasePriceEuro ?? p.lastPurchasePriceEuro ?? 0) * 100)
               : null,
         })),

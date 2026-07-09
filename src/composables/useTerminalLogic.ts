@@ -31,6 +31,7 @@ type AddProductOptions = {
   amountCents?: number;
   note?: string | null;
   toastLabel?: string;
+  saleKind?: "regular" | "mhd";
 };
 
 let singleton: ReturnType<typeof createLogic> | null = null;
@@ -469,7 +470,9 @@ function createLogic() {
         selectedMember.value.id,
         product.id,
         queuedAmount,
-        options.note ?? undefined
+        options.note ?? undefined,
+        null,
+        options.saleKind ?? "regular"
       );
       await refreshQueuedBookingsForMember(selectedMember.value.id);
       bookedTodayIds.value.add(selectedMember.value.id);

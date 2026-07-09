@@ -12,6 +12,7 @@ export type QueuePayload = {
   product_id: string | null;
   amount: number;
   transaction_type?: "sale_free_amount" | "cash_withdrawal" | null;
+  sale_kind?: "regular" | "mhd" | null;
   note?: string | null;
   cancel_tx_id?: string | null; // 🟢 für Stornos
   client_tx_id?: string; // 🟢 für Idempotenz
@@ -196,7 +197,8 @@ export async function book(
   product_id: string | null,
   amount: number,
   note?: string | null,
-  transaction_type?: "sale_free_amount" | "cash_withdrawal" | null
+  transaction_type?: "sale_free_amount" | "cash_withdrawal" | null,
+  sale_kind?: "regular" | "mhd" | null
 ): Promise<boolean> {
   const clientTxId = crypto.randomUUID(); // 🟢 Idempotente Client-ID
   await queueBooking({
@@ -204,6 +206,7 @@ export async function book(
     product_id,
     amount,
     transaction_type: transaction_type ?? null,
+    sale_kind: sale_kind ?? "regular",
     note: note ?? null,
     client_tx_id: clientTxId,
   });
@@ -342,6 +345,7 @@ export async function syncQueue(token: string): Promise<number> {
             product_id: payload.product_id,
             free_amount: payload.amount,
             p_transaction_type: payload.transaction_type ?? null,
+            p_sale_kind: payload.sale_kind ?? "regular",
             p_note: payload.note ?? null,
             client_tx_id_param: payload.client_tx_id ?? crypto.randomUUID(),
           });
@@ -366,7 +370,7 @@ export async function syncQueue(token: string): Promise<number> {
         type BatchItem = {
           queue_id: number; member_id: string; product_id: string | null;
           free_amount: number; p_transaction_type: string | null;
-          p_note: string | null; client_tx_id_param: string;
+          p_sale_kind: "regular" | "mhd"; p_note: string | null; client_tx_id_param: string;
         };
         const payloadItems: BatchItem[] = [];
 
@@ -392,6 +396,7 @@ export async function syncQueue(token: string): Promise<number> {
             product_id: payload.product_id,
             free_amount: payload.amount,
             p_transaction_type: payload.transaction_type ?? null,
+            p_sale_kind: payload.sale_kind ?? "regular",
             p_note: payload.note ?? null,
             client_tx_id_param: payload.client_tx_id ?? crypto.randomUUID(),
           });
@@ -416,6 +421,7 @@ export async function syncQueue(token: string): Promise<number> {
                 product_id: item.product_id,
                 free_amount: item.free_amount,
                 p_transaction_type: item.p_transaction_type,
+                p_sale_kind: item.p_sale_kind,
                 p_note: item.p_note,
                 client_tx_id_param: item.client_tx_id_param,
               });
@@ -430,6 +436,7 @@ export async function syncQueue(token: string): Promise<number> {
                   product_id: item.product_id,
                   amount: item.free_amount,
                   transaction_type: item.p_transaction_type as QueuePayload["transaction_type"],
+                  sale_kind: item.p_sale_kind,
                   note: item.p_note,
                   client_tx_id: item.client_tx_id_param,
                 },
@@ -466,6 +473,7 @@ export async function syncQueue(token: string): Promise<number> {
               product_id: item.product_id,
               amount: item.free_amount,
               transaction_type: item.p_transaction_type as QueuePayload["transaction_type"],
+              sale_kind: item.p_sale_kind,
               note: item.p_note,
               client_tx_id: item.client_tx_id_param,
             },

@@ -39,7 +39,7 @@ async function delay(ms = 800) {
 /* 💾 Speichert alle geänderten Lagerbestände */
 async function saveAll() {
   try {
-    const changed = store.products.filter((p) => p.delta && p.delta !== 0);
+    const changed = store.products.filter((p) => storageAmount(p) !== 0);
     if (!changed.length) {
       showToast("⚠️ Keine Änderungen vorgenommen");
       return;
@@ -130,6 +130,19 @@ function lotSortIndicator(key: LotSortKey) {
   if (lotSortKey.value !== key) return "";
   return lotSortDirection.value === "asc" ? " ▲" : " ▼";
 }
+
+function packageSize(product: any) {
+  const size = Math.trunc(Number(product.packageSize ?? 0));
+  return Number.isFinite(size) && size > 0 ? size : 0;
+}
+
+function packageUnits(product: any) {
+  return Math.trunc(Number(product.packageDelta ?? 0)) * packageSize(product);
+}
+
+function storageAmount(product: any) {
+  return Math.trunc(Number(product.delta ?? 0)) + packageUnits(product);
+}
 </script>
 
 <template>
@@ -164,7 +177,9 @@ function lotSortIndicator(key: LotSortKey) {
             <th class="px-4 py-3 text-left">Produkt</th>
             <th class="px-4 py-3 text-right">Letzter EK</th>
             <th class="px-4 py-3 text-right">Bestand</th>
-            <th class="px-4 py-3 text-right">Einlagerung</th>
+            <th class="px-4 py-3 text-right">Kisten</th>
+            <th class="px-4 py-3 text-right">Stück</th>
+            <th class="px-4 py-3 text-right">Gesamt</th>
             <th class="px-4 py-3 text-right">EK neu</th>
             <th class="px-4 py-3 text-right">Bestandswert</th>
             <th class="px-4 py-3 text-left">Letzte Änderung</th>
@@ -187,11 +202,31 @@ function lotSortIndicator(key: LotSortKey) {
             </td>
 
             <td class="px-4 py-2 text-right">
+              <div v-if="packageSize(p) > 0" class="space-y-1">
+                <input
+                  v-model.number="p.packageDelta"
+                  type="number"
+                  step="1"
+                  class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                />
+                <div class="text-[11px] text-gray-500">
+                  × {{ packageSize(p) }} = {{ packageUnits(p) }}
+                </div>
+              </div>
+              <span v-else class="text-gray-400">-</span>
+            </td>
+
+            <td class="px-4 py-2 text-right">
               <input
                 v-model.number="p.delta"
                 type="number"
+                step="1"
                 class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
               />
+            </td>
+
+            <td class="px-4 py-2 text-right font-medium">
+              {{ storageAmount(p) }}
             </td>
 
             <td class="px-4 py-2 text-right">
@@ -201,7 +236,7 @@ function lotSortIndicator(key: LotSortKey) {
                 min="0"
                 step="0.01"
                 class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                :disabled="!(Number(p.delta ?? 0) > 0)"
+                :disabled="!(storageAmount(p) > 0)"
               />
             </td>
 

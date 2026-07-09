@@ -32,6 +32,7 @@ const reportLinks = [
   { to: "/admin/stock-adjustments-report", label: "Fehlbestände & Anpassungen", icon: "📉" },
   { to: "/admin/cancellations-report", label: "Storno-Report", icon: "↩️" },
   { to: "/admin/revenue-report", label: "Umsatzreport", icon: "💶" },
+  { to: "/admin/product-activity-report", label: "Artikelreport", icon: "📊" },
   { to: "/admin/complimentary-report", label: "Freigetränke", icon: "🎟️" },
   { to: "/admin/settlements-report", label: "Abrechnungsprotokoll", icon: "📒" },
 ];
