@@ -22,6 +22,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         priceEuro: Number(p.price ?? 0) / 100,
         guestPriceEuro: Number(p.guest_price ?? 0) / 100,
         lastPurchasePriceEuro: Number(p.last_purchase_price_cents ?? 0) / 100,
+        mhdSaleEnabled: Boolean(p.mhd_sale_enabled),
         inventoryValueEuro: Number(p.inventory_value_cents ?? 0) / 100,
       };
     },
@@ -103,6 +104,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         active: p.active,
         inventoried: p.inventoried,
         last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
+        mhd_sale_enabled: Boolean(p.mhdSaleEnabled),
       });
       await invalidateProductsCache();
       this.upsertProductInState(created);
@@ -119,6 +121,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
         active: p.active,
         inventoried: p.inventoried,
         last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
+        mhd_sale_enabled: Boolean(p.mhdSaleEnabled),
       });
       await invalidateProductsCache();
       this.upsertProductInState(data);
@@ -136,6 +139,7 @@ export const useAdminProductsStore = defineStore("adminProducts", {
             active: p.active,
             inventoried: p.inventoried,
             last_purchase_price_cents: Math.round(Number(p.lastPurchasePriceEuro ?? 0) * 100),
+            mhd_sale_enabled: Boolean(p.mhdSaleEnabled),
           }))
         : [];
       const data = await apiRequest("/api/admin-products-batch", "PATCH", {

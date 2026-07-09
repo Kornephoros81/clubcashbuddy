@@ -13,6 +13,7 @@ import OfflineStatus from "@/components/Terminal/OfflineStatus.vue";
 import BaseModal from "@/components/BaseModal.vue";
 import { useBranding } from "@/composables/useBranding";
 import { getQueuedBookingsForMember } from "@/utils/offlineDB";
+import type { Product } from "@/stores/useCatalog";
 
 const terminalLogic = useTerminalLogic();
 const {
@@ -36,6 +37,100 @@ const {
 } = terminalLogic;
 provide("terminalLogic", terminalLogic);
 const { appTitle, logoUrl, loadBrandingPublic, DEFAULT_LOGO_URL } = useBranding();
+const MHD_EXPIRED_ACTION_ID = "__terminal_mhd_expired__";
+const MHD_EXPIRED_NOTE = "MHD abgelaufen";
+
+type TerminalDisplayProduct = Product & {
+  price_label?: string;
+  is_terminal_action?: boolean;
+  stock?: number;
+};
+
+const showExpiredProductModal = ref(false);
+const expiredBrokenImagesById = ref<Record<string, boolean>>({});
+
+function hasExpiredProductImage(product: Product) {
+  const id = String(product?.id ?? "");
+  return Boolean(product?.image_url) && !expiredBrokenImagesById.value[id];
+}
+
+function onExpiredProductImageError(productId: string) {
+  expiredBrokenImagesById.value = {
+    ...expiredBrokenImagesById.value,
+    [String(productId)]: true,
+  };
+}
+function isExpiredPlaceholderProduct(product: Pick<Product, "name">) {
+  return product.name.trim().toLocaleLowerCase("de-DE") === "mhd abgelaufen";
+}
+
+const terminalProducts = computed<TerminalDisplayProduct[]>(() => [
+  ...store.products.filter((product) => !isExpiredPlaceholderProduct(product)),
+  {
+    id: MHD_EXPIRED_ACTION_ID,
+    name: "MHD abgelaufen",
+    price: 0,
+    guest_price: 0,
+    category: "Sonstiges",
+    active: true,
+    inventoried: false,
+    image_url: null,
+    price_label: "Auswahl",
+    is_terminal_action: true,
+  },
+]);
+
+function formatCents(cents: number) {
+  return `${(Math.max(0, cents) / 100).toFixed(2).replace(".", ",")} €`;
+}
+
+function getExpiredPriceCents(product: Product) {
+  const cost = Number(product.last_purchase_price_cents ?? 0);
+  if (!Number.isFinite(cost) || cost <= 0) return 0;
+  return Math.round((cost * 1.2) / 10) * 10;
+}
+
+const expiredProductOptions = computed(() =>
+  store.products
+    .filter((product) => product.active && product.mhd_sale_enabled === true)
+    .filter((product) => !isExpiredPlaceholderProduct(product))
+    .filter((product) => getExpiredPriceCents(product) > 0)
+    .sort((a, b) => a.name.localeCompare(b.name, "de"))
+);
+
+function openExpiredProductModal() {
+  if (!selectedMember.value) {
+    showToast("Bitte zuerst ein Mitglied auswählen");
+    return;
+  }
+  showExpiredProductModal.value = true;
+}
+
+function closeExpiredProductModal() {
+  showExpiredProductModal.value = false;
+}
+
+function handleProductAdd(product: TerminalDisplayProduct) {
+  if (product.id === MHD_EXPIRED_ACTION_ID) {
+    openExpiredProductModal();
+    return;
+  }
+  void addProduct(product);
+}
+
+async function bookExpiredProduct(product: Product) {
+  const price = getExpiredPriceCents(product);
+  if (price <= 0) {
+    showToast("Für diesen Artikel ist kein MHD-Preis verfügbar");
+    return;
+  }
+  closeExpiredProductModal();
+  await addProduct(product, {
+    amountCents: price,
+    note: MHD_EXPIRED_NOTE,
+    toastLabel: `${product.name} (${MHD_EXPIRED_NOTE})`,
+  });
+}
 
 function onLogoError(event: Event) {
   const target = event.target as HTMLImageElement | null;
@@ -611,10 +706,10 @@ watch(showPinModal, async (isOpen) => {
         <!-- Produktbereich -->
         <div class="glass-panel rounded-[30px] flex flex-col overflow-hidden">
           <ProductGrid
-            :products="store.products"
+            :products="terminalProducts"
             :loading="loading"
             :isGuest="selectedMember?.is_guest"
-            @add="addProduct"
+            @add="handleProductAdd"
             class="flex-1 overflow-hidden px-3 py-3"
           />
         </div>
@@ -765,6 +860,82 @@ watch(showPinModal, async (isOpen) => {
     @confirm="addFreeAndClose"
   />
 
+  <transition name="fade">
+    <div
+      v-if="showExpiredProductModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+      @click.self="closeExpiredProductModal"
+    >
+      <div class="glass-panel-strong flex max-h-[86vh] w-full max-w-3xl flex-col rounded-[28px] border border-slate-200 bg-white shadow-xl">
+        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <div class="min-w-0">
+            <div class="section-chip mb-2 !border-amber-200 !bg-amber-50 !text-amber-700">
+              Sonstiges
+            </div>
+            <h3 class="text-xl font-semibold text-primary">MHD abgelaufen</h3>
+
+          </div>
+          <button
+            type="button"
+            @click="closeExpiredProductModal"
+            class="button-outline-strong rounded-2xl border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Schließen
+          </button>
+        </div>
+        <div class="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div v-if="expiredProductOptions.length" class="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <button
+              v-for="product in expiredProductOptions"
+              :key="product.id"
+              type="button"
+              :disabled="getExpiredPriceCents(product) <= 0 || loading"
+              @click="bookExpiredProduct(product)"
+              class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-amber-300 hover:bg-amber-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:border-slate-200"
+            >
+              <span class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 items-center gap-3">
+                  <span class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                    <img
+                      v-if="hasExpiredProductImage(product)"
+                      :src="product.image_url"
+                      :alt="product.name"
+                      class="block h-full max-h-full w-auto max-w-full object-contain"
+                      loading="lazy"
+                      @error="onExpiredProductImageError(product.id)"
+                    />
+                    <span
+                      v-else
+                      class="px-1 text-center text-[0.62rem] font-semibold leading-tight text-slate-500"
+                    >
+                      {{ product.name }}
+                    </span>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate font-semibold text-slate-900">
+                      {{ product.name }}
+                    </span>
+                    <span class="block truncate text-xs text-slate-500">
+                      {{ product.category || "Allgemein" }}
+                    </span>
+                  </span>
+                </span>
+                <span class="shrink-0 rounded-full bg-amber-600 px-2.5 py-1 text-sm font-semibold text-white tabular-nums">
+                  {{ formatCents(getExpiredPriceCents(product)) }}
+                </span>
+              </span>
+            </button>
+          </div>
+          <div
+            v-else
+            class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500"
+          >
+            Keine passenden Artikel gefunden
+          </div>
+        </div>
+      </div>
+    </div>
+  </transition>
   <!-- Gast-Modal -->
   <BaseModal
     :show="showAddGuestModal"

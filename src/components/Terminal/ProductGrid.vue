@@ -21,6 +21,7 @@ function onImageError(productId: string) {
 }
 
 function displayPrice(product: any) {
+  if (product?.price_label) return product.price_label;
   const cents = props.isGuest
     ? (product?.guest_price ?? product?.price ?? 0)
     : (product?.price ?? 0);

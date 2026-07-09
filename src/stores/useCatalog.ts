@@ -27,6 +27,8 @@ export type Product = {
   category: string;
   active: boolean;
   inventoried?: boolean;
+  mhd_sale_enabled?: boolean;
+  last_purchase_price_cents?: number | null;
   image_url?: string | null;
 };
 

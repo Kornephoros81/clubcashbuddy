@@ -237,8 +237,26 @@ begin
     );
 
     update public.inventory_movements im
-    set meta = coalesce(im.meta, '{}'::jsonb) || jsonb_build_object('settled_fallback_quantity', v_settled_fallback_quantity)
+    set
+      meta = coalesce(im.meta, '{}'::jsonb) || jsonb_build_object('settled_fallback_quantity', v_settled_fallback_quantity),
+      note = case
+        when v_settled_fallback_quantity > 0 then concat_ws(
+          '; ',
+          nullif(im.note, ''),
+          v_settled_fallback_quantity::text || ' Stück mit bereits gebuchten Verkäufen verrechnet'
+        )
+        else im.note
+      end
     where im.id = v_movement_id;
+
+    update public.product_purchase_lots l
+    set note = concat_ws(
+      '; ',
+      nullif(l.note, ''),
+      v_settled_fallback_quantity::text || ' Stück mit bereits gebuchten Verkäufen verrechnet'
+    )
+    where l.id = v_purchase_lot_id
+      and v_settled_fallback_quantity > 0;
 
     update public.products p
     set

@@ -27,6 +27,12 @@ type QueueEntry = {
   attempts?: number;
 };
 
+type AddProductOptions = {
+  amountCents?: number;
+  note?: string | null;
+  toastLabel?: string;
+};
+
 let singleton: ReturnType<typeof createLogic> | null = null;
 
 export function useTerminalLogic() {
@@ -209,12 +215,13 @@ function createLogic() {
           const basePrice = prod?.price ?? 0;
           const guestPrice = prod?.guest_price ?? basePrice;
           const cents = member?.is_guest ? guestPrice : basePrice;
+          const queuedAmount = Number(p.amount ?? 0);
           const bookTx: BookingEntry = {
             id: p.client_tx_id || crypto.randomUUID(),
             product_id: p.product_id,
             product_name: prod?.name ?? "(Produkt)",
-            note: null,
-            amount: -Math.abs(cents),
+            note: p.note ?? null,
+            amount: queuedAmount !== 0 ? -Math.abs(queuedAmount) : -Math.abs(cents),
             count: 1,
             syncStatus,
             queueOp: "book",
@@ -394,9 +401,10 @@ function createLogic() {
     const groups: Record<string, BookingEntry> = {};
     for (const b of data) {
       const queuePrefix = b.queueOp ? `${b.queueOp}-` : "";
+      const noteKey = (b.note ?? "").trim();
       const key = b.product_id
-        ? `${queuePrefix}prod-${b.product_id}`
-        : `${queuePrefix}note-${b.note ?? "frei"}`;
+        ? `${queuePrefix}prod-${b.product_id}-${b.amount}-${noteKey}`
+        : `${queuePrefix}note-${b.note ?? "frei"}-${b.amount}`;
       const statusRank =
         b.syncStatus === "failed" ? 2 : b.syncStatus === "pending" ? 1 : 0;
       if (!groups[key]) {
@@ -442,22 +450,26 @@ function createLogic() {
     queuedBookings.value = [];
   }
 
-  async function addProduct(product: Product) {
+  async function addProduct(product: Product, options: AddProductOptions = {}) {
     if (!selectedMember.value || !auth.token) {
       showToast("⚠️ Kein Mitglied oder keine Authentifizierung");
       return;
     }
     loading.value = true;
     try {
-      const price = selectedMember.value.is_guest
+      const normalPrice = selectedMember.value.is_guest
         ? product.guest_price ?? product.price
         : product.price;
+      const amountOverride = Number(options.amountCents ?? 0);
+      const queuedAmount = amountOverride !== 0 ? -Math.abs(Math.round(amountOverride)) : 0;
+      const displayPrice = queuedAmount !== 0 ? Math.abs(queuedAmount) : normalPrice;
+
       await book(
         auth.token,
         selectedMember.value.id,
         product.id,
-        0,
-        undefined
+        queuedAmount,
+        options.note ?? undefined
       );
       await refreshQueuedBookingsForMember(selectedMember.value.id);
       bookedTodayIds.value.add(selectedMember.value.id);
@@ -465,7 +477,7 @@ function createLogic() {
       kickSyncSoon();
 
       showToast(
-        `✅ ${product.name} (${(price / 100).toFixed(
+        `✅ ${options.toastLabel || product.name} (${(displayPrice / 100).toFixed(
           2
         )} €) gespeichert – Sync läuft`
       );
@@ -476,7 +488,6 @@ function createLogic() {
       loading.value = false;
     }
   }
-
   async function addFree(
     amountEuro: number,
     note: string,
