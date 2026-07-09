@@ -257,6 +257,7 @@ function hasNegativeStorageInput(product: any) {
                 <div class="inline-flex items-center justify-end rounded-md border border-gray-200 bg-white">
                   <button
                     type="button"
+                    tabindex="-1"
                     class="h-8 w-8 border-r border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
                     :disabled="numericInputValue(p, 'packageDelta') <= 0"
                     @click="changeStorageInput(p, 'packageDelta', -1)"
@@ -268,11 +269,12 @@ function hasNegativeStorageInput(product: any) {
                     type="number"
                     min="0"
                     step="1"
-                    class="h-8 w-16 border-0 px-2 text-center text-sm focus:ring-1 focus:ring-primary"
+                    class="storage-number-input h-8 w-16 border-0 px-2 text-center text-sm focus:ring-1 focus:ring-primary"
                     @focus="selectInputValue"
                   />
                   <button
                     type="button"
+                    tabindex="-1"
                     class="h-8 w-8 border-l border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     @click="changeStorageInput(p, 'packageDelta', 1)"
                   >
@@ -290,6 +292,7 @@ function hasNegativeStorageInput(product: any) {
               <div class="inline-flex items-center justify-end rounded-md border border-gray-200 bg-white">
                 <button
                   type="button"
+                  tabindex="-1"
                   class="h-8 w-8 border-r border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
                   :disabled="numericInputValue(p, 'delta') <= 0"
                   @click="changeStorageInput(p, 'delta', -1)"
@@ -301,11 +304,12 @@ function hasNegativeStorageInput(product: any) {
                   type="number"
                   min="0"
                   step="1"
-                  class="h-8 w-16 border-0 px-2 text-center text-sm focus:ring-1 focus:ring-primary"
+                  class="storage-number-input h-8 w-16 border-0 px-2 text-center text-sm focus:ring-1 focus:ring-primary"
                   @focus="selectInputValue"
                 />
                 <button
                   type="button"
+                  tabindex="-1"
                   class="h-8 w-8 border-l border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                   @click="changeStorageInput(p, 'delta', 1)"
                 >
@@ -324,7 +328,7 @@ function hasNegativeStorageInput(product: any) {
                 type="number"
                 min="0"
                 step="0.01"
-                class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                class="storage-number-input w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                 :disabled="!(storageAmount(p) > 0)"
                 @focus="selectInputValue"
               />
@@ -476,7 +480,7 @@ function hasNegativeStorageInput(product: any) {
                 type="number"
                 min="0"
                 step="0.01"
-                class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                class="storage-number-input w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                 @focus="selectInputValue"
               />
             </td>
@@ -532,3 +536,15 @@ function hasNegativeStorageInput(product: any) {
     </div>
   </div>
 </template>
+<style scoped>
+.storage-number-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.storage-number-input::-webkit-outer-spin-button,
+.storage-number-input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+</style>
