@@ -175,6 +175,20 @@ function storageAmount(product: any) {
   return Math.trunc(Number(product.delta ?? 0)) + packageUnits(product);
 }
 
+function numericInputValue(target: any, key: "packageDelta" | "delta") {
+  const value = Math.trunc(Number(target?.[key] ?? 0));
+  return Number.isFinite(value) ? value : 0;
+}
+
+function changeStorageInput(target: any, key: "packageDelta" | "delta", change: number) {
+  target[key] = Math.max(0, numericInputValue(target, key) + change);
+}
+
+function selectInputValue(event: FocusEvent) {
+  const input = event.target instanceof HTMLInputElement ? event.target : null;
+  input?.select();
+}
+
 function hasNegativeStorageInput(product: any) {
   return Math.trunc(Number(product.delta ?? 0)) < 0
     || Math.trunc(Number(product.packageDelta ?? 0)) < 0
@@ -240,13 +254,31 @@ function hasNegativeStorageInput(product: any) {
 
             <td class="px-4 py-2 text-right">
               <div v-if="packageSize(p) > 0" class="space-y-1">
-                <input
-                  v-model.number="p.packageDelta"
-                  type="number"
-                  min="0"
-                  step="1"
-                  class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                />
+                <div class="inline-flex items-center justify-end rounded-md border border-gray-200 bg-white">
+                  <button
+                    type="button"
+                    class="h-8 w-8 border-r border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                    :disabled="numericInputValue(p, 'packageDelta') <= 0"
+                    @click="changeStorageInput(p, 'packageDelta', -1)"
+                  >
+                    -
+                  </button>
+                  <input
+                    v-model.number="p.packageDelta"
+                    type="number"
+                    min="0"
+                    step="1"
+                    class="h-8 w-16 border-0 px-2 text-center text-sm focus:ring-1 focus:ring-primary"
+                    @focus="selectInputValue"
+                  />
+                  <button
+                    type="button"
+                    class="h-8 w-8 border-l border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    @click="changeStorageInput(p, 'packageDelta', 1)"
+                  >
+                    +
+                  </button>
+                </div>
                 <div class="text-[11px] text-gray-500">
                   × {{ packageSize(p) }} = {{ packageUnits(p) }}
                 </div>
@@ -255,13 +287,31 @@ function hasNegativeStorageInput(product: any) {
             </td>
 
             <td class="px-4 py-2 text-right">
-              <input
-                v-model.number="p.delta"
-                type="number"
-                min="0"
-                step="1"
-                class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-              />
+              <div class="inline-flex items-center justify-end rounded-md border border-gray-200 bg-white">
+                <button
+                  type="button"
+                  class="h-8 w-8 border-r border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                  :disabled="numericInputValue(p, 'delta') <= 0"
+                  @click="changeStorageInput(p, 'delta', -1)"
+                >
+                  -
+                </button>
+                <input
+                  v-model.number="p.delta"
+                  type="number"
+                  min="0"
+                  step="1"
+                  class="h-8 w-16 border-0 px-2 text-center text-sm focus:ring-1 focus:ring-primary"
+                  @focus="selectInputValue"
+                />
+                <button
+                  type="button"
+                  class="h-8 w-8 border-l border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  @click="changeStorageInput(p, 'delta', 1)"
+                >
+                  +
+                </button>
+              </div>
             </td>
 
             <td class="px-4 py-2 text-right font-medium">
@@ -276,6 +326,7 @@ function hasNegativeStorageInput(product: any) {
                 step="0.01"
                 class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                 :disabled="!(storageAmount(p) > 0)"
+                @focus="selectInputValue"
               />
             </td>
 
@@ -426,6 +477,7 @@ function hasNegativeStorageInput(product: any) {
                 min="0"
                 step="0.01"
                 class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                @focus="selectInputValue"
               />
             </td>
             <td class="px-4 py-2 text-right">

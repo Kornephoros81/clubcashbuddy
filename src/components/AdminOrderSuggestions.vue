@@ -139,7 +139,7 @@ function statusLabel(row: OrderSuggestionRow) {
   if (row.stock_status === "out_of_stock") return "leer";
   if (row.stock_status === "low") return "niedrig";
   if (row.stock_status === "no_demand") return "ohne Bedarf";
-  return "ok";
+  return "ausreichend";
 }
 
 function trendLabel(value: OrderSuggestionRow["trend"]) {
@@ -193,9 +193,9 @@ onMounted(loadSuggestions);
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 class="text-xl font-semibold text-primary">Bestellvorschlag</h2>
+          <h2 class="text-xl font-semibold text-primary">Bestellliste</h2>
           <p class="mt-1 text-sm text-slate-600">
-            Automatische Vorschläge aus Absatz, Bestand, Reichweite und Packungsgröße.
+            Nachkaufbedarf aus regulärem Absatz, aktuellem Bestand und Packungsgröße.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -205,7 +205,7 @@ onMounted(loadSuggestions);
             :disabled="!acceptedRows.length"
             @click="copyOrderList"
           >
-            Liste kopieren
+            Bestellliste kopieren
           </button>
           <button
             type="button"
@@ -248,17 +248,17 @@ onMounted(loadSuggestions);
         <div class="text-xs text-slate-500">{{ metrics.suggestedProductsCount }} mit Vorschlag</div>
       </div>
       <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-xs font-semibold uppercase text-slate-500">Niedrige Reichweite</div>
+        <div class="text-xs font-semibold uppercase text-slate-500">Knapp oder leer</div>
         <div class="mt-1 text-2xl font-semibold text-amber-700">{{ metrics.lowStockCount }}</div>
         <div class="text-xs text-slate-500">{{ metrics.outOfStockCount }} leer</div>
       </div>
       <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-xs font-semibold uppercase text-slate-500">Vorschlag System</div>
+        <div class="text-xs font-semibold uppercase text-slate-500">Bestellvorschlag</div>
         <div class="mt-1 text-2xl font-semibold text-primary">{{ metrics.totalSuggestedUnits }}</div>
         <div class="text-xs text-slate-500">{{ euro(metrics.totalEstimatedCostCents) }}</div>
       </div>
       <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-xs font-semibold uppercase text-slate-500">Aktuelle Liste</div>
+        <div class="text-xs font-semibold uppercase text-slate-500">Bestellliste</div>
         <div class="mt-1 text-2xl font-semibold text-emerald-700">{{ acceptedUnits }}</div>
         <div class="text-xs text-slate-500">{{ acceptedProductCount }} Artikel</div>
       </div>
@@ -272,8 +272,8 @@ onMounted(loadSuggestions);
     <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div class="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h3 class="font-semibold text-primary">Vorschläge</h3>
-          <p class="text-xs text-slate-500">Menge kann vor dem Kopieren überschrieben werden.</p>
+          <h3 class="font-semibold text-primary">Bestellpositionen</h3>
+          <p class="text-xs text-slate-500">0 bedeutet: der aktuelle Bestand reicht für den gewählten Zeitraum.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <select v-model="selectedCategory" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
@@ -282,7 +282,7 @@ onMounted(loadSuggestions);
           </select>
           <label class="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
             <input v-model="showAll" type="checkbox" class="accent-primary" />
-            Alle Artikel
+            Auch ohne Bedarf
           </label>
         </div>
       </div>
@@ -294,13 +294,13 @@ onMounted(loadSuggestions);
             <tr>
               <th class="px-4 py-3 text-left">Artikel</th>
               <th class="px-4 py-3 text-right">Bestand</th>
-              <th class="px-4 py-3 text-right">Absatz 14/30/90</th>
+              <th class="px-4 py-3 text-right">Regulär 14/30/90</th>
               <th class="px-4 py-3 text-right">Reichweite</th>
-              <th class="px-4 py-3 text-right">Ziel</th>
-              <th class="px-4 py-3 text-right">System</th>
-              <th class="px-4 py-3 text-right">Bestellen</th>
+              <th class="px-4 py-3 text-right">Sollbestand</th>
+              <th class="px-4 py-3 text-right">Vorschlag</th>
+              <th class="px-4 py-3 text-right">Menge</th>
               <th class="px-4 py-3 text-right">Kosten</th>
-              <th class="px-4 py-3 text-left">Hinweis</th>
+              <th class="px-4 py-3 text-left">Einschätzung</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
