@@ -128,6 +128,7 @@ async function bookExpiredProduct(product: Product) {
   await addProduct(product, {
     amountCents: price,
     note: MHD_EXPIRED_NOTE,
+    saleKind: "mhd",
     toastLabel: `${product.name} (${MHD_EXPIRED_NOTE})`,
   });
 }

@@ -563,6 +563,22 @@ const ADMIN_RPC_ACTIONS = {
       p_offset: p.offset ?? 0,
     }),
   },
+  get_product_activity_report: {
+    fn: "api_admin_get_product_activity_report",
+    args: (token, p) => ({
+      p_token: token,
+      p_start: p.start,
+      p_end: p.end,
+    }),
+  },
+  get_order_suggestions: {
+    fn: "api_admin_get_order_suggestions",
+    args: (token, p) => ({
+      p_token: token,
+      p_horizon_days: p.horizon_days ?? 30,
+      p_safety_percent: p.safety_percent ?? 20,
+    }),
+  },
   get_branding_settings: {
     fn: "api_admin_get_branding_settings",
     args: (token) => ({ p_token: token }),
@@ -924,6 +940,7 @@ async function handleRoute(route, req, res) {
         p_inventoried: body.inventoried ?? true,
         p_last_purchase_price_cents: body.last_purchase_price_cents ?? 0,
         p_mhd_sale_enabled: body.mhd_sale_enabled ?? false,
+        p_package_size: body.package_size ?? null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 201, data);
@@ -941,6 +958,7 @@ async function handleRoute(route, req, res) {
         p_inventoried: body.inventoried ?? null,
         p_last_purchase_price_cents: body.last_purchase_price_cents ?? null,
         p_mhd_sale_enabled: body.mhd_sale_enabled ?? null,
+        p_package_size: Object.prototype.hasOwnProperty.call(body, "package_size") ? body.package_size : null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 200, data);
@@ -979,6 +997,7 @@ async function handleRoute(route, req, res) {
         p_inventoried: item.inventoried ?? null,
         p_last_purchase_price_cents: item.last_purchase_price_cents ?? null,
         p_mhd_sale_enabled: item.mhd_sale_enabled ?? null,
+        p_package_size: Object.prototype.hasOwnProperty.call(item, "package_size") ? item.package_size : null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       updatedItems.push(data);
@@ -1052,7 +1071,7 @@ async function handleRoute(route, req, res) {
         .eq("id", productId);
       const { data: productRow, error: productError } = await supabase
         .from("products")
-        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,package_size,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
         .eq("id", productId)
         .maybeSingle();
       if (error) return json(res, 500, { error: error.message || "Delete failed" });
@@ -1068,6 +1087,7 @@ async function handleRoute(route, req, res) {
             active: productRow.active,
             inventoried: productRow.inventoried,
             mhd_sale_enabled: productRow.mhd_sale_enabled,
+            package_size: productRow.package_size,
             last_purchase_price_cents: productRow.last_purchase_price_cents,
             image_url: buildProductImageUrl(supabase, productRow),
           }
@@ -1080,7 +1100,7 @@ async function handleRoute(route, req, res) {
       const saved = await persistProductImageAsset(supabase, productId, imageDataUrl);
       const { data: productRow, error: productError } = await supabase
         .from("products")
-        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,package_size,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
         .eq("id", productId)
         .maybeSingle();
       if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
@@ -1095,6 +1115,7 @@ async function handleRoute(route, req, res) {
             active: productRow.active,
             inventoried: productRow.inventoried,
             mhd_sale_enabled: productRow.mhd_sale_enabled,
+            package_size: productRow.package_size,
             last_purchase_price_cents: productRow.last_purchase_price_cents,
             image_url: buildProductImageUrl(supabase, productRow) ?? saved.image_url,
           }
@@ -1165,6 +1186,7 @@ async function handleRoute(route, req, res) {
     for (const item of items) {
       const amount = Number(item.amount ?? 0);
       if (!item.product_id || !Number.isFinite(amount) || amount === 0) continue;
+      if (amount < 0) return json(res, 400, { error: "Einlagerung muss groesser als 0 sein" });
       const { error } = await supabase.rpc("api_admin_add_storage", {
         p_token: token,
         p_product_id: item.product_id,
@@ -1217,6 +1239,16 @@ async function handleRoute(route, req, res) {
       return json(res, 200, data);
     }
 
+    if (req.method === "DELETE") {
+      if (!body.id) return json(res, 400, { error: "Missing id" });
+      const { data, error } = await supabase.rpc("api_admin_cancel_purchase_lot_remaining", {
+        p_token: token,
+        p_lot_id: body.id,
+        p_note: body.note ?? null,
+      });
+      if (error) return json(res, 403, { error: error.message || "Forbidden" });
+      return json(res, 200, Array.isArray(data) ? data[0] ?? null : data);
+    }
     return json(res, 405, { error: "Method not allowed" });
   }
 
@@ -1265,7 +1297,7 @@ async function handleRoute(route, req, res) {
     setCacheHeaders(res, "public, s-maxage=300, stale-while-revalidate=3600");
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+      .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,package_size,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
       .eq("active", true)
       .order("name", { ascending: true });
     if (error) return json(res, 500, { error: error.message || "Query failed" });
@@ -1279,6 +1311,7 @@ async function handleRoute(route, req, res) {
       active: p.active,
       inventoried: p.inventoried,
       mhd_sale_enabled: p.mhd_sale_enabled,
+      package_size: p.package_size,
       last_purchase_price_cents: p.last_purchase_price_cents,
       image_url: buildProductImageUrl(supabase, p),
     }));
@@ -1642,7 +1675,7 @@ async function handleRoute(route, req, res) {
     if (includeProducts) {
       const { data: productRows, error: productError } = await supabase
         .from("products")
-        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+        .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,package_size,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
         .eq("active", true)
         .order("name", { ascending: true });
       if (productError) return json(res, 500, { error: productError.message || "Product query failed" });
@@ -1656,7 +1689,8 @@ async function handleRoute(route, req, res) {
         active: p.active,
         inventoried: p.inventoried,
         mhd_sale_enabled: p.mhd_sale_enabled,
-      last_purchase_price_cents: p.last_purchase_price_cents,
+        package_size: p.package_size,
+        last_purchase_price_cents: p.last_purchase_price_cents,
         image_url: buildProductImageUrl(supabase, p),
       }));
     }
@@ -1724,6 +1758,7 @@ async function handleRoute(route, req, res) {
       p_note: body.p_note ?? null,
       client_tx_id_param: body.client_tx_id_param ?? null,
       p_transaction_type: body.p_transaction_type ?? null,
+      p_sale_kind: body.p_sale_kind ?? body.sale_kind ?? "regular",
     });
     if (error) return json(res, 400, { error: error.message || "Booking failed" });
     const traceError = await stampBookingDeviceTrace(supabase, data, v.deviceId);
@@ -1760,6 +1795,7 @@ async function handleRoute(route, req, res) {
           p_note: item?.p_note ?? null,
           client_tx_id_param: clientTxId,
           p_transaction_type: item?.p_transaction_type ?? null,
+          p_sale_kind: item?.p_sale_kind ?? item?.sale_kind ?? "regular",
         });
         if (error) {
           results.push({

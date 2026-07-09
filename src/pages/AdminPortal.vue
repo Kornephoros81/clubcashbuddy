@@ -23,6 +23,7 @@ const masterDataLinks = [
 
 const actionLinks = [
   { to: "/admin/storage", label: "Lagerverwaltung", icon: "📦" },
+  { to: "/admin/order-suggestions", label: "Bestellvorschlag", icon: "🛒" },
   { to: "/admin/bookings-report", label: "Buchungsübersicht", icon: "🧾" },
   { to: "/admin/inventory-report", label: "Inventurabgleich", icon: "📦" },
   { to: "/admin/settlement", label: "Monatsabschluss", icon: "📘" },
@@ -32,6 +33,7 @@ const reportLinks = [
   { to: "/admin/stock-adjustments-report", label: "Fehlbestände & Anpassungen", icon: "📉" },
   { to: "/admin/cancellations-report", label: "Storno-Report", icon: "↩️" },
   { to: "/admin/revenue-report", label: "Umsatzreport", icon: "💶" },
+  { to: "/admin/product-activity-report", label: "Artikelreport", icon: "📊" },
   { to: "/admin/complimentary-report", label: "Freigetränke", icon: "🎟️" },
   { to: "/admin/settlements-report", label: "Abrechnungsprotokoll", icon: "📒" },
 ];

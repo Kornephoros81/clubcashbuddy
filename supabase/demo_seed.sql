@@ -160,32 +160,32 @@ begin
     ('Sonstiges', true, 999)
   on conflict (name) do nothing;
 
-  with seed(name, category, price, guest_price, inventoried) as (
+  with seed(name, category, price, guest_price, inventoried, package_size) as (
     values
-      ('Cola 0.33', 'Getraenke', 180, 220, true),
-      ('Cola Zero 0.33', 'Getraenke', 180, 220, true),
-      ('Wasser still 0.50', 'Getraenke', 120, 150, true),
-      ('Wasser sprudel 0.50', 'Getraenke', 120, 150, true),
-      ('Apfelschorle 0.50', 'Getraenke', 170, 210, true),
-      ('Spezi 0.33', 'Getraenke', 190, 230, true),
-      ('Eistee Pfirsich 0.50', 'Getraenke', 180, 220, true),
-      ('Eistee Zitrone 0.50', 'Getraenke', 180, 220, true),
-      ('Johannisbeer-Schorle 0.50', 'Getraenke', 180, 220, true),
-      ('Iso Drink 0.50', 'Getraenke', 220, 260, true),
+      ('Cola 0.33', 'Getraenke', 180, 220, true, 24),
+      ('Cola Zero 0.33', 'Getraenke', 180, 220, true, 24),
+      ('Wasser still 0.50', 'Getraenke', 120, 150, true, 12),
+      ('Wasser sprudel 0.50', 'Getraenke', 120, 150, true, 12),
+      ('Apfelschorle 0.50', 'Getraenke', 170, 210, true, 20),
+      ('Spezi 0.33', 'Getraenke', 190, 230, true, 24),
+      ('Eistee Pfirsich 0.50', 'Getraenke', 180, 220, true, 12),
+      ('Eistee Zitrone 0.50', 'Getraenke', 180, 220, true, 12),
+      ('Johannisbeer-Schorle 0.50', 'Getraenke', 180, 220, true, 12),
+      ('Iso Drink 0.50', 'Getraenke', 220, 260, true, 12),
 
-      ('Kaesebrot', 'Essen', 250, 290, true),
-      ('Schinkenbrot', 'Essen', 280, 320, true),
-      ('Breze', 'Essen', 170, 210, true),
-      ('Laugenstange Kaese', 'Essen', 220, 260, true),
-      ('Hotdog', 'Essen', 300, 350, true),
-      ('Bockwurst', 'Essen', 280, 330, true),
-      ('Frikadellenbroetchen', 'Essen', 330, 380, true),
-      ('Kartoffelsalat Becher', 'Essen', 260, 310, true),
-      ('Obstbecher', 'Essen', 240, 280, true),
-      ('Muffin', 'Essen', 200, 240, true)
+      ('Kaesebrot', 'Essen', 250, 290, true, null),
+      ('Schinkenbrot', 'Essen', 280, 320, true, null),
+      ('Breze', 'Essen', 170, 210, true, null),
+      ('Laugenstange Kaese', 'Essen', 220, 260, true, null),
+      ('Hotdog', 'Essen', 300, 350, true, null),
+      ('Bockwurst', 'Essen', 280, 330, true, null),
+      ('Frikadellenbroetchen', 'Essen', 330, 380, true, null),
+      ('Kartoffelsalat Becher', 'Essen', 260, 310, true, null),
+      ('Obstbecher', 'Essen', 240, 280, true, null),
+      ('Muffin', 'Essen', 200, 240, true, null)
   )
   insert into public.products (
-    name, category, price, guest_price, active, inventoried, created_at
+    name, category, price, guest_price, active, inventoried, package_size, created_at
   )
   select
     s.name,
@@ -194,9 +194,29 @@ begin
     s.guest_price,
     true,
     s.inventoried,
+    s.package_size,
     now() - (random() * interval '300 days')
   from seed s
   on conflict do nothing;
+
+  with seed(name, package_size) as (
+    values
+      ('Cola 0.33', 24),
+      ('Cola Zero 0.33', 24),
+      ('Wasser still 0.50', 12),
+      ('Wasser sprudel 0.50', 12),
+      ('Apfelschorle 0.50', 20),
+      ('Spezi 0.33', 24),
+      ('Eistee Pfirsich 0.50', 12),
+      ('Eistee Zitrone 0.50', 12),
+      ('Johannisbeer-Schorle 0.50', 12),
+      ('Iso Drink 0.50', 12)
+  )
+  update public.products p
+  set package_size = s.package_size
+  from seed s
+  where p.name = s.name
+    and p.category = 'Getraenke';
 
   -- Prepare temporary pools for random generation.
   create temporary table tmp_demo_members on commit drop as

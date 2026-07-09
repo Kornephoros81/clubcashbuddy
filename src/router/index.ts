@@ -11,9 +11,11 @@ const AdminInventoryReport = () => import("@/components/AdminInventoryReport.vue
 const AdminBookingsReport = () => import("@/components/AdminBookingsReport.vue");
 const AdminSettlementView = () => import("@/components/AdminSettlementView.vue");
 const AdminStorageView = () => import("@/components/AdminStorageView.vue");
+const AdminOrderSuggestions = () => import("@/components/AdminOrderSuggestions.vue");
 const AdminStockAdjustmentsReport = () => import("@/components/AdminStockAdjustmentsReport.vue");
 const AdminCancellationsReport = () => import("@/components/AdminCancellationsReport.vue");
 const AdminRevenueReport = () => import("@/components/AdminRevenueReportOptimized.vue");
+const AdminProductActivityReport = () => import("@/components/AdminProductActivityReport.vue");
 const AdminComplimentaryReport = () => import("@/components/AdminComplimentaryReport.vue");
 const AdminSettlementsReport = () => import("@/components/AdminSettlementsReport.vue");
 const AdminBrandingSettings = () => import("@/components/AdminBrandingSettings.vue");
@@ -42,6 +44,7 @@ const routes = [
       { path: "stock-adjustments-report", component: AdminStockAdjustmentsReport },
       { path: "cancellations-report", component: AdminCancellationsReport },
       { path: "revenue-report", component: AdminRevenueReport },
+      { path: "product-activity-report", component: AdminProductActivityReport },
       { path: "complimentary-report", component: AdminComplimentaryReport },
       { path: "settlements-report", component: AdminSettlementsReport },
       { path: "branding", component: AdminBrandingSettings },
@@ -53,6 +56,7 @@ const routes = [
       { path: "performance", component: AdminPerformanceMetrics },
       { path: "settlement", component: AdminSettlementView },
       { path: "storage", component: AdminStorageView },
+      { path: "order-suggestions", component: AdminOrderSuggestions },
     ],
   },
   { path: "/login", component: Login },

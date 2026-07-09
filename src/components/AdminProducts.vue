@@ -15,6 +15,7 @@ const newProductCategory = ref("Sonstiges");
 const newProductPrice = ref<number | null>(null);
 const newGuestPrice = ref<number | null>(null);
 const newLastPurchasePrice = ref<number | null>(null);
+const newPackageSize = ref<number | null>(null);
 const newProductInventoried = ref(true);
 const newProductMhdSaleEnabled = ref(false);
 const selectedProduct = ref<any | null>(null);
@@ -210,6 +211,7 @@ function openProductDetails(product: any) {
     ...product,
     originalInventoried: Boolean(product.inventoried),
     mhdSaleEnabled: Boolean(product.mhdSaleEnabled ?? product.mhd_sale_enabled),
+    packageSize: product.packageSize ?? product.package_size ?? null,
   };
 }
 
@@ -269,6 +271,7 @@ async function confirmAddProduct() {
       priceEuro: newProductPrice.value ?? 0,
       guestPriceEuro: newGuestPrice.value ?? 0,
       lastPurchasePriceEuro: newLastPurchasePrice.value ?? 0,
+      packageSize: newPackageSize.value,
       active: true,
       inventoried: newProductInventoried.value,
       mhdSaleEnabled: newProductMhdSaleEnabled.value,
@@ -280,6 +283,7 @@ async function confirmAddProduct() {
     newProductPrice.value = null;
     newGuestPrice.value = null;
     newLastPurchasePrice.value = null;
+    newPackageSize.value = null;
     newProductInventoried.value = true;
     newProductMhdSaleEnabled.value = false;
     showNewProductModal.value = false;
@@ -446,6 +450,10 @@ async function deleteProduct(p: any) {
               <div class="font-medium text-gray-900">{{ formatEuro(p.lastPurchasePriceEuro) }}</div>
             </div>
             <div>
+              <div class="text-xs uppercase text-gray-500">Gebinde</div>
+              <div class="font-medium text-gray-900">{{ p.packageSize ? `${p.packageSize} Stück` : "-" }}</div>
+            </div>
+            <div>
               <div class="text-xs uppercase text-gray-500">Kategorie</div>
               <div class="font-medium text-gray-900 truncate">{{ p.category }}</div>
             </div>
@@ -487,6 +495,7 @@ async function deleteProduct(p: any) {
             <th class="px-4 py-3 text-left">Bild</th>
             <th class="px-4 py-3 text-center">Aktiv</th>
             <th class="px-4 py-3 text-center">Inventarisiert</th>
+            <th class="px-4 py-3 text-right">Gebinde</th>
             <th class="px-4 py-3 text-center">MHD</th>
             <th class="px-4 py-3 text-center">Aktionen</th>
           </tr>
@@ -552,6 +561,10 @@ async function deleteProduct(p: any) {
                 {{ p.inventoried ? "Ja" : "Nein" }}
               </span>
             </td>
+            <!-- Gebinde -->
+            <td class="px-4 py-2 text-right">
+              {{ p.packageSize ? `${p.packageSize} Stk.` : "-" }}
+            </td>
             <!-- MHD -->
             <td class="px-4 py-2 text-center">
               <span class="rounded-full px-2 py-1 text-xs" :class="p.mhdSaleEnabled ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'">
@@ -570,7 +583,7 @@ async function deleteProduct(p: any) {
             </td>
           </tr>
           <tr v-if="sortedProducts.length === 0">
-            <td colspan="10" class="text-center py-6 text-gray-400 italic">
+            <td colspan="11" class="text-center py-6 text-gray-400 italic">
               Keine Artikel für den gewählten Filter
             </td>
           </tr>
@@ -645,6 +658,17 @@ async function deleteProduct(p: any) {
                   type="number"
                   step="0.01"
                   min="0"
+                  class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Gebindegröße</label>
+                <input
+                  v-model.number="selectedProduct.packageSize"
+                  type="number"
+                  step="1"
+                  min="0"
+                  placeholder="z. B. 20"
                   class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
                 />
               </div>
@@ -791,6 +815,16 @@ async function deleteProduct(p: any) {
           type="number"
           step="0.01"
           min="0"
+          class="w-full border rounded-md p-2 text-sm"
+        />
+
+        <label class="block text-sm text-gray-600">Gebindegröße</label>
+        <input
+          v-model.number="newPackageSize"
+          type="number"
+          step="1"
+          min="0"
+          placeholder="z. B. 20"
           class="w-full border rounded-md p-2 text-sm"
         />
 

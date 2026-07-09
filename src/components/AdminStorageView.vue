@@ -39,7 +39,13 @@ async function delay(ms = 800) {
 /* 💾 Speichert alle geänderten Lagerbestände */
 async function saveAll() {
   try {
-    const changed = store.products.filter((p) => p.delta && p.delta !== 0);
+    const invalid = store.products.find((p) => hasNegativeStorageInput(p));
+    if (invalid) {
+      showToast(`⚠️ Einlagerungen müssen positiv sein (${invalid.name})`);
+      return;
+    }
+
+    const changed = store.products.filter((p) => storageAmount(p) > 0);
     if (!changed.length) {
       showToast("⚠️ Keine Änderungen vorgenommen");
       return;
@@ -52,10 +58,10 @@ async function saveAll() {
     await delay();
   } catch (err) {
     console.error("[saveAllStorage]", err);
-    showToast("⚠️ Fehler beim Aktualisieren der Lagerbestände");
+    const message = err instanceof Error ? err.message : "Fehler beim Aktualisieren der Lagerbestände";
+    showToast(`⚠️ ${message}`);
   }
 }
-
 function setLotSaving(lotId: string, saving: boolean) {
   savingLotById.value = {
     ...savingLotById.value,
@@ -67,6 +73,31 @@ function isLotSaving(lotId: string) {
   return Boolean(savingLotById.value[lotId]);
 }
 
+function canCancelLot(lot: any) {
+  return lot.source_reason === "purchase" && !lot.isClosed && Number(lot.remaining_quantity ?? 0) > 0;
+}
+
+async function cancelLotRemaining(lot: any) {
+  if (!canCancelLot(lot)) return;
+  const quantity = Math.trunc(Number(lot.remaining_quantity ?? 0));
+  const confirmed = window.confirm(
+    `Offenen Rest von ${quantity} Stück für ${lot.product_name} stornieren?`,
+  );
+  if (!confirmed) return;
+
+  try {
+    setLotSaving(lot.id, true);
+    await store.cancelPurchaseLotRemaining(lot);
+    await store.loadPurchaseLots(null, lotState.value);
+    showToast(`✅ Offener Rest für ${lot.product_name} storniert`);
+  } catch (err) {
+    console.error("[cancelPurchaseLotRemaining]", err);
+    const message = err instanceof Error ? err.message : "Fehler beim Stornieren der Einlagerung";
+    showToast(`⚠️ ${message}`);
+  } finally {
+    setLotSaving(lot.id, false);
+  }
+}
 async function saveLot(lot: any) {
   try {
     setLotSaving(lot.id, true);
@@ -130,6 +161,39 @@ function lotSortIndicator(key: LotSortKey) {
   if (lotSortKey.value !== key) return "";
   return lotSortDirection.value === "asc" ? " ▲" : " ▼";
 }
+
+function packageSize(product: any) {
+  const size = Math.trunc(Number(product.packageSize ?? 0));
+  return Number.isFinite(size) && size > 0 ? size : 0;
+}
+
+function packageUnits(product: any) {
+  return Math.trunc(Number(product.packageDelta ?? 0)) * packageSize(product);
+}
+
+function storageAmount(product: any) {
+  return Math.trunc(Number(product.delta ?? 0)) + packageUnits(product);
+}
+
+function numericInputValue(target: any, key: "packageDelta" | "delta") {
+  const value = Math.trunc(Number(target?.[key] ?? 0));
+  return Number.isFinite(value) ? value : 0;
+}
+
+function changeStorageInput(target: any, key: "packageDelta" | "delta", change: number) {
+  target[key] = Math.max(0, numericInputValue(target, key) + change);
+}
+
+function selectInputValue(event: FocusEvent) {
+  const input = event.target instanceof HTMLInputElement ? event.target : null;
+  input?.select();
+}
+
+function hasNegativeStorageInput(product: any) {
+  return Math.trunc(Number(product.delta ?? 0)) < 0
+    || Math.trunc(Number(product.packageDelta ?? 0)) < 0
+    || storageAmount(product) < 0;
+}
 </script>
 
 <template>
@@ -164,7 +228,9 @@ function lotSortIndicator(key: LotSortKey) {
             <th class="px-4 py-3 text-left">Produkt</th>
             <th class="px-4 py-3 text-right">Letzter EK</th>
             <th class="px-4 py-3 text-right">Bestand</th>
-            <th class="px-4 py-3 text-right">Einlagerung</th>
+            <th class="px-4 py-3 text-right">Kisten</th>
+            <th class="px-4 py-3 text-right">Stück</th>
+            <th class="px-4 py-3 text-right">Gesamt</th>
             <th class="px-4 py-3 text-right">EK neu</th>
             <th class="px-4 py-3 text-right">Bestandswert</th>
             <th class="px-4 py-3 text-left">Letzte Änderung</th>
@@ -187,11 +253,69 @@ function lotSortIndicator(key: LotSortKey) {
             </td>
 
             <td class="px-4 py-2 text-right">
-              <input
-                v-model.number="p.delta"
-                type="number"
-                class="w-20 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-              />
+              <div v-if="packageSize(p) > 0" class="space-y-1">
+                <div class="inline-flex items-center justify-end rounded-md border border-gray-200 bg-white">
+                  <button
+                    type="button"
+                    class="h-8 w-8 border-r border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                    :disabled="numericInputValue(p, 'packageDelta') <= 0"
+                    @click="changeStorageInput(p, 'packageDelta', -1)"
+                  >
+                    -
+                  </button>
+                  <input
+                    v-model.number="p.packageDelta"
+                    type="number"
+                    min="0"
+                    step="1"
+                    class="h-8 w-16 border-0 px-2 text-center text-sm focus:ring-1 focus:ring-primary"
+                    @focus="selectInputValue"
+                  />
+                  <button
+                    type="button"
+                    class="h-8 w-8 border-l border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    @click="changeStorageInput(p, 'packageDelta', 1)"
+                  >
+                    +
+                  </button>
+                </div>
+                <div class="text-[11px] text-gray-500">
+                  × {{ packageSize(p) }} = {{ packageUnits(p) }}
+                </div>
+              </div>
+              <span v-else class="text-gray-400">-</span>
+            </td>
+
+            <td class="px-4 py-2 text-right">
+              <div class="inline-flex items-center justify-end rounded-md border border-gray-200 bg-white">
+                <button
+                  type="button"
+                  class="h-8 w-8 border-r border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                  :disabled="numericInputValue(p, 'delta') <= 0"
+                  @click="changeStorageInput(p, 'delta', -1)"
+                >
+                  -
+                </button>
+                <input
+                  v-model.number="p.delta"
+                  type="number"
+                  min="0"
+                  step="1"
+                  class="h-8 w-16 border-0 px-2 text-center text-sm focus:ring-1 focus:ring-primary"
+                  @focus="selectInputValue"
+                />
+                <button
+                  type="button"
+                  class="h-8 w-8 border-l border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  @click="changeStorageInput(p, 'delta', 1)"
+                >
+                  +
+                </button>
+              </div>
+            </td>
+
+            <td class="px-4 py-2 text-right font-medium">
+              {{ storageAmount(p) }}
             </td>
 
             <td class="px-4 py-2 text-right">
@@ -201,7 +325,8 @@ function lotSortIndicator(key: LotSortKey) {
                 min="0"
                 step="0.01"
                 class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                :disabled="!(Number(p.delta ?? 0) > 0)"
+                :disabled="!(storageAmount(p) > 0)"
+                @focus="selectInputValue"
               />
             </td>
 
@@ -352,6 +477,7 @@ function lotSortIndicator(key: LotSortKey) {
                 min="0"
                 step="0.01"
                 class="w-24 text-right border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                @focus="selectInputValue"
               />
             </td>
             <td class="px-4 py-2 text-right">
@@ -382,13 +508,23 @@ function lotSortIndicator(key: LotSortKey) {
               />
             </td>
             <td class="px-4 py-2 text-right">
-              <button
-                @click="saveLot(lot)"
-                class="bg-primary text-white px-3 py-1.5 rounded-lg shadow hover:bg-primary/90 transition disabled:opacity-50"
-                :disabled="isLotSaving(lot.id)"
-              >
-                {{ isLotSaving(lot.id) ? "..." : "Speichern" }}
-              </button>
+              <div class="flex justify-end gap-2">
+                <button
+                  v-if="canCancelLot(lot)"
+                  @click="cancelLotRemaining(lot)"
+                  class="bg-white text-red-700 border border-red-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-red-50 transition disabled:opacity-50"
+                  :disabled="isLotSaving(lot.id)"
+                >
+                  Rest stornieren
+                </button>
+                <button
+                  @click="saveLot(lot)"
+                  class="bg-primary text-white px-3 py-1.5 rounded-lg shadow hover:bg-primary/90 transition disabled:opacity-50"
+                  :disabled="isLotSaving(lot.id)"
+                >
+                  {{ isLotSaving(lot.id) ? "..." : "Speichern" }}
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
