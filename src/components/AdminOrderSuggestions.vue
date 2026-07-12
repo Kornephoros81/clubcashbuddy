@@ -40,6 +40,13 @@ type Metrics = {
   activeMembers28d: number;
 };
 
+type ReportParameters = {
+  horizonDays: number;
+  leadTimeDays: number;
+  planningDays: number;
+  safetyPercent: number;
+};
+
 const { show: showToast } = useToast();
 
 const loading = ref(false);
@@ -50,6 +57,12 @@ const safetyPercent = ref(20);
 const selectedCategory = ref("");
 const showAll = ref(false);
 const products = ref<OrderSuggestionRow[]>([]);
+const parameters = ref<ReportParameters>({
+  horizonDays: 60,
+  leadTimeDays: 7,
+  planningDays: 67,
+  safetyPercent: 20,
+});
 const metrics = ref<Metrics>({
   productCount: 0,
   suggestedProductsCount: 0,
@@ -155,6 +168,7 @@ async function loadSuggestions() {
       safety_percent: safetyPercent.value,
     });
     products.value = Array.isArray(data?.products) ? data.products : [];
+    parameters.value = { ...parameters.value, ...(data?.parameters ?? {}) };
     metrics.value = { ...metrics.value, ...(data?.metrics ?? {}) };
   } catch (err) {
     console.error("[AdminOrderSuggestions]", err);
@@ -188,6 +202,10 @@ onMounted(loadSuggestions);
           <h2 class="text-xl font-semibold text-primary">Bestellliste</h2>
           <p class="mt-1 text-sm text-slate-600">
             Nachkaufbedarf aus regulärem Absatz, aktuellem Bestand und Gebindegröße.
+          </p>
+          <p class="mt-1 text-xs text-slate-500">
+            Berechnet für {{ parameters.horizonDays }} Tage Bestellhorizont plus {{ parameters.leadTimeDays }} Tage Lieferzeit
+            = {{ parameters.planningDays }} Tage Planungszeitraum.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
