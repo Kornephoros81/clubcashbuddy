@@ -16,6 +16,8 @@ type OrderSuggestionRow = {
   mhd_90: number;
   mhd_share_percent: number;
   daily_demand: number;
+  per_member_rate: number | null;
+  demand_source: "model" | "recent" | "fallback";
   reach_days: number | null;
   target_stock: number;
   suggested_units: number;
@@ -35,6 +37,7 @@ type Metrics = {
   lowStockCount: number;
   totalSuggestedUnits: number;
   totalEstimatedCostCents: number;
+  activeMembers28d: number;
 };
 
 const { show: showToast } = useToast();
@@ -53,6 +56,7 @@ const metrics = ref<Metrics>({
   lowStockCount: 0,
   totalSuggestedUnits: 0,
   totalEstimatedCostCents: 0,
+  activeMembers28d: 0,
 });
 
 const categoryOptions = computed(() =>
@@ -120,6 +124,19 @@ function reachLabel(value: number | null) {
   if (value === null || value === undefined) return "-";
   if (value >= 999) return ">999";
   return Number(value).toFixed(1);
+}
+
+function perMemberRateLabel(row: OrderSuggestionRow) {
+  const value = Number(row.per_member_rate ?? 0);
+  return value.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function demandBasisLabel(row: OrderSuggestionRow) {
+  if (row.demand_source === "fallback") return "Basis: 28-Tage-Durchschnitt";
+  return `Basis: Mitglieder-Modell (${perMemberRateLabel(row)} Stk./Mitgl./Monat)`;
 }
 
 async function loadSuggestions() {
@@ -210,11 +227,16 @@ onMounted(loadSuggestions);
 
     <p v-if="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</p>
 
-    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
       <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-xs font-semibold uppercase text-slate-500">Artikel geprüft</div>
         <div class="mt-1 text-2xl font-semibold text-primary">{{ metrics.productCount }}</div>
         <div class="text-xs text-slate-500">{{ metrics.suggestedProductsCount }} mit Vorschlag</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-xs font-semibold uppercase text-slate-500">Aktive Mitglieder</div>
+        <div class="mt-1 text-2xl font-semibold text-primary">{{ metrics.activeMembers28d }}</div>
+        <div class="text-xs text-slate-500">letzte 28 Tage</div>
       </div>
       <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-xs font-semibold uppercase text-slate-500">Knapp oder leer</div>
@@ -306,6 +328,7 @@ onMounted(loadSuggestions);
                 <div class="text-xs font-semibold" :class="p.confidence === 'hoch' ? 'text-emerald-700' : p.confidence === 'mittel' ? 'text-amber-700' : 'text-red-700'">
                   Konfidenz {{ p.confidence }}
                 </div>
+                <div class="mt-1 text-xs text-slate-600">{{ demandBasisLabel(p) }}</div>
                 <div v-if="p.warnings?.length" class="mt-1 max-w-[260px] text-xs text-slate-600">
                   {{ p.warnings.join(", ") }}
                 </div>
