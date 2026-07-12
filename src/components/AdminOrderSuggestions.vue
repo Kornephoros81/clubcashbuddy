@@ -96,6 +96,7 @@ function normalizeParams() {
 
 function setHorizonDays(days: number) {
   horizonDays.value = days;
+  void loadSuggestions();
 }
 
 function packageSize(row: OrderSuggestionRow) {
@@ -209,7 +210,7 @@ onMounted(loadSuggestions);
         </div>
       </div>
 
-      <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto] xl:items-end">
+      <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-2 xl:items-end">
         <label class="block">
           <span class="mb-1 block text-xs font-semibold uppercase text-slate-500">Bestellhorizont</span>
           <div class="flex flex-wrap gap-2">
@@ -228,13 +229,17 @@ onMounted(loadSuggestions);
         <label class="block">
           <span class="mb-1 block text-xs font-semibold uppercase text-slate-500">Sicherheitsaufschlag</span>
           <div class="flex items-center gap-2">
-            <input v-model.number="safetyPercent" type="number" min="0" max="100" class="h-10 w-full rounded-xl border border-slate-300 px-3 text-sm" />
+            <input
+              v-model.number="safetyPercent"
+              type="number"
+              min="0"
+              max="100"
+              class="h-10 w-full rounded-xl border border-slate-300 px-3 text-sm"
+              @change="loadSuggestions"
+            />
             <span class="text-sm text-slate-500">%</span>
           </div>
         </label>
-        <button type="button" class="h-10 rounded-xl border border-primary bg-white px-4 text-sm font-semibold text-primary hover:bg-primary/5" @click="loadSuggestions">
-          Anwenden
-        </button>
       </div>
     </section>
 
