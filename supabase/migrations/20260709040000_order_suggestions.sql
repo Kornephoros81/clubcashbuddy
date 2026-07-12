@@ -14,6 +14,7 @@ set search_path = public, extensions, pg_temp
 as $function$
 declare
   v_horizon_days integer := greatest(1, least(90, coalesce(p_horizon_days, 60)));
+  v_lead_time_days integer := 7;
   v_safety_percent numeric := greatest(0, least(100, coalesce(p_safety_percent, 20)));
   v_payload jsonb;
 begin
@@ -187,11 +188,11 @@ begin
         when d.daily_demand > 0 then round(d.current_stock::numeric / d.daily_demand, 1)
         else null
       end as reach_days,
-      greatest(0, ceil(d.daily_demand * v_horizon_days * (1 + (v_safety_percent / 100)))::integer) as target_stock,
+      greatest(0, ceil(d.daily_demand * (v_horizon_days + v_lead_time_days) * (1 + (v_safety_percent / 100)))::integer) as target_stock,
       case
         when d.daily_demand = 0 then 'no_demand'
         when d.current_stock <= 0 then 'out_of_stock'
-        when (d.current_stock::numeric / d.daily_demand) < (v_horizon_days::numeric / 2) then 'low'
+        when (d.current_stock::numeric / d.daily_demand) < ((v_horizon_days + v_lead_time_days)::numeric / 2) then 'low'
         else 'ok'
       end as stock_status,
       case
@@ -239,7 +240,7 @@ begin
         case when s.sold_90_total = 0 then 'Keine Verkäufe in den letzten 90 Tagen' end,
         case when s.sold_90_total > 0 and s.sold_90_total < 10 then 'Wenig Datenbasis' end,
         case when s.stock_status = 'out_of_stock' then 'Aktuell kein Bestand' end,
-        case when s.stock_status = 'low' then 'Reichweite unter halbem Bestellhorizont' end,
+        case when s.stock_status = 'low' then 'Reichweite unter halbem Planungszeitraum' end,
         case when s.mhd_share_percent >= 30 then 'Hoher MHD-Anteil' end,
         case when s.demand_source = 'fallback' then 'Zu wenig Historie – 28-Tage-Durchschnitt verwendet' end,
         case when s.last_purchase_price_cents = 0 then 'Kein Einkaufspreis gepflegt' end
@@ -289,6 +290,8 @@ begin
   select jsonb_build_object(
     'parameters', jsonb_build_object(
       'horizonDays', v_horizon_days,
+      'leadTimeDays', v_lead_time_days,
+      'planningDays', v_horizon_days + v_lead_time_days,
       'safetyPercent', v_safety_percent
     ),
     'metrics', jsonb_build_object(
@@ -307,7 +310,7 @@ begin
   cross join products_json pj;
 
   return coalesce(v_payload, jsonb_build_object(
-    'parameters', jsonb_build_object('horizonDays', v_horizon_days, 'safetyPercent', v_safety_percent),
+    'parameters', jsonb_build_object('horizonDays', v_horizon_days, 'leadTimeDays', v_lead_time_days, 'planningDays', v_horizon_days + v_lead_time_days, 'safetyPercent', v_safety_percent),
     'metrics', jsonb_build_object('activeMembers28d', 0),
     'products', '[]'::jsonb
   ));
