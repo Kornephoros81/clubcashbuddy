@@ -4,7 +4,7 @@ drop function if exists public.admin_get_order_suggestions(integer, numeric, num
 drop function if exists public.admin_get_order_suggestions(integer, numeric);
 
 create or replace function public.admin_get_order_suggestions(
-  p_horizon_days integer default 30,
+  p_horizon_days integer default 60,
   p_safety_percent numeric default 20
 )
 returns jsonb
@@ -13,7 +13,7 @@ security definer
 set search_path = public, extensions, pg_temp
 as $function$
 declare
-  v_horizon_days integer := greatest(1, least(60, coalesce(p_horizon_days, 30)));
+  v_horizon_days integer := greatest(1, least(90, coalesce(p_horizon_days, 60)));
   v_safety_percent numeric := greatest(0, least(100, coalesce(p_safety_percent, 20)));
   v_payload jsonb;
 begin
@@ -316,7 +316,7 @@ $function$;
 
 create or replace function public.api_admin_get_order_suggestions(
   p_token text,
-  p_horizon_days integer default 30,
+  p_horizon_days integer default 60,
   p_safety_percent numeric default 20
 )
 returns jsonb

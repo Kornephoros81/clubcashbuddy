@@ -44,7 +44,8 @@ const { show: showToast } = useToast();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
-const horizonDays = ref(30);
+const horizonOptions = [30, 60, 90];
+const horizonDays = ref(60);
 const safetyPercent = ref(20);
 const selectedCategory = ref("");
 const showAll = ref(false);
@@ -89,8 +90,12 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
 }
 
 function normalizeParams() {
-  horizonDays.value = clampInteger(horizonDays.value, 1, 60, 30);
+  horizonDays.value = horizonOptions.includes(Number(horizonDays.value)) ? Number(horizonDays.value) : 60;
   safetyPercent.value = clampInteger(safetyPercent.value, 0, 100, 20);
+}
+
+function setHorizonDays(days: number) {
+  horizonDays.value = days;
 }
 
 function packageSize(row: OrderSuggestionRow) {
@@ -207,9 +212,17 @@ onMounted(loadSuggestions);
       <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto] xl:items-end">
         <label class="block">
           <span class="mb-1 block text-xs font-semibold uppercase text-slate-500">Bestellhorizont</span>
-          <div class="flex items-center gap-2">
-            <input v-model.number="horizonDays" type="number" min="1" max="60" class="h-10 w-full rounded-xl border border-slate-300 px-3 text-sm" />
-            <span class="text-sm text-slate-500">Tage</span>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="days in horizonOptions"
+              :key="days"
+              type="button"
+              class="h-10 rounded-xl border px-4 text-sm font-semibold transition"
+              :class="horizonDays === days ? 'border-primary bg-primary text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'"
+              @click="setHorizonDays(days)"
+            >
+              {{ days }} Tage
+            </button>
           </div>
         </label>
         <label class="block">

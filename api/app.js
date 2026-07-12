@@ -575,7 +575,7 @@ const ADMIN_RPC_ACTIONS = {
     fn: "api_admin_get_order_suggestions",
     args: (token, p) => ({
       p_token: token,
-      p_horizon_days: p.horizon_days ?? 30,
+      p_horizon_days: p.horizon_days ?? 60,
       p_safety_percent: p.safety_percent ?? 20,
     }),
   },
