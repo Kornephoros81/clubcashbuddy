@@ -59,6 +59,7 @@ const route = useRoute();
 
 const loading = ref(false);
 const cancelling = ref(false);
+const markingComplimentary = ref(false);
 const error = ref<string | null>(null);
 const bookings = ref<BookingItem[]>([]);
 
@@ -70,6 +71,8 @@ const sortDirection = ref<"asc" | "desc">("desc");
 
 const bookingToCancel = ref<BookingItem | null>(null);
 const showCancelModal = ref(false);
+const bookingToMarkComplimentary = ref<BookingItem | null>(null);
+const showComplimentaryModal = ref(false);
 
 const today = new Date();
 const sevenDaysAgo = new Date();
@@ -265,6 +268,34 @@ async function loadBookings() {
   }
 }
 
+function canModifyBooking(booking: BookingItem) {
+  return !booking.settled_at && booking.member_active;
+}
+
+function canMarkComplimentary(booking: BookingItem) {
+  return canModifyBooking(booking)
+    && !!booking.product_id
+    && booking.transaction_type !== "complimentary_product"
+    && Number(booking.amount ?? 0) !== 0;
+}
+
+function askMarkComplimentary(booking: BookingItem) {
+  if (!canModifyBooking(booking)) {
+    showToast("⚠️ Nur stornierbare Buchungen können kostenlos umgebucht werden");
+    return;
+  }
+  if (!booking.product_id) {
+    showToast("⚠️ Nur Produktbuchungen können als Freigetränk umgebucht werden");
+    return;
+  }
+  if (booking.transaction_type === "complimentary_product" || Number(booking.amount ?? 0) === 0) {
+    showToast("⚠️ Diese Buchung ist bereits kostenlos");
+    return;
+  }
+  bookingToMarkComplimentary.value = booking;
+  showComplimentaryModal.value = true;
+}
+
 function askCancel(booking: BookingItem) {
   if (booking.settled_at) {
     showToast("⚠️ Bereits abgerechnete Buchungen können nicht storniert werden");
@@ -301,6 +332,29 @@ async function confirmCancel() {
   } finally {
     cancelling.value = false;
     bookingToCancel.value = null;
+  }
+}
+
+async function confirmMarkComplimentary() {
+  const booking = bookingToMarkComplimentary.value;
+  if (!booking) return;
+
+  showComplimentaryModal.value = false;
+  markingComplimentary.value = true;
+
+  try {
+    await adminRpc("mark_transaction_complimentary", {
+      transaction_id: booking.id,
+    });
+
+    showToast("✅ Buchung wurde als Freigetränk umgebucht");
+    await loadBookings();
+  } catch (err) {
+    console.error("[AdminBookingsReport.markComplimentary]", err);
+    showToast("⚠️ Umbuchung fehlgeschlagen");
+  } finally {
+    markingComplimentary.value = false;
+    bookingToMarkComplimentary.value = null;
   }
 }
 
@@ -431,7 +485,7 @@ async function exportPdf() {
         <button
           @click="loadBookings"
           class="bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90 transition w-full"
-          :disabled="loading || cancelling"
+          :disabled="loading || cancelling || markingComplimentary"
         >
           Aktualisieren
         </button>
@@ -478,18 +532,32 @@ async function exportPdf() {
               }}
             </div>
           </div>
-          <button
-            @click="askCancel(booking)"
-            class="w-full px-3 py-2 rounded-md transition text-sm font-medium"
-            :class="
-              booking.settled_at || !booking.member_active
-                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                : 'bg-red-600 text-white hover:bg-red-700'
-            "
-            :disabled="cancelling || !!booking.settled_at || !booking.member_active"
-          >
-            Stornieren
-          </button>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              @click="askMarkComplimentary(booking)"
+              class="px-3 py-2 rounded-md transition text-sm font-medium"
+              :class="
+                canMarkComplimentary(booking)
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+              "
+              :disabled="cancelling || markingComplimentary || !canMarkComplimentary(booking)"
+            >
+              Kostenlos
+            </button>
+            <button
+              @click="askCancel(booking)"
+              class="px-3 py-2 rounded-md transition text-sm font-medium"
+              :class="
+                !canModifyBooking(booking)
+                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                  : 'bg-red-600 text-white hover:bg-red-700'
+              "
+              :disabled="cancelling || markingComplimentary || !canModifyBooking(booking)"
+            >
+              Stornieren
+            </button>
+          </div>
         </div>
         <div v-if="sortedBookings.length === 0" class="bg-white rounded-2xl shadow border border-gray-200 p-6 text-center text-gray-400 italic">
           Keine Buchungen für den gewählten Filter
@@ -561,18 +629,32 @@ async function exportPdf() {
                 {{ (booking.amount / 100).toFixed(2) }}
               </td>
               <td class="px-4 py-2 text-right">
-                <button
-                  @click="askCancel(booking)"
-                  class="px-3 py-1 rounded-md transition"
-                  :class="
-                    booking.settled_at || !booking.member_active
-                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                      : 'bg-red-600 text-white hover:bg-red-700'
-                  "
-                  :disabled="cancelling || !!booking.settled_at || !booking.member_active"
-                >
-                  Stornieren
-                </button>
+                <div class="flex justify-end gap-2">
+                  <button
+                    @click="askMarkComplimentary(booking)"
+                    class="px-3 py-1 rounded-md transition"
+                    :class="
+                      canMarkComplimentary(booking)
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                    "
+                    :disabled="cancelling || markingComplimentary || !canMarkComplimentary(booking)"
+                  >
+                    Kostenlos
+                  </button>
+                  <button
+                    @click="askCancel(booking)"
+                    class="px-3 py-1 rounded-md transition"
+                    :class="
+                      !canModifyBooking(booking)
+                        ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                        : 'bg-red-600 text-white hover:bg-red-700'
+                    "
+                    :disabled="cancelling || markingComplimentary || !canModifyBooking(booking)"
+                  >
+                    Stornieren
+                  </button>
+                </div>
               </td>
             </tr>
           </template>
@@ -610,6 +692,19 @@ async function exportPdf() {
       <p v-if="bookingToCancel">
         Buchung für <strong>{{ bookingToCancel.member_name }}</strong> mit
         <strong>{{ bookingToCancel.product_name }}</strong> wirklich stornieren?
+      </p>
+    </BaseModal>
+    <BaseModal
+      :show="showComplimentaryModal"
+      title="Als Freigetränk umbuchen"
+      confirm-label="Kostenlos umbuchen"
+      cancel-label="Abbrechen"
+      @close="showComplimentaryModal = false"
+      @confirm="confirmMarkComplimentary"
+    >
+      <p v-if="bookingToMarkComplimentary">
+        Buchung für <strong>{{ bookingToMarkComplimentary.member_name }}</strong> mit
+        <strong>{{ bookingToMarkComplimentary.product_name }}</strong> als Freigetränk umbuchen?
       </p>
     </BaseModal>
   </div>
