@@ -695,6 +695,13 @@ const ADMIN_RPC_ACTIONS = {
       p_note: p.note ?? null,
     }),
   },
+  mark_transaction_complimentary: {
+    fn: "api_admin_mark_transaction_complimentary",
+    args: (token, p) => ({
+      p_token: token,
+      p_transaction_id: p.transaction_id,
+    }),
+  },
   book_free_amount: {
     fn: "api_admin_book_free_amount",
     args: (token, p) => ({
