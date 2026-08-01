@@ -81,12 +81,17 @@ Im Bereich `Verwaltung` stehen je nach Berechtigung folgende Module bereit:
 - Branding
 - Admin-Benutzer
 - Geraete koppeln
+- Release Notes
 
 Bei Artikeln kann die Option `Umsatzneutraler Artikel` aktiviert werden. Solche
 Artikel werden normal am Terminal gebucht und dem Mitglied belastet, fliessen
 aber weder in Umsatz noch Marge ein (z. B. Startgeld, das als Preisgeld wieder
 ausgeschuettet wird). Die Einstellung gilt fuer neue Buchungen; bestehende
 Buchungen bleiben unveraendert.
+
+Die `Release Notes` im Bereich `System` zeigen oben die wichtigsten Aenderungen
+der vergangenen sieben Tage. Darunter steht ein dauerhaftes Archiv, das nach
+Text und Aenderungsart durchsucht und gefiltert werden kann.
 
 ### 5.3 Berichte
 Im Bereich `Berichte` sind u. a. verfuegbar:

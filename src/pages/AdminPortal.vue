@@ -46,6 +46,7 @@ const systemLinks = [
   { to: "/admin/sync-errors", label: "Sync-Fehler", icon: "⚠️" },
   { to: "/admin/sync-queue", label: "Sync-Queue", icon: "🔄" },
   { to: "/admin/performance", label: "Performance", icon: "📈" },
+  { to: "/admin/release-notes", label: "Release Notes", icon: "📄" },
 ];
 
 const currentSectionLabel = computed(() => {
