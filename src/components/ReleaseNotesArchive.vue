@@ -203,7 +203,7 @@ onBeforeUnmount(() => window.removeEventListener("popstate", readUrlFilters));
     </div>
 
     <div class="border-t border-gray-200 bg-gray-50 px-5 py-3 text-xs text-gray-500 sm:px-7">
-      Archivbeginn: 3. Juli 2026. Frühere Änderungen sind nicht enthalten.
+      Archivbeginn: 27. Februar 2026. Sämtliche inhaltlichen Einzelcommits sind enthalten; die 40 reinen Merge-Commits integrieren bereits aufgeführte Änderungen und werden nicht doppelt dargestellt.
     </div>
   </section>
 </template>
