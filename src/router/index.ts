@@ -25,6 +25,7 @@ const AdminSyncQueue = () => import("@/components/AdminSyncQueue.vue");
 const AdminSyncErrors = () => import("@/components/AdminSyncErrors.vue");
 const AdminDeviceSyncControl = () => import("@/components/AdminDeviceSyncControl.vue");
 const AdminPerformanceMetrics = () => import("@/components/AdminPerformanceMetrics.vue");
+const AdminReleaseNotes = () => import("@/components/AdminReleaseNotes.vue");
 
 const routes = [
   { path: "/", component: Terminal },
@@ -54,6 +55,7 @@ const routes = [
       { path: "sync-errors", component: AdminSyncErrors },
       { path: "device-sync", component: AdminDeviceSyncControl },
       { path: "performance", component: AdminPerformanceMetrics },
+      { path: "release-notes", component: AdminReleaseNotes },
       { path: "settlement", component: AdminSettlementView },
       { path: "storage", component: AdminStorageView },
       { path: "order-suggestions", component: AdminOrderSuggestions },

@@ -123,6 +123,7 @@ const transactionTypeOptions = [
   { value: "non_revenue", label: "Nicht umsatzrelevant" },
   { value: "sale_product", label: "Nur Produktverkäufe" },
   { value: "sale_free_amount", label: "Nur freie Verkäufe" },
+  { value: "non_revenue_product", label: "Nur umsatzneutrale Artikel" },
   { value: "complimentary_product", label: "Nur Freigetränke" },
 ];
 
@@ -272,6 +273,7 @@ function productGrossMarginPercent(row: { revenue: number; gross_profit: number 
 }
 
 function transactionTypeLabel(v: string) {
+  if (v === "non_revenue_product") return "Umsatzneutraler Artikel";
   if (v === "complimentary_product") return "Freigetränk";
   if (v === "cash_withdrawal") return "Bar-Entnahme";
   if (v === "credit_adjustment") return "Guthabenbuchung";

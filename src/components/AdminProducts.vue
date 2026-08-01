@@ -17,6 +17,7 @@ const newGuestPrice = ref<number | null>(null);
 const newLastPurchasePrice = ref<number | null>(null);
 const newPackageSize = ref<number | null>(null);
 const newProductInventoried = ref(true);
+const newProductRevenueNeutral = ref(false);
 const newProductMhdSaleEnabled = ref(false);
 const selectedProduct = ref<any | null>(null);
 const productDetailSaving = ref(false);
@@ -94,6 +95,7 @@ async function onProductImageSelected(product: any, event: Event) {
         ...selectedProduct.value,
         ...updated,
         originalInventoried: selectedProduct.value.originalInventoried,
+        originalRevenueNeutral: selectedProduct.value.originalRevenueNeutral,
       };
     }
     brokenPreviewById.value = {
@@ -126,6 +128,7 @@ async function removeProductImage(product: any) {
         ...selectedProduct.value,
         ...updated,
         originalInventoried: selectedProduct.value.originalInventoried,
+        originalRevenueNeutral: selectedProduct.value.originalRevenueNeutral,
       };
     }
     brokenPreviewById.value = {
@@ -210,6 +213,8 @@ function openProductDetails(product: any) {
   selectedProduct.value = {
     ...product,
     originalInventoried: Boolean(product.inventoried),
+    originalRevenueNeutral: Boolean(product.revenueNeutral ?? product.revenue_neutral),
+    revenueNeutral: Boolean(product.revenueNeutral ?? product.revenue_neutral),
     mhdSaleEnabled: Boolean(product.mhdSaleEnabled ?? product.mhd_sale_enabled),
     packageSize: product.packageSize ?? product.package_size ?? null,
   };
@@ -236,6 +241,17 @@ async function saveSelectedProduct() {
     if (!ok) return;
   }
 
+  const changingToRevenueNeutral =
+    product.originalRevenueNeutral !== true && product.revenueNeutral === true;
+  if (changingToRevenueNeutral) {
+    const ok = await confirm(
+      "Artikel auf umsatzneutral umstellen",
+      `Alle bisherigen normalen Buchungen und Stornos von „${String(product.name ?? "Artikel").trim()}“ werden rückwirkend umsatzneutral. Sie zählen danach nicht mehr zu Umsatz, Wareneinsatz oder Marge. Diese historische Umstellung wird beim späteren Deaktivieren nicht automatisch zurückgenommen. Fortfahren?`,
+      { danger: true }
+    );
+    if (!ok) return;
+  }
+
   productDetailSaving.value = true;
   try {
     const updated = await store.updateProduct({
@@ -243,10 +259,15 @@ async function saveSelectedProduct() {
       name: String(product.name ?? "").trim(),
       category: String(product.category ?? "").trim() || "Sonstiges",
     });
-    showToast("✅ Artikel gespeichert");
+    showToast(
+      changingToRevenueNeutral
+        ? "✅ Artikel und bestehende Buchungen wurden auf umsatzneutral umgestellt"
+        : "✅ Artikel gespeichert"
+    );
     selectedProduct.value = {
       ...updated,
       originalInventoried: Boolean(updated.inventoried),
+      originalRevenueNeutral: Boolean(updated.revenue_neutral),
     };
     closeProductDetails();
   } catch (err) {
@@ -274,6 +295,7 @@ async function confirmAddProduct() {
       packageSize: newPackageSize.value,
       active: true,
       inventoried: newProductInventoried.value,
+      revenueNeutral: newProductRevenueNeutral.value,
       mhdSaleEnabled: newProductMhdSaleEnabled.value,
     });
 
@@ -285,6 +307,7 @@ async function confirmAddProduct() {
     newLastPurchasePrice.value = null;
     newPackageSize.value = null;
     newProductInventoried.value = true;
+    newProductRevenueNeutral.value = false;
     newProductMhdSaleEnabled.value = false;
     showNewProductModal.value = false;
   } catch (err) {
@@ -431,6 +454,7 @@ async function deleteProduct(p: any) {
                 <span class="rounded-full px-2 py-1" :class="p.inventoried ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
                   {{ p.inventoried ? "Inventarisiert" : "Nicht inventarisiert" }}
                 </span>
+                <span v-if="p.revenueNeutral" class="rounded-full bg-violet-100 px-2 py-1 text-violet-700">Umsatzneutral</span>
                 <span v-if="p.mhdSaleEnabled" class="rounded-full bg-amber-100 px-2 py-1 text-amber-700">MHD</span>
               </div>
             </div>
@@ -495,6 +519,7 @@ async function deleteProduct(p: any) {
             <th class="px-4 py-3 text-left">Bild</th>
             <th class="px-4 py-3 text-center">Aktiv</th>
             <th class="px-4 py-3 text-center">Inventarisiert</th>
+            <th class="px-4 py-3 text-center">Umsatzneutral</th>
             <th class="px-4 py-3 text-right">Gebinde</th>
             <th class="px-4 py-3 text-center">MHD</th>
             <th class="px-4 py-3 text-center">Aktionen</th>
@@ -561,6 +586,12 @@ async function deleteProduct(p: any) {
                 {{ p.inventoried ? "Ja" : "Nein" }}
               </span>
             </td>
+            <!-- Umsatzneutral -->
+            <td class="px-4 py-2 text-center">
+              <span class="rounded-full px-2 py-1 text-xs" :class="p.revenueNeutral ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'">
+                {{ p.revenueNeutral ? "Ja" : "Nein" }}
+              </span>
+            </td>
             <!-- Gebinde -->
             <td class="px-4 py-2 text-right">
               {{ p.packageSize ? `${p.packageSize} Stk.` : "-" }}
@@ -583,7 +614,7 @@ async function deleteProduct(p: any) {
             </td>
           </tr>
           <tr v-if="sortedProducts.length === 0">
-            <td colspan="11" class="text-center py-6 text-gray-400 italic">
+            <td colspan="12" class="text-center py-6 text-gray-400 italic">
               Keine Artikel für den gewählten Filter
             </td>
           </tr>
@@ -608,6 +639,7 @@ async function deleteProduct(p: any) {
               <span class="rounded-full px-2 py-1" :class="selectedProduct.inventoried ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
                 {{ selectedProduct.inventoried ? "Inventarisiert" : "Nicht inventarisiert" }}
               </span>
+              <span v-if="selectedProduct.revenueNeutral" class="rounded-full bg-violet-100 px-2 py-1 text-violet-700">Umsatzneutral</span>
               <span v-if="selectedProduct.mhdSaleEnabled" class="rounded-full bg-amber-100 px-2 py-1 text-amber-700">MHD</span>
             </div>
           </div>
@@ -709,6 +741,17 @@ async function deleteProduct(p: any) {
                   class="scale-125 accent-primary"
                 />
                 MHD Verkauf
+              </label>
+              <label class="inline-flex items-start gap-2 text-sm text-gray-700 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  v-model="selectedProduct.revenueNeutral"
+                  class="mt-0.5 scale-125 accent-primary"
+                />
+                <span>
+                  Umsatzneutraler Artikel
+                  <span class="block text-xs text-gray-500">Buchungen zählen weder zu Umsatz noch Marge.</span>
+                </span>
               </label>
             </div>
           </section>
@@ -853,6 +896,17 @@ async function deleteProduct(p: any) {
             class="scale-125 accent-primary"
           />
           <span>MHD Verkauf</span>
+        </label>
+        <label class="flex items-start gap-2 text-sm text-gray-600 mt-3">
+          <input
+            type="checkbox"
+            v-model="newProductRevenueNeutral"
+            class="mt-0.5 scale-125 accent-primary"
+          />
+          <span>
+            Umsatzneutraler Artikel
+            <span class="block text-xs text-gray-500">Buchungen zählen weder zu Umsatz noch Marge.</span>
+          </span>
         </label>
       </div>
     </BaseModal>
