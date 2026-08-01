@@ -684,7 +684,6 @@ async function restoreArchivedMember(member: any) {
     <div
       v-if="selectedMember"
       class="fixed inset-0 z-50 bg-black/40"
-      @click.self="closeMemberDetails"
     >
       <aside
         class="ml-auto flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl"

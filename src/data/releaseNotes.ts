@@ -36,7 +36,7 @@ export const releaseNotesOverview = {
   periodLabel: "26. Juli–1. August 2026 · letzte 7 Tage",
   lastUpdated: "Aktualisiert am 1. August 2026",
   highlights: [
-    { value: "4", label: "dokumentierte Änderungen" },
+    { value: "5", label: "dokumentierte Änderungen" },
     { value: "2", label: "neue Funktionen" },
     { value: "2", label: "betroffene Themenbereiche" },
   ],
@@ -52,6 +52,7 @@ export const releaseNotesOverview = {
         "Artikel lassen sich im Artikelstamm als umsatzneutral kennzeichnen – zum Beispiel Startgelder, die später als Preisgeld ausgeschüttet werden.",
         "Die Kennzeichnung gilt unabhängig von der Lagerführung und wird bei jeder neuen Buchung dauerhaft gespeichert.",
         "Beim Umstellen eines bestehenden Artikels warnt ein Bestätigungsdialog vor der rückwirkenden Änderung; nach Zustimmung werden auch alle bisherigen normalen Buchungen und Stornos umsatzneutral.",
+        "Geöffnete Pflegeansichten für Artikel und Mitglieder bleiben bei einem versehentlichen Klick auf den abgedunkelten Hintergrund geöffnet.",
       ],
     },
     {
@@ -80,6 +81,12 @@ export const releaseNotesArchive: ReleaseNoteArchiveGroup[] = [
     date: "2026-08-01",
     dateLabel: "1. August 2026",
     entries: [
+      {
+        id: "keep-product-member-editors-open-on-backdrop-click",
+        theme: "articles",
+        type: "fixed",
+        title: "Pflegeansichten für Artikel und Mitglieder schließen nicht mehr durch einen Klick außerhalb des Dialogs; Eingaben können nur noch über die vorgesehenen Aktionen verlassen werden.",
+      },
       {
         id: "retroactive-revenue-neutral-product-bookings",
         theme: "bookings",
