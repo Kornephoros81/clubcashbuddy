@@ -27,6 +27,7 @@ export type Product = {
   category: string;
   active: boolean;
   inventoried?: boolean;
+  revenue_neutral?: boolean;
   mhd_sale_enabled?: boolean;
   package_size?: number | null;
   last_purchase_price_cents?: number | null;

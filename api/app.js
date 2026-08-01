@@ -924,7 +924,7 @@ async function handleRoute(route, req, res) {
       if (ids.length) {
         const { data: imageRows, error: imageError } = await supabase
           .from("products")
-          .select("id,product_image_data_url,product_image_path,product_image_version")
+          .select("id,revenue_neutral,product_image_data_url,product_image_path,product_image_version")
           .in("id", ids);
         if (imageError) return json(res, 500, { error: imageError.message || "Image query failed" });
         const hydratedRows = await migrateLegacyProductImages(supabase, imageRows ?? []);
@@ -932,6 +932,7 @@ async function handleRoute(route, req, res) {
       }
       const rows = baseRows.map((p) => ({
         ...p,
+        revenue_neutral: Boolean(imageById.get(p.id)?.revenue_neutral),
         image_url: buildProductImageUrl(supabase, imageById.get(p.id)),
       }));
       return json(res, 200, rows);
@@ -948,6 +949,7 @@ async function handleRoute(route, req, res) {
         p_last_purchase_price_cents: body.last_purchase_price_cents ?? 0,
         p_mhd_sale_enabled: body.mhd_sale_enabled ?? false,
         p_package_size: body.package_size ?? null,
+        p_revenue_neutral: body.revenue_neutral ?? false,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 201, data);
@@ -966,6 +968,7 @@ async function handleRoute(route, req, res) {
         p_last_purchase_price_cents: body.last_purchase_price_cents ?? null,
         p_mhd_sale_enabled: body.mhd_sale_enabled ?? null,
         p_package_size: Object.prototype.hasOwnProperty.call(body, "package_size") ? body.package_size : null,
+        p_revenue_neutral: Object.prototype.hasOwnProperty.call(body, "revenue_neutral") ? body.revenue_neutral : null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       return json(res, 200, data);
@@ -1005,6 +1008,7 @@ async function handleRoute(route, req, res) {
         p_last_purchase_price_cents: item.last_purchase_price_cents ?? null,
         p_mhd_sale_enabled: item.mhd_sale_enabled ?? null,
         p_package_size: Object.prototype.hasOwnProperty.call(item, "package_size") ? item.package_size : null,
+        p_revenue_neutral: Object.prototype.hasOwnProperty.call(item, "revenue_neutral") ? item.revenue_neutral : null,
       });
       if (error) return json(res, 403, { error: error.message || "Forbidden" });
       updatedItems.push(data);
@@ -1304,7 +1308,7 @@ async function handleRoute(route, req, res) {
     setCacheHeaders(res, "public, s-maxage=300, stale-while-revalidate=3600");
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price,guest_price,category,active,inventoried,mhd_sale_enabled,package_size,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
+      .select("id,name,price,guest_price,category,active,inventoried,revenue_neutral,mhd_sale_enabled,package_size,last_purchase_price_cents,product_image_data_url,product_image_path,product_image_version")
       .eq("active", true)
       .order("name", { ascending: true });
     if (error) return json(res, 500, { error: error.message || "Query failed" });
@@ -1317,6 +1321,7 @@ async function handleRoute(route, req, res) {
       category: p.category,
       active: p.active,
       inventoried: p.inventoried,
+      revenue_neutral: Boolean(p.revenue_neutral),
       mhd_sale_enabled: p.mhd_sale_enabled,
       package_size: p.package_size,
       last_purchase_price_cents: p.last_purchase_price_cents,
