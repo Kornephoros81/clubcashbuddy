@@ -95,6 +95,7 @@ async function onProductImageSelected(product: any, event: Event) {
         ...selectedProduct.value,
         ...updated,
         originalInventoried: selectedProduct.value.originalInventoried,
+        originalRevenueNeutral: selectedProduct.value.originalRevenueNeutral,
       };
     }
     brokenPreviewById.value = {
@@ -127,6 +128,7 @@ async function removeProductImage(product: any) {
         ...selectedProduct.value,
         ...updated,
         originalInventoried: selectedProduct.value.originalInventoried,
+        originalRevenueNeutral: selectedProduct.value.originalRevenueNeutral,
       };
     }
     brokenPreviewById.value = {
@@ -211,6 +213,7 @@ function openProductDetails(product: any) {
   selectedProduct.value = {
     ...product,
     originalInventoried: Boolean(product.inventoried),
+    originalRevenueNeutral: Boolean(product.revenueNeutral ?? product.revenue_neutral),
     revenueNeutral: Boolean(product.revenueNeutral ?? product.revenue_neutral),
     mhdSaleEnabled: Boolean(product.mhdSaleEnabled ?? product.mhd_sale_enabled),
     packageSize: product.packageSize ?? product.package_size ?? null,
@@ -238,6 +241,17 @@ async function saveSelectedProduct() {
     if (!ok) return;
   }
 
+  const changingToRevenueNeutral =
+    product.originalRevenueNeutral !== true && product.revenueNeutral === true;
+  if (changingToRevenueNeutral) {
+    const ok = await confirm(
+      "Artikel auf umsatzneutral umstellen",
+      `Alle bisherigen normalen Buchungen und Stornos von „${String(product.name ?? "Artikel").trim()}“ werden rückwirkend umsatzneutral. Sie zählen danach nicht mehr zu Umsatz, Wareneinsatz oder Marge. Diese historische Umstellung wird beim späteren Deaktivieren nicht automatisch zurückgenommen. Fortfahren?`,
+      { danger: true }
+    );
+    if (!ok) return;
+  }
+
   productDetailSaving.value = true;
   try {
     const updated = await store.updateProduct({
@@ -245,10 +259,15 @@ async function saveSelectedProduct() {
       name: String(product.name ?? "").trim(),
       category: String(product.category ?? "").trim() || "Sonstiges",
     });
-    showToast("✅ Artikel gespeichert");
+    showToast(
+      changingToRevenueNeutral
+        ? "✅ Artikel und bestehende Buchungen wurden auf umsatzneutral umgestellt"
+        : "✅ Artikel gespeichert"
+    );
     selectedProduct.value = {
       ...updated,
       originalInventoried: Boolean(updated.inventoried),
+      originalRevenueNeutral: Boolean(updated.revenue_neutral),
     };
     closeProductDetails();
   } catch (err) {

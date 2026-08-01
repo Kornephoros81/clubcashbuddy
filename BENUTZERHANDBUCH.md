@@ -86,8 +86,11 @@ Im Bereich `Verwaltung` stehen je nach Berechtigung folgende Module bereit:
 Bei Artikeln kann die Option `Umsatzneutraler Artikel` aktiviert werden. Solche
 Artikel werden normal am Terminal gebucht und dem Mitglied belastet, fliessen
 aber weder in Umsatz noch Marge ein (z. B. Startgeld, das als Preisgeld wieder
-ausgeschuettet wird). Die Einstellung gilt fuer neue Buchungen; bestehende
-Buchungen bleiben unveraendert.
+ausgeschuettet wird). Beim Aktivieren fuer einen bestehenden Artikel weist ein
+Bestaetigungsdialog auf die Rueckwirkung hin. Nach der Bestaetigung werden auch
+alle bisherigen normalen Buchungen und Stornos dieses Artikels umsatzneutral.
+Ein spaeteres Deaktivieren stellt historische Buchungen nicht automatisch
+wieder auf umsatzrelevant zurueck.
 
 Die `Release Notes` im Bereich `System` zeigen oben die wichtigsten Aenderungen
 der vergangenen sieben Tage. Darunter steht ein dauerhaftes Archiv, das nach

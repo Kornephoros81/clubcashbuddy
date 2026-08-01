@@ -36,7 +36,7 @@ export const releaseNotesOverview = {
   periodLabel: "26. Juli–1. August 2026 · letzte 7 Tage",
   lastUpdated: "Aktualisiert am 1. August 2026",
   highlights: [
-    { value: "3", label: "dokumentierte Änderungen" },
+    { value: "4", label: "dokumentierte Änderungen" },
     { value: "2", label: "neue Funktionen" },
     { value: "2", label: "betroffene Themenbereiche" },
   ],
@@ -51,6 +51,7 @@ export const releaseNotesOverview = {
       changes: [
         "Artikel lassen sich im Artikelstamm als umsatzneutral kennzeichnen – zum Beispiel Startgelder, die später als Preisgeld ausgeschüttet werden.",
         "Die Kennzeichnung gilt unabhängig von der Lagerführung und wird bei jeder neuen Buchung dauerhaft gespeichert.",
+        "Beim Umstellen eines bestehenden Artikels warnt ein Bestätigungsdialog vor der rückwirkenden Änderung; nach Zustimmung werden auch alle bisherigen normalen Buchungen und Stornos umsatzneutral.",
       ],
     },
     {
@@ -80,11 +81,12 @@ export const releaseNotesArchive: ReleaseNoteArchiveGroup[] = [
     dateLabel: "1. August 2026",
     entries: [
       {
-        id: "complete-commit-history",
-        theme: "quality",
+        id: "retroactive-revenue-neutral-product-bookings",
+        theme: "bookings",
         type: "improved",
-        title: "Das Änderungsarchiv umfasst jetzt die vollständige inhaltliche Commit-Historie seit der ersten öffentlichen Version.",
+        title: "Beim Umstellen eines Artikels auf umsatzneutral werden nach ausdrücklicher Bestätigung auch alle bisherigen normalen Buchungen und Stornos rückwirkend umgestellt.",
       },
+      releaseEntry("c1709a8", "quality", "improved", "Das Änderungsarchiv umfasst jetzt die vollständige inhaltliche Commit-Historie seit der ersten öffentlichen Version."),
       releaseEntry("8bdba70", "quality", "new", "Release Notes zeigen die wichtigsten Änderungen der letzten sieben Tage und führen zusätzlich ein dauerhaftes, durchsuchbares Archiv."),
       releaseEntry("3926166", "articles", "new", "Feste Artikel können als umsatzneutral geführt und getrennt von Umsatz und Marge ausgewertet werden."),
     ],
