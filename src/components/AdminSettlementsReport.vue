@@ -113,7 +113,7 @@ async function exportPdf() {
           @click="exportPdf"
           class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
         >
-          Drucken
+          Drucken / PDF
         </button>
         <RouterLink to="/admin/dashboard" class="text-sm text-gray-500 hover:text-primary underline">
           ← Zurück zum Dashboard

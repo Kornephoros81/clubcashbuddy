@@ -102,9 +102,11 @@ Im Bereich `Berichte` sind u. a. verfuegbar:
 - Fehlbestaende & Anpassungen
 - Kuehlschrank-Auffuellungen
 - Storno-Report
-- Umsatzreport
+- Umsatzreport (inkl. Aufteilung nach Mitgliedern und Gaesten sowie Filter `Mitglieder / Gaeste`)
 - Abrechnungsprotokoll
 - Monatsabschluss
+
+Die Berichte haben oben rechts die Schaltflaeche `Drucken / PDF`. Im Druckdialog des Browsers kann statt eines Druckers `Als PDF speichern` gewaehlt werden.
 
 ## 6. Typische Arbeitsablaeufe
 

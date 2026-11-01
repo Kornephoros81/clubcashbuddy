@@ -11,8 +11,9 @@ import { exportReportAsPdf } from "@/utils/reportExport";
 
 type HeatAggregationMode = "trimmed_mean" | "mean" | "max";
 type TrendBucketMode = "day" | "week" | "month";
-type DailySummaryRow = { day: string; revenue: number; canceled: number };
-type TrendSummaryRow = { day: string; label: string; revenue: number };
+type DailySummaryRow = { day: string; revenue: number; guest_revenue?: number; canceled: number };
+type TrendSummaryRow = { day: string; label: string; revenue: number; guestRevenue: number };
+type AudienceGroup = { revenueCents: number; canceledCents: number; goodsCostCents: number; grossProfitCents: number; bookingCount: number; cancellationCount: number; buyers: number; sharePercent: number };
 type MetricBundle = {
   revenueCents: number;
   canceledCents: number;
@@ -31,7 +32,12 @@ type MetricBundle = {
   stornoRateCount: number;
   freeAmountSummary: { count: number; cents: number; share: number };
   nonRevenueSummary: { count: number; cents: number; canceledCount: number; canceledCents: number };
+  audienceSummary: { members: AudienceGroup; guests: AudienceGroup };
 };
+
+function emptyAudienceGroup(): AudienceGroup {
+  return { revenueCents: 0, canceledCents: 0, goodsCostCents: 0, grossProfitCents: 0, bookingCount: 0, cancellationCount: 0, buyers: 0, sharePercent: 0 };
+}
 
 const { show: showToast } = useToast();
 const route = useRoute();
@@ -42,6 +48,7 @@ const suppressDateReload = ref(false);
 const selectedMemberId = ref("");
 const selectedCategory = ref("");
 const selectedTransactionType = ref("");
+const selectedAudience = ref("");
 
 const today = new Date();
 const sevenDaysAgo = new Date();
@@ -74,6 +81,7 @@ const metrics = ref<MetricBundle>({
   stornoRateCount: 0,
   freeAmountSummary: { count: 0, cents: 0, share: 0 },
   nonRevenueSummary: { count: 0, cents: 0, canceledCount: 0, canceledCents: 0 },
+  audienceSummary: { members: emptyAudienceGroup(), guests: emptyAudienceGroup() },
 });
 const memberOptions = ref<Array<{ id: string; name: string }>>([]);
 const categoryOptions = ref<string[]>([]);
@@ -99,6 +107,16 @@ const stornoRateCount = computed(() => metrics.value.stornoRateCount);
 const activeMembers = computed(() => metrics.value.activeMembers);
 const freeAmountSummary = computed(() => metrics.value.freeAmountSummary);
 const nonRevenueSummary = computed(() => metrics.value.nonRevenueSummary);
+const audienceSummary = computed(() => metrics.value.audienceSummary);
+const audienceRows = computed(() => [
+  { key: "members", label: "Mitglieder", ...audienceSummary.value.members },
+  { key: "guests", label: "Gäste", ...audienceSummary.value.guests },
+]);
+const audienceOptions = [
+  { value: "", label: "Mitglieder & Gäste" },
+  { value: "members", label: "Nur Mitglieder" },
+  { value: "guests", label: "Nur Gäste" },
+];
 
 const minTrimmedDays = 35;
 const canUseTrimmedAggregation = computed(() => {
@@ -167,6 +185,7 @@ function applyQueryFilters() {
   const qCategory = queryValue(route.query.category);
   const qType = queryValue(route.query.transaction_type);
   const qFreeOnly = queryValue(route.query.free_only);
+  const qAudience = queryValue(route.query.audience);
 
   if (qStart) {
     const d = new Date(qStart);
@@ -179,6 +198,7 @@ function applyQueryFilters() {
   if (qMember) selectedMemberId.value = qMember;
   if (qCategory) selectedCategory.value = qCategory;
   if (qType) selectedTransactionType.value = qType;
+  if (qAudience === "members" || qAudience === "guests") selectedAudience.value = qAudience;
   if (qFreeOnly === "1") selectedCategory.value = "Freier Betrag";
 }
 
@@ -256,8 +276,10 @@ function buildTrendSummary(rows: DailySummaryRow[]): TrendSummaryRow[] {
       day: key,
       label: trendLabel(mode, bucketStart),
       revenue: 0,
+      guestRevenue: 0,
     };
     current.revenue += Number(row.revenue ?? 0);
+    current.guestRevenue += Number(row.guest_revenue ?? 0);
     buckets.set(key, current);
   }
 
@@ -362,6 +384,9 @@ async function renderCharts() {
         labels: trendSummary.map((row) => row.label),
         datasets: [
           { label: "Umsatz", data: trendSummary.map((row) => row.revenue / 100), borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.15)", fill: true, tension: 0.2 },
+          ...(selectedAudience.value === ""
+            ? [{ label: "davon Gäste", data: trendSummary.map((row) => row.guestRevenue / 100), borderColor: "#d97706", backgroundColor: "rgba(217,119,6,0.15)", fill: true, tension: 0.2 }]
+            : []),
         ],
       },
       options: {
@@ -415,6 +440,7 @@ async function loadReport() {
         member_id: selectedMemberId.value || undefined,
         category: selectedCategory.value || undefined,
         transaction_type: selectedTransactionType.value || undefined,
+        audience: selectedAudience.value || undefined,
       },
       recent_events_limit: 100,
     });
@@ -460,7 +486,7 @@ watch([startDate, endDate], async () => {
   await loadReport();
 });
 
-watch([selectedMemberId, selectedCategory, selectedTransactionType], async () => {
+watch([selectedMemberId, selectedCategory, selectedTransactionType, selectedAudience], async () => {
   await loadReport();
 });
 
@@ -493,7 +519,7 @@ async function exportPdf() {
     <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
       <h2 class="text-xl font-semibold text-primary">💶 Umsatzreport</h2>
       <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 no-print w-full lg:w-auto">
-        <button @click="exportPdf" class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">Drucken</button>
+        <button @click="exportPdf" class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">Drucken / PDF</button>
         <RouterLink to="/admin/dashboard" class="text-sm text-gray-500 hover:text-primary underline">← Zurück zum Dashboard</RouterLink>
       </div>
     </div>
@@ -503,6 +529,7 @@ async function exportPdf() {
       <div><label class="block text-sm font-medium text-gray-600 mb-1">Startdatum</label><Datepicker v-model="startDate" :enable-time-picker="false" :format="'dd.MM.yyyy'" :auto-apply="true" :close-on-auto-apply="true" :config="{ keepActionRow: true }" :action-row="{ showNow: true, nowBtnLabel: 'Heute', showSelect: false, showCancel: false }" /></div>
       <div><label class="block text-sm font-medium text-gray-600 mb-1">Enddatum</label><Datepicker v-model="endDate" :enable-time-picker="false" :format="'dd.MM.yyyy'" :auto-apply="true" :close-on-auto-apply="true" :config="{ keepActionRow: true }" :action-row="{ showNow: true, nowBtnLabel: 'Heute', showSelect: false, showCancel: false }" /></div>
       <div><label class="block text-sm font-medium text-gray-600 mb-1">Mitglied</label><select v-model="selectedMemberId" class="h-[38px] min-w-[220px] rounded-md border border-gray-300 px-3"><option value="">Alle Mitglieder</option><option v-for="member in memberOptions" :key="member.id" :value="member.id">{{ member.name }}</option></select></div>
+      <div><label class="block text-sm font-medium text-gray-600 mb-1">Mitglieder / Gäste</label><select v-model="selectedAudience" class="h-[38px] min-w-[220px] rounded-md border border-gray-300 px-3"><option v-for="opt in audienceOptions" :key="opt.value || 'all'" :value="opt.value">{{ opt.label }}</option></select></div>
       <div><label class="block text-sm font-medium text-gray-600 mb-1">Kategorie</label><select v-model="selectedCategory" class="h-[38px] min-w-[220px] rounded-md border border-gray-300 px-3"><option value="">Alle Kategorien</option><option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option></select></div>
       <div><label class="block text-sm font-medium text-gray-600 mb-1">Typ</label><select v-model="selectedTransactionType" class="h-[38px] min-w-[220px] rounded-md border border-gray-300 px-3"><option v-for="opt in transactionTypeOptions" :key="opt.value || 'all'" :value="opt.value">{{ opt.label }}</option></select></div>
       <div v-if="loading" class="h-[38px] inline-flex items-center gap-2 text-xs text-gray-500 xl:self-end"><span class="inline-block h-3.5 w-3.5 rounded-full border-2 border-gray-300 border-t-primary animate-spin"></span>Lädt…</div>
@@ -527,6 +554,17 @@ async function exportPdf() {
     <div v-else-if="error" class="text-center py-10 text-red-500">{{ error }}</div>
 
     <div v-else class="space-y-6">
+      <div class="bg-white rounded-2xl shadow overflow-x-auto border border-gray-200 print-table-card">
+        <h3 class="font-semibold text-primary px-4 pt-4">Umsatz nach Mitgliedern und Gästen</h3>
+        <table class="min-w-full text-sm text-gray-700">
+          <thead class="bg-primary/10 text-primary uppercase text-xs font-semibold"><tr><th class="px-4 py-3 text-left">Gruppe</th><th class="px-4 py-3 text-right">Umsatz</th><th class="px-4 py-3 text-right">Anteil</th><th class="px-4 py-3 text-right">Buchungen</th><th class="px-4 py-3 text-right">Käufer</th><th class="px-4 py-3 text-right">Stornosumme</th><th class="px-4 py-3 text-right">Wareneinsatz</th><th class="px-4 py-3 text-right">Rohgewinn</th></tr></thead>
+          <tbody>
+            <tr v-for="row in audienceRows" :key="row.key" class="border-t hover:bg-primary/5 transition-colors"><td class="px-4 py-2 font-medium">{{ row.label }}</td><td class="px-4 py-2 text-right font-semibold">{{ formatEuroFromCents(row.revenueCents) }}</td><td class="px-4 py-2 text-right">{{ row.sharePercent.toFixed(1) }}%</td><td class="px-4 py-2 text-right">{{ row.bookingCount }}</td><td class="px-4 py-2 text-right">{{ row.buyers }}</td><td class="px-4 py-2 text-right text-red-700">{{ formatEuroFromCents(row.canceledCents) }}</td><td class="px-4 py-2 text-right text-amber-700">{{ formatEuroFromCents(row.goodsCostCents) }}</td><td class="px-4 py-2 text-right font-semibold" :class="row.grossProfitCents >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ formatEuroFromCents(row.grossProfitCents) }}</td></tr>
+            <tr class="border-t bg-gray-50 font-semibold"><td class="px-4 py-2">Gesamt</td><td class="px-4 py-2 text-right">{{ formatEuroFromCents(audienceSummary.members.revenueCents + audienceSummary.guests.revenueCents) }}</td><td class="px-4 py-2 text-right">{{ audienceSummary.members.revenueCents + audienceSummary.guests.revenueCents > 0 ? "100.0%" : "0.0%" }}</td><td class="px-4 py-2 text-right">{{ audienceSummary.members.bookingCount + audienceSummary.guests.bookingCount }}</td><td class="px-4 py-2 text-right">{{ audienceSummary.members.buyers + audienceSummary.guests.buyers }}</td><td class="px-4 py-2 text-right text-red-700">{{ formatEuroFromCents(audienceSummary.members.canceledCents + audienceSummary.guests.canceledCents) }}</td><td class="px-4 py-2 text-right text-amber-700">{{ formatEuroFromCents(audienceSummary.members.goodsCostCents + audienceSummary.guests.goodsCostCents) }}</td><td class="px-4 py-2 text-right">{{ formatEuroFromCents(audienceSummary.members.grossProfitCents + audienceSummary.guests.grossProfitCents) }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 print-section">
         <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 h-[340px] print-card"><h3 class="font-semibold text-primary mb-3">Umsatzverlauf</h3><canvas ref="trendCanvas" class="h-[270px]"></canvas></div>
         <div class="bg-white rounded-2xl shadow border border-gray-200 p-4 h-[340px] print-card"><h3 class="font-semibold text-primary mb-3">Umsatzanteil nach Kategorie (Umsatz)</h3><canvas ref="categoryCanvas" class="h-[270px]"></canvas></div>
