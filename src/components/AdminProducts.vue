@@ -626,7 +626,6 @@ async function deleteProduct(p: any) {
     <div
       v-if="selectedProduct"
       class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
-      @click.self="closeProductDetails"
     >
       <div class="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-gray-200">
         <div class="flex items-start justify-between gap-4 px-5 py-4 border-b">

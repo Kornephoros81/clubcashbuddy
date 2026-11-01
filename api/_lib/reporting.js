@@ -28,6 +28,7 @@ function normalizeRevenueRow(row) {
     transaction_created_at: row?.transaction_created_at ?? row?.event_at ?? null,
     member_id: row?.member_id ?? null,
     member_name: row?.member_name ?? "Unbekanntes Mitglied",
+    is_guest: row?.is_guest ?? String(row?.member_name ?? "").endsWith("(Gast)"),
     product_id: row?.product_id ?? null,
     product_name: row?.product_name ?? "Unbekanntes Produkt",
     product_category: row?.product_category ?? "Unbekannt",
@@ -137,9 +138,12 @@ function filterRows(rows, filters) {
   const memberId = String(filters?.member_id ?? "").trim();
   const category = String(filters?.category ?? "").trim();
   const transactionType = String(filters?.transaction_type ?? "").trim();
+  const audience = String(filters?.audience ?? "").trim();
 
   return rows.filter((row) => {
     const memberOk = !memberId || row.member_id === memberId;
+    const audienceOk = !audience
+      || (audience === "guests" ? row.is_guest : audience === "members" ? !row.is_guest : true);
     const categoryOk = !category || row.product_category === category;
     const typeOk = !transactionType
       || (transactionType === "revenue"
@@ -147,8 +151,44 @@ function filterRows(rows, filters) {
         : transactionType === "non_revenue"
           ? !REVENUE_TRANSACTION_TYPES.has(row.transaction_type)
           : row.transaction_type === transactionType);
-    return memberOk && categoryOk && typeOk;
+    return memberOk && audienceOk && categoryOk && typeOk;
   });
+}
+
+function buildAudienceGroup(bookings, cancellations) {
+  const revenueCents = bookings.reduce((sum, row) => sum + Number(row.amount_abs ?? 0), 0);
+  const goodsCostCents = bookings.reduce((sum, row) => sum + Number(row.cost_amount_abs ?? 0), 0);
+  const buyers = new Set();
+  for (const row of bookings) {
+    if (row.member_id) buyers.add(row.member_id);
+  }
+  return {
+    revenueCents,
+    canceledCents: cancellations.reduce((sum, row) => sum + Number(row.amount_abs ?? 0), 0),
+    goodsCostCents,
+    grossProfitCents: revenueCents - goodsCostCents,
+    bookingCount: bookings.length,
+    cancellationCount: cancellations.length,
+    buyers: buyers.size,
+    sharePercent: 0,
+  };
+}
+
+function buildAudienceSummary(bookings, cancellations) {
+  const members = buildAudienceGroup(
+    bookings.filter((row) => !row.is_guest),
+    cancellations.filter((row) => !row.is_guest),
+  );
+  const guests = buildAudienceGroup(
+    bookings.filter((row) => row.is_guest),
+    cancellations.filter((row) => row.is_guest),
+  );
+  const totalRevenue = members.revenueCents + guests.revenueCents;
+  if (totalRevenue > 0) {
+    members.sharePercent = (members.revenueCents / totalRevenue) * 100;
+    guests.sharePercent = (guests.revenueCents / totalRevenue) * 100;
+  }
+  return { members, guests };
 }
 
 function buildHeatData(rows, start, end, mode) {
@@ -273,14 +313,17 @@ export function buildRevenueReportPayload(rawRows, options = {}) {
     canceledCents: nonRevenueCancellations.reduce((sum, row) => sum + Number(row.amount_abs ?? 0), 0),
   };
 
+  const audienceSummary = buildAudienceSummary(revenueBookingRows, revenueCancellationRows);
+
   const dailyMap = new Map();
   for (const row of revenueBookingRows) {
-    const current = dailyMap.get(row.local_day) ?? { day: row.local_day, revenue: 0, canceled: 0 };
+    const current = dailyMap.get(row.local_day) ?? { day: row.local_day, revenue: 0, guest_revenue: 0, canceled: 0 };
     current.revenue += Number(row.amount_abs ?? 0);
+    if (row.is_guest) current.guest_revenue += Number(row.amount_abs ?? 0);
     dailyMap.set(row.local_day, current);
   }
   for (const row of revenueCancellationRows) {
-    const current = dailyMap.get(row.local_day) ?? { day: row.local_day, revenue: 0, canceled: 0 };
+    const current = dailyMap.get(row.local_day) ?? { day: row.local_day, revenue: 0, guest_revenue: 0, canceled: 0 };
     current.canceled += Number(row.amount_abs ?? 0);
     dailyMap.set(row.local_day, current);
   }
@@ -383,6 +426,7 @@ export function buildRevenueReportPayload(rawRows, options = {}) {
       stornoRateCount,
       freeAmountSummary,
       nonRevenueSummary,
+      audienceSummary,
     },
     dailySummary,
     categorySummary,

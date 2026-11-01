@@ -33,34 +33,26 @@ export const releaseNotesOverview = {
   title: "Was ist neu bei ClubCashBuddy?",
   description:
     "Die wichtigsten Neuerungen der vergangenen sieben Tage – verständlich zusammengefasst für Kassenbetrieb und Vereinsverwaltung.",
-  periodLabel: "26. Juli–1. August 2026 · letzte 7 Tage",
-  lastUpdated: "Aktualisiert am 1. August 2026",
+  periodLabel: "26. Oktober–1. November 2026 · letzte 7 Tage",
+  lastUpdated: "Aktualisiert am 1. November 2026",
   highlights: [
-    { value: "4", label: "dokumentierte Änderungen" },
-    { value: "2", label: "neue Funktionen" },
-    { value: "2", label: "betroffene Themenbereiche" },
+    { value: "2", label: "dokumentierte Änderungen" },
+    { value: "1", label: "neue Funktion" },
+    { value: "1", label: "betroffener Themenbereich" },
   ],
   overviewTitle: "Diese Woche im Fokus",
   overviewDescription:
-    "Umsatzneutrale Stammartikel schaffen eine saubere Trennung in der Auswertung, während die neue Änderungshistorie Neuerungen dauerhaft nachvollziehbar macht.",
+    "Der Umsatzreport zeigt jetzt, wie sich der Umsatz auf Mitglieder und Gäste verteilt – so wird der Einfluss des Gastverzehrs auf die Vereinsfinanzen sichtbar.",
   sections: [
-    {
-      theme: "articles" as ReleaseNoteTheme,
-      title: "Artikel & Buchungen",
-      description: "Feste Artikel können jetzt gezielt außerhalb des Umsatzes geführt werden.",
-      changes: [
-        "Artikel lassen sich im Artikelstamm als umsatzneutral kennzeichnen – zum Beispiel Startgelder, die später als Preisgeld ausgeschüttet werden.",
-        "Die Kennzeichnung gilt unabhängig von der Lagerführung und wird bei jeder neuen Buchung dauerhaft gespeichert.",
-        "Beim Umstellen eines bestehenden Artikels warnt ein Bestätigungsdialog vor der rückwirkenden Änderung; nach Zustimmung werden auch alle bisherigen normalen Buchungen und Stornos umsatzneutral.",
-      ],
-    },
     {
       theme: "reports" as ReleaseNoteTheme,
       title: "Auswertung & Transparenz",
-      description: "Kennzahlen bleiben fachlich sauber und Produktänderungen nachvollziehbar.",
+      description: "Mitglieder- und Gastumsatz lassen sich getrennt auswerten und drucken.",
       changes: [
-        "Umsatzneutrale Artikel fließen weder in Umsatz, Wareneinsatz noch Marge ein und können in den Berichten separat gefiltert werden.",
-        "Eine neue Release-Notes-Seite verbindet eine kompakte Sieben-Tage-Übersicht mit einem dauerhaft gepflegten Änderungsarchiv.",
+        "Der Umsatzreport stellt Umsatz, Anteil, Buchungen, Käufer, Stornos, Wareneinsatz und Rohgewinn für Mitglieder und Gäste gegenüber; die Summe ergibt den Gesamtumsatz.",
+        "Über den neuen Filter „Mitglieder / Gäste“ lässt sich der gesamte Report auf eine der beiden Gruppen einschränken. Der Umsatzverlauf zeigt den Gästeanteil zusätzlich als eigene Kurve.",
+        "Der getrennt ausgewiesene Gästeumsatz erleichtert den groben Abgleich mit dem Barbestand der Kasse.",
+        "Die Schaltflächen zum Drucken heißen jetzt einheitlich „Drucken / PDF“; im Druckdialog des Browsers kann der Bericht als PDF gespeichert werden.",
       ],
     },
   ] satisfies ReleaseNoteSection[],
@@ -77,9 +69,33 @@ function releaseEntry(
 
 export const releaseNotesArchive: ReleaseNoteArchiveGroup[] = [
   {
+    date: "2026-11-01",
+    dateLabel: "1. November 2026",
+    entries: [
+      {
+        id: "revenue-report-members-guests-split",
+        theme: "reports",
+        type: "new",
+        title: "Der Umsatzreport trennt Umsatz, Wareneinsatz und Rohgewinn nach Mitgliedern und Gästen und bietet einen Filter „Mitglieder / Gäste“.",
+      },
+      {
+        id: "report-print-pdf-button-label",
+        theme: "reports",
+        type: "improved",
+        title: "Die Druckfunktion der Berichte heißt einheitlich „Drucken / PDF“ und weist damit auf das Speichern als PDF hin.",
+      },
+    ],
+  },
+  {
     date: "2026-08-01",
     dateLabel: "1. August 2026",
     entries: [
+      {
+        id: "keep-product-member-editors-open-on-backdrop-click",
+        theme: "articles",
+        type: "fixed",
+        title: "Pflegeansichten für Artikel und Mitglieder schließen nicht mehr durch einen Klick außerhalb des Dialogs; Eingaben können nur noch über die vorgesehenen Aktionen verlassen werden.",
+      },
       {
         id: "retroactive-revenue-neutral-product-bookings",
         theme: "bookings",
