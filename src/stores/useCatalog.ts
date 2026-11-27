@@ -13,6 +13,7 @@ export type Member = {
   name: string;
   active?: boolean;
   is_guest?: boolean;
+  cost_price_only?: boolean;
   settled?: boolean;
   last_booking_at?: string | null;
   has_booked_today?: boolean;

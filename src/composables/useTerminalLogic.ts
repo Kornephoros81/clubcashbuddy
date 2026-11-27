@@ -216,13 +216,15 @@ function createLogic() {
           const basePrice = prod?.price ?? 0;
           const guestPrice = prod?.guest_price ?? basePrice;
           const cents = member?.is_guest ? guestPrice : basePrice;
-          const queuedAmount = Number(p.amount ?? 0);
+          // Einkaufspreis-Gaeste: der Betrag (FIFO-Wareneinsatz) steht erst nach der Synchronisierung fest.
+          const costOnly = Boolean(member?.is_guest && member?.cost_price_only);
+          const queuedAmount = costOnly ? 0 : Number(p.amount ?? 0);
           const bookTx: BookingEntry = {
             id: p.client_tx_id || crypto.randomUUID(),
             product_id: p.product_id,
             product_name: prod?.name ?? "(Produkt)",
             note: p.note ?? null,
-            amount: queuedAmount !== 0 ? -Math.abs(queuedAmount) : -Math.abs(cents),
+            amount: costOnly ? 0 : queuedAmount !== 0 ? -Math.abs(queuedAmount) : -Math.abs(cents),
             count: 1,
             syncStatus,
             queueOp: "book",
@@ -284,7 +286,9 @@ function createLogic() {
         const prod = store.products.find((x: Product) => x.id === p.product_id);
         const basePrice = prod?.price ?? 0;
         const guestPrice = prod?.guest_price ?? basePrice;
-        cancelAmount = Math.abs(member?.is_guest ? guestPrice : basePrice);
+        cancelAmount = member?.is_guest && member?.cost_price_only
+          ? 0
+          : Math.abs(member?.is_guest ? guestPrice : basePrice);
         cancelName = `Storno: ${prod?.name ?? "(Produkt)"}`;
       }
 

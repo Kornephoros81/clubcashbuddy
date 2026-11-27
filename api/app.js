@@ -396,9 +396,22 @@ async function markComplimentaryProductTransactions(supabase, memberId, transact
   return { count: ids.length, adjustedCents: balanceAdjustment };
 }
 
+async function loadCostPriceOnlyMemberIds(supabase) {
+  const { data, error } = await supabase
+    .from("members")
+    .select("id")
+    .eq("is_guest", true)
+    .eq("cost_price_only", true);
+  if (error || !Array.isArray(data)) return new Set();
+  return new Set(data.map((row) => row.id));
+}
+
 async function verifyAdminSession(req) {
-  const token = extractBearerToken(req);
-  if (!token) return { ok: false, status: 401, error: "Unauthorized" };
+  return verifyAdminToken(extractBearerToken(req));
+}
+
+async function verifyAdminToken(token) {
+  if (!token || typeof token !== "string") return { ok: false, status: 401, error: "Unauthorized" };
 
   const supabase = getServiceClient();
   const { data: rows, error } = await supabase.rpc("app_apply_session", { p_token: token });
@@ -1590,6 +1603,7 @@ async function handleRoute(route, req, res) {
     if (error) return json(res, 500, { error: error.message || "RPC failed" });
     const rows = Array.isArray(data) ? data : [];
     const pinMap = await loadMemberPinMap(supabase, rows.map((m) => m.id));
+    const costOnlyIds = await loadCostPriceOnlyMemberIds(supabase);
     const formatted = rows.map((m) => {
       const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
       return {
@@ -1597,6 +1611,7 @@ async function handleRoute(route, req, res) {
         name: [last, m.firstname].filter(Boolean).join(", "),
         active: Boolean(m.active),
         is_guest: Boolean(m.is_guest),
+        cost_price_only: costOnlyIds.has(m.id),
         settled: Boolean(m.settled),
         last_booking_at: m.last_booking_at ?? null,
         has_pin: Boolean(pinMap.get(m.id)),
@@ -1631,6 +1646,7 @@ async function handleRoute(route, req, res) {
       const { data, error } = await supabase.rpc("get_terminal_snapshot_berlin");
       if (!error && Array.isArray(data)) {
         const pinMap = await loadMemberPinMap(supabase, data.map((m) => m.id));
+        const costOnlyIds = await loadCostPriceOnlyMemberIds(supabase);
         members = data.map((m) => {
           const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
           return {
@@ -1638,6 +1654,7 @@ async function handleRoute(route, req, res) {
             name: [last, m.firstname].filter(Boolean).join(", "),
             active: Boolean(m.active),
             is_guest: Boolean(m.is_guest),
+            cost_price_only: costOnlyIds.has(m.id),
             settled: Boolean(m.settled),
             last_booking_at: m.last_booking_at ?? null,
             has_booked_today: Boolean(m.has_booked_today),
@@ -1656,6 +1673,7 @@ async function handleRoute(route, req, res) {
         const bookedSet = new Set(bookedTodayMemberIds);
         const rows = Array.isArray(membersRes.data) ? membersRes.data : [];
         const pinMap = await loadMemberPinMap(supabase, rows.map((m) => m.id));
+        const costOnlyIds = await loadCostPriceOnlyMemberIds(supabase);
         members = rows.map((m) => {
           const last = m.is_guest ? `Gast: ${m.lastname ?? ""}` : m.lastname ?? "";
           return {
@@ -1663,6 +1681,7 @@ async function handleRoute(route, req, res) {
             name: [last, m.firstname].filter(Boolean).join(", "),
             active: Boolean(m.active),
             is_guest: Boolean(m.is_guest),
+            cost_price_only: costOnlyIds.has(m.id),
             settled: Boolean(m.settled),
             last_booking_at: m.last_booking_at ?? null,
             has_booked_today: bookedSet.has(m.id),
@@ -1872,9 +1891,15 @@ async function handleRoute(route, req, res) {
     const firstname = String(body.firstname ?? "").trim();
     const lastname = String(body.lastname ?? "").trim();
     if (!firstname && !lastname) return json(res, 400, { error: "Missing guest name" });
+    const costPriceOnly = body.cost_price_only === true;
+    if (costPriceOnly) {
+      // Nur Admins duerfen Gaeste anlegen, die ausschliesslich den Einkaufspreis zahlen.
+      const admin = await verifyAdminToken(body.admin_token);
+      if (!admin.ok) return json(res, 403, { error: "Admin-Rechte erforderlich" });
+    }
     const { data, error } = await supabase
       .from("members")
-      .insert({ firstname, lastname, is_guest: true, active: true })
+      .insert({ firstname, lastname, is_guest: true, active: true, cost_price_only: costPriceOnly })
       .select()
       .single();
     if (error) return json(res, 500, { error: error.message || "Insert failed" });

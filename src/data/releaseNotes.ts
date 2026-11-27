@@ -33,26 +33,25 @@ export const releaseNotesOverview = {
   title: "Was ist neu bei ClubCashBuddy?",
   description:
     "Die wichtigsten Neuerungen der vergangenen sieben Tage – verständlich zusammengefasst für Kassenbetrieb und Vereinsverwaltung.",
-  periodLabel: "26. Oktober–1. November 2026 · letzte 7 Tage",
-  lastUpdated: "Aktualisiert am 1. November 2026",
+  periodLabel: "21.–27. November 2026 · letzte 7 Tage",
+  lastUpdated: "Aktualisiert am 27. November 2026",
   highlights: [
-    { value: "2", label: "dokumentierte Änderungen" },
+    { value: "1", label: "dokumentierte Änderung" },
     { value: "1", label: "neue Funktion" },
     { value: "1", label: "betroffener Themenbereich" },
   ],
   overviewTitle: "Diese Woche im Fokus",
   overviewDescription:
-    "Der Umsatzreport zeigt jetzt, wie sich der Umsatz auf Mitglieder und Gäste verteilt – so wird der Einfluss des Gastverzehrs auf die Vereinsfinanzen sichtbar.",
+    "Administratorinnen und Administratoren können Gäste anlegen, die nur den Einkaufspreis zahlen – ihre Buchungen bleiben umsatzneutral.",
   sections: [
     {
-      theme: "reports" as ReleaseNoteTheme,
-      title: "Auswertung & Transparenz",
-      description: "Mitglieder- und Gastumsatz lassen sich getrennt auswerten und drucken.",
+      theme: "bookings" as ReleaseNoteTheme,
+      title: "Gäste zum Einkaufspreis",
+      description: "Umsatzneutrale Gastbuchungen für besondere Anlässe.",
       changes: [
-        "Der Umsatzreport stellt Umsatz, Anteil, Buchungen, Käufer, Stornos, Wareneinsatz und Rohgewinn für Mitglieder und Gäste gegenüber; die Summe ergibt den Gesamtumsatz.",
-        "Über den neuen Filter „Mitglieder / Gäste“ lässt sich der gesamte Report auf eine der beiden Gruppen einschränken. Der Umsatzverlauf zeigt den Gästeanteil zusätzlich als eigene Kurve.",
-        "Der getrennt ausgewiesene Gästeumsatz erleichtert den groben Abgleich mit dem Barbestand der Kasse.",
-        "Die Schaltflächen zum Drucken heißen jetzt einheitlich „Drucken / PDF“; im Druckdialog des Browsers kann der Bericht als PDF gespeichert werden.",
+        "Beim Anlegen eines Gasts steht für angemeldete Administratorinnen und Administratoren die Option „Nur Einkaufspreis (umsatzneutral)“ bereit.",
+        "Solche Gäste zahlen für jedes Getränk den tatsächlichen Einkaufspreis (Wareneinsatz); die Buchungen zählen nicht zum Umsatz.",
+        "Die Abrechnung des Gasts erfolgt wie bisher und bleibt damit ebenfalls umsatzneutral.",
       ],
     },
   ] satisfies ReleaseNoteSection[],
@@ -68,6 +67,18 @@ function releaseEntry(
 }
 
 export const releaseNotesArchive: ReleaseNoteArchiveGroup[] = [
+  {
+    date: "2026-11-27",
+    dateLabel: "27. November 2026",
+    entries: [
+      {
+        id: "guest-cost-price-only-revenue-neutral",
+        theme: "bookings",
+        type: "new",
+        title: "Administratorinnen und Administratoren können Gäste anlegen, die nur den Einkaufspreis zahlen; Buchungen und Abrechnung dieser Gäste sind umsatzneutral.",
+      },
+    ],
+  },
   {
     date: "2026-11-01",
     dateLabel: "1. November 2026",

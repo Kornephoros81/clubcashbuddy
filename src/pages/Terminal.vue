@@ -12,6 +12,7 @@ import FreeAmountModal from "@/components/Terminal/FreeAmountModal.vue";
 import OfflineStatus from "@/components/Terminal/OfflineStatus.vue";
 import BaseModal from "@/components/BaseModal.vue";
 import { useBranding } from "@/composables/useBranding";
+import { useAppAuthStore } from "@/stores/useAppAuthStore";
 import { getQueuedBookingsForMember } from "@/utils/offlineDB";
 import type { Product } from "@/stores/useCatalog";
 
@@ -142,6 +143,9 @@ function onLogoError(event: Event) {
 const showAddGuestModal = ref(false);
 const guestFirstname = ref("");
 const guestLastname = ref("");
+const guestCostPriceOnly = ref(false);
+const appAuth = useAppAuthStore();
+const canCreateCostPriceGuest = computed(() => appAuth.isAdminAuthenticated);
 const inactiveGuests = ref<InactiveGuest[]>([]);
 const inactiveGuestsLoading = ref(false);
 const inactiveGuestsError = ref("");
@@ -166,6 +170,7 @@ function closeAddGuestModal() {
   showAddGuestModal.value = false;
   guestFirstname.value = "";
   guestLastname.value = "";
+  guestCostPriceOnly.value = false;
   inactiveGuests.value = [];
   inactiveGuestsError.value = "";
   reactivatingGuestId.value = null;
@@ -304,6 +309,9 @@ async function addGuest() {
       body: JSON.stringify({
         firstname: guestFirstname.value.trim(),
         lastname: guestLastname.value.trim(),
+        ...(canCreateCostPriceGuest.value && guestCostPriceOnly.value
+          ? { cost_price_only: true, admin_token: appAuth.adminToken }
+          : {}),
       }),
     });
     if (auth.handleAuthStatus(res.status)) return;
@@ -962,6 +970,18 @@ watch(showPinModal, async (isOpen) => {
           class="w-full border border-slate-300 rounded-2xl p-3 text-sm focus:ring-1 focus:ring-primary"
           placeholder="Nachname"
         />
+        <label
+          v-if="canCreateCostPriceGuest"
+          class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+        >
+          <input v-model="guestCostPriceOnly" type="checkbox" class="mt-1 accent-primary" />
+          <span>
+            <span class="font-medium">Nur Einkaufspreis (umsatzneutral)</span>
+            <span class="block text-xs text-slate-500">
+              Der Gast zahlt nur den Wareneinsatz. Die Buchungen zählen nicht zum Umsatz.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section class="space-y-3 border-t border-slate-200 pt-4">
